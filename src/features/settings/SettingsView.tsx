@@ -1,16 +1,42 @@
 import React, { useState } from 'react'
 import { useStore } from '../../ui/storeContext'
 import { useTheme } from '../../ui/themeContext'
-import type { ThemeMode } from '../../ui/theme'
+import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
+import { OnboardingModal } from '../onboarding/OnboardingModal'
 
 export const SettingsView: React.FC = () => {
-  const { store, syncEngine, syncState, ledgerState, sharedLedgerId, setSharedLedgerId, connectSupabase, disconnectSupabase } = useStore()
-  const { mode, setMode } = useTheme()
+  const {
+    store,
+    syncEngine,
+    syncState,
+    ledgerState,
+    sharedLedgerId,
+    setSharedLedgerId,
+    connectSupabase,
+  } = useStore()
+
+  const { mode, setMode, palette, setPalette, availablePalettes } = useTheme()
   const me = store.me
 
-  // Profile
+  // Profile & Username
   const [profileName, setProfileName] = useState(me?.name || '')
+  const [profileHandle, setProfileHandle] = useState(me?.handle || '')
   const [savedProfileMsg, setSavedProfileMsg] = useState(false)
+
+  // Security / App Passcode
+  const [hasPasscode, setHasPasscode] = useState(() => {
+    if (typeof localStorage !== 'undefined') {
+      return !!localStorage.getItem('splitpay_app_passcode')
+    }
+    return false
+  })
+  const [passcodeVal, setPasscodeVal] = useState('')
+  const [confirmPasscodeVal, setConfirmPasscodeVal] = useState('')
+  const [passcodeMsg, setPasscodeMsg] = useState<string | null>(null)
+  const [showPasscodeForm, setShowPasscodeForm] = useState(false)
+
+  // Onboarding Replay
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   // Shared Ledger ID
   const [ledgerInput, setLedgerInput] = useState(sharedLedgerId || 'default_ledger')
@@ -39,9 +65,47 @@ export const SettingsView: React.FC = () => {
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!profileName.trim()) return
-    await store.createLocalProfile(profileName.trim())
+    await store.updateLocalProfile({
+      name: profileName.trim(),
+      handle: profileHandle.trim() ? profileHandle.trim().replace(/^@/, '') : undefined,
+    })
     setSavedProfileMsg(true)
     setTimeout(() => setSavedProfileMsg(false), 2500)
+  }
+
+  const handleSetPasscode = (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasscodeMsg(null)
+
+    if (passcodeVal.length < 4) {
+      setPasscodeMsg('Passcode must be at least 4 characters/digits.')
+      return
+    }
+    if (passcodeVal !== confirmPasscodeVal) {
+      setPasscodeMsg('Passcodes do not match.')
+      return
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('splitpay_app_passcode', passcodeVal)
+      setHasPasscode(true)
+      setPasscodeVal('')
+      setConfirmPasscodeVal('')
+      setShowPasscodeForm(false)
+      setPasscodeMsg('✓ App Passcode successfully set!')
+      setTimeout(() => setPasscodeMsg(null), 3000)
+    }
+  }
+
+  const handleRemovePasscode = () => {
+    if (confirm('Are you sure you want to remove the App Passcode lock?')) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('splitpay_app_passcode')
+        setHasPasscode(false)
+        setPasscodeMsg('✓ App Passcode removed.')
+        setTimeout(() => setPasscodeMsg(null), 3000)
+      }
+    }
   }
 
   const handleSaveLedgerId = async (e: React.FormEvent) => {
@@ -113,7 +177,7 @@ export const SettingsView: React.FC = () => {
     reader.readAsText(file)
   }
 
-  const themes: { id: ThemeMode; label: string; icon: string; previewClass: string }[] = [
+  const themeModes: { id: ThemeMode; label: string; icon: string; previewClass: string }[] = [
     { id: 'system', label: 'System', icon: '🌓', previewClass: 'bg-slate-500' },
     { id: 'light', label: 'Light', icon: '☀️', previewClass: 'bg-white border-slate-300' },
     { id: 'dark', label: 'Dark', icon: '🌙', previewClass: 'bg-slate-900 border-slate-700' },
@@ -122,96 +186,275 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-12">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight">
-          Settings & Identity
-        </h2>
-        <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-1">
-          Customize your profile, visual theme, multi-device shared ledger, and local offline backups.
-        </p>
+      {/* Header & Tour trigger */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight">
+            Settings & Identity
+          </h2>
+          <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-0.5">
+            Personal profile, color palettes, password security, and shared ledger sync.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowOnboarding(true)}
+          className="px-4 py-2 bg-primary-subtle border border-primary-border text-primary font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all self-start sm:self-auto shadow-sm"
+        >
+          ✨ Replay Setup Wizard
+        </button>
       </div>
 
-      {/* Profile Section */}
+      {/* Profile & Username Section */}
       <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-extrabold flex items-center justify-center text-lg">
+          <div className="w-12 h-12 rounded-2xl bg-primary text-white font-extrabold flex items-center justify-center text-lg shadow-sm">
             {profileName.trim().charAt(0).toUpperCase() || 'Y'}
           </div>
           <div>
             <h3 className="font-bold text-sm text-[var(--color-text)]">
-              Your Profile
+              Your Profile & Username
             </h3>
             <p className="text-xs text-[var(--color-text-muted)]">
-              Used when attributing expenses, shares, and settlements
+              Identifies you when creating expenses, splitting debts, and settling balances
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSaveProfile} className="space-y-3 pt-2">
-          <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
-              Display Name
-            </label>
-            <div className="flex gap-2">
+        <form onSubmit={handleSaveProfile} className="space-y-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
+                Display Name
+              </label>
               <input
                 type="text"
                 required
                 value={profileName}
                 onChange={(e) => setProfileName(e.target.value)}
                 placeholder="Your name"
-                className="flex-1 px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-sm text-[var(--color-text)] focus:outline-none"
               />
-              <button
-                type="submit"
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
-              >
-                Save Name
-              </button>
             </div>
-            {savedProfileMsg && (
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-2 block animate-fade-in">
-                ✓ Display name saved!
-              </span>
-            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
+                Username / Handle
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-2.5 text-[var(--color-text-muted)] font-mono text-sm">
+                  @
+                </span>
+                <input
+                  type="text"
+                  value={profileHandle}
+                  onChange={(e) => setProfileHandle(e.target.value)}
+                  placeholder="username"
+                  className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {savedProfileMsg && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold animate-fade-in">
+                  ✓ Profile updated successfully!
+                </span>
+              )}
+            </span>
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
+            >
+              Save Profile
+            </button>
+          </div>
+
           <div className="p-3 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl flex items-center justify-between text-[11px] text-[var(--color-text-muted)]">
             <span>Device ID: <code className="font-mono text-[var(--color-text)]">{ledgerState.deviceId.slice(0, 10)}...</code></span>
-            <span>Local User: <code className="font-mono text-[var(--color-text)]">{ledgerState.localPersonId?.slice(0, 10)}...</code></span>
+            <span>Local User ID: <code className="font-mono text-[var(--color-text)]">{ledgerState.localPersonId?.slice(0, 10)}...</code></span>
           </div>
         </form>
       </div>
 
-      {/* Theme Settings */}
-      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
+      {/* Aesthetic Appearance & Color Palette Picker */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-5">
         <div>
           <h3 className="font-bold text-sm text-[var(--color-text)]">
-            Appearance & Visual Theme
+            Appearance & Aesthetic Color Palette
           </h3>
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            Choose your preferred color theme or match your device system settings
+            Personalize your look. Every color palette dynamically pairs with Light, Dark, and OLED modes.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-          {themes.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setMode(t.id)}
-              className={`p-3.5 rounded-2xl border flex flex-col items-center justify-center gap-2 transition-all ${
-                mode === t.id
-                  ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400 font-bold shadow-sm'
-                  : 'bg-[var(--color-surface-subtle)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-medium'
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm border ${t.previewClass}`}>
-                {t.icon}
-              </div>
-              <span className="text-xs capitalize">{t.label}</span>
-            </button>
-          ))}
+        {/* Theme Mode Grid */}
+        <div>
+          <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-2">
+            Display Mode
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {themeModes.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setMode(t.id)}
+                className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                  mode === t.id
+                    ? 'border-primary ring-2 ring-primary/20 bg-primary-subtle text-primary font-bold shadow-sm'
+                    : 'bg-[var(--color-surface-subtle)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-medium'
+                }`}
+              >
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-sm border ${t.previewClass}`}>
+                  {t.icon}
+                </div>
+                <span className="text-xs capitalize">{t.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Color Palette Grid */}
+        <div>
+          <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-2">
+            Curated Color Palette
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            {availablePalettes.map((p) => {
+              const isSelected = palette === p.id
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPalette(p.id as ColorPaletteId)}
+                  className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                    isSelected
+                      ? 'border-primary ring-2 ring-primary/25 bg-primary-subtle shadow-sm'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface-subtle)] hover:border-[var(--color-text-muted)]'
+                  }`}
+                >
+                  <div
+                    className="w-7 h-7 rounded-xl shrink-0 shadow-sm border border-white/20 flex items-center justify-center"
+                    style={{ backgroundColor: p.swatchHex }}
+                  >
+                    {isSelected && <span className="text-white text-xs font-bold">✓</span>}
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className={`text-xs truncate ${isSelected ? 'font-bold text-primary' : 'font-semibold text-[var(--color-text)]'}`}>
+                      {p.name}
+                    </p>
+                    <p className="text-[10px] text-[var(--color-text-muted)] capitalize">
+                      {p.id}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Password & Security Section */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-sm text-[var(--color-text)]">
+              App Passcode & Password Lock
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              Secure your local SplitPay ledger with a private device passcode or password.
+            </p>
+          </div>
+          <span
+            className={`px-3 py-1 text-xs font-bold rounded-xl border ${
+              hasPasscode
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                : 'bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)] border-[var(--color-border)]'
+            }`}
+          >
+            {hasPasscode ? '🔒 Protected' : '🔓 Unlocked'}
+          </span>
+        </div>
+
+        {passcodeMsg && (
+          <div className="p-3 bg-primary-subtle border border-primary-border text-primary rounded-xl text-xs font-semibold animate-fade-in">
+            {passcodeMsg}
+          </div>
+        )}
+
+        <div className="pt-1 flex flex-wrap gap-2">
+          {!hasPasscode ? (
+            <button
+              type="button"
+              onClick={() => setShowPasscodeForm(!showPasscodeForm)}
+              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all"
+            >
+              {showPasscodeForm ? 'Cancel' : 'Set App Passcode'}
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPasscodeForm(!showPasscodeForm)}
+                className="px-4 py-2 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl transition-all"
+              >
+                {showPasscodeForm ? 'Cancel' : 'Change Passcode'}
+              </button>
+              <button
+                type="button"
+                onClick={handleRemovePasscode}
+                className="px-4 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-xs font-bold rounded-xl transition-all"
+              >
+                Remove Lock
+              </button>
+            </div>
+          )}
+        </div>
+
+        {showPasscodeForm && (
+          <form onSubmit={handleSetPasscode} className="space-y-3 pt-2 border-t border-[var(--color-border)] animate-fade-in">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  New Passcode / Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Min 4 characters or digits"
+                  value={passcodeVal}
+                  onChange={(e) => setPasscodeVal(e.target.value)}
+                  className="w-full px-4 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  Confirm Passcode
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Re-enter passcode"
+                  value={confirmPasscodeVal}
+                  onChange={(e) => setConfirmPasscodeVal(e.target.value)}
+                  className="w-full px-4 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="px-5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all"
+              >
+                Confirm & Lock
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Shared Ledger (Multi-User Collaboration) */}
@@ -236,7 +479,7 @@ export const SettingsView: React.FC = () => {
                 required
                 value={ledgerInput}
                 onChange={(e) => setLedgerInput(e.target.value)}
-                className="flex-1 px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="flex-1 px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none"
               />
               <button
                 type="button"
@@ -248,7 +491,7 @@ export const SettingsView: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
+                className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
               >
                 Set Ledger
               </button>
@@ -261,7 +504,7 @@ export const SettingsView: React.FC = () => {
           </div>
         </form>
 
-        {/* Sync Status Cards */}
+        {/* Sync Status Card */}
         <div className="pt-2">
           <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-1">
@@ -320,7 +563,7 @@ export const SettingsView: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowCloudConfig(!showCloudConfig)}
-            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+            className="text-xs font-bold text-primary hover:underline"
           >
             {showCloudConfig ? 'Hide Config' : 'Configure →'}
           </button>
@@ -338,7 +581,7 @@ export const SettingsView: React.FC = () => {
                 placeholder="https://xyzcompany.supabase.co"
                 value={supabaseUrl}
                 onChange={(e) => setSupabaseUrl(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none"
               />
             </div>
 
@@ -352,92 +595,62 @@ export const SettingsView: React.FC = () => {
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 value={supabaseAnonKey}
                 onChange={(e) => setSupabaseAnonKey(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none"
               />
             </div>
 
             {supabaseStatusMsg && (
               <div
-                className={`p-3 rounded-xl text-xs font-medium ${
-                  supabaseStatusMsg.includes('success')
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                className={`p-3 rounded-xl text-xs font-semibold ${
+                  supabaseStatusMsg.startsWith('✓')
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
                 }`}
               >
                 {supabaseStatusMsg}
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex justify-end gap-2">
               <button
                 type="submit"
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                className="px-5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all"
               >
-                Connect to Supabase
+                Connect Cloud Sync
               </button>
-              {supabaseUrl && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    disconnectSupabase()
-                    setSupabaseUrl('')
-                    setSupabaseAnonKey('')
-                    setSupabaseStatusMsg('Disconnected from Supabase.')
-                  }}
-                  className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-rose-500 font-bold text-xs rounded-xl border border-[var(--color-border)] transition-colors"
-                >
-                  Disconnect
-                </button>
-              )}
             </div>
           </form>
         )}
       </div>
 
-      {/* Backup & Restore */}
+      {/* Local JSON Backup & Restore */}
       <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
         <div>
           <h3 className="font-bold text-sm text-[var(--color-text)]">
-            Offline Backup & Migration
+            Local Ledger Data Backup & Restore
           </h3>
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            Export a full JSON snapshot of your friends, groups, expenses, and outbox logs to move between browsers.
+            Export a full JSON backup of your offline IndexedDB ledger or restore from an existing file.
           </p>
         </div>
 
         {backupMsg && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs font-medium text-emerald-600 dark:text-emerald-400 animate-fade-in">
+          <div className="p-3 bg-primary-subtle border border-primary-border text-primary rounded-xl text-xs font-semibold animate-fade-in">
             {backupMsg}
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <div className="flex flex-wrap items-center gap-3 pt-1">
           <button
             type="button"
             onClick={handleExportBackup}
-            className="p-4 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] rounded-2xl flex items-center gap-3 transition-colors text-left"
+            className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all"
           >
-            <span className="text-2xl">💾</span>
-            <div>
-              <span className="block font-bold text-xs text-[var(--color-text)]">
-                Export JSON Backup
-              </span>
-              <span className="text-[11px] text-[var(--color-text-muted)]">
-                Save ledger data to local file
-              </span>
-            </div>
+            💾 Export JSON Backup
           </button>
 
-          <label className="p-4 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] rounded-2xl flex items-center gap-3 transition-colors cursor-pointer text-left">
-            <span className="text-2xl">📥</span>
-            <div>
-              <span className="block font-bold text-xs text-[var(--color-text)]">
-                Restore From Backup
-              </span>
-              <span className="text-[11px] text-[var(--color-text-muted)]">
-                Import JSON backup file
-              </span>
-            </div>
+          <label className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer">
+            📥 Import JSON Backup
             <input
               type="file"
               accept=".json"
@@ -447,6 +660,12 @@ export const SettingsView: React.FC = () => {
           </label>
         </div>
       </div>
+
+      {/* Replayable Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+      />
     </div>
   )
 }

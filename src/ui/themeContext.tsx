@@ -1,10 +1,13 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { ThemeMode, ThemeColors } from './theme'
-import { lightTheme, darkTheme, amoledTheme } from './theme'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { ThemeMode, ThemeColors, ColorPaletteId, PaletteDefinition } from './theme'
+import { lightTheme, darkTheme, amoledTheme, colorPalettes } from './theme'
 
 interface ThemeContextType {
   mode: ThemeMode
   setMode: (mode: ThemeMode) => void
+  palette: ColorPaletteId
+  setPalette: (palette: ColorPaletteId) => void
+  availablePalettes: PaletteDefinition[]
   colors: ThemeColors
   isDark: boolean
 }
@@ -20,6 +23,16 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
     }
     return 'system'
+  })
+
+  const [palette, setPaletteState] = useState<ColorPaletteId>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('splitpay_color_palette') as ColorPaletteId | null
+      if (saved && colorPalettes[saved]) {
+        return saved
+      }
+    }
+    return 'emerald' // Default to SplitPay iconic Emerald
   })
 
   const [systemDark, setSystemDark] = useState<boolean>(() => {
@@ -44,8 +57,26 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }
 
+  const setPalette = (newPalette: ColorPaletteId) => {
+    if (!colorPalettes[newPalette]) return
+    setPaletteState(newPalette)
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('splitpay_color_palette', newPalette)
+    }
+  }
+
   const isDark = mode === 'amoled' || mode === 'dark' || (mode === 'system' && systemDark)
-  const colors = mode === 'amoled' ? amoledTheme : isDark ? darkTheme : lightTheme
+  const baseColors = mode === 'amoled' ? amoledTheme : isDark ? darkTheme : lightTheme
+  const currentPaletteDef = colorPalettes[palette] || colorPalettes.emerald
+  const paletteTokens = isDark ? currentPaletteDef.dark : currentPaletteDef.light
+
+  const colors: ThemeColors = useMemo(() => ({
+    ...baseColors,
+    primary: paletteTokens.primary,
+    primaryHover: paletteTokens.primaryHover,
+    primaryText: paletteTokens.primaryText,
+    chipTrack: paletteTokens.chipTrack,
+  }), [baseColors, paletteTokens])
 
   useEffect(() => {
     const root = document.documentElement
@@ -61,6 +92,11 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     root.style.setProperty('--color-primary', colors.primary)
     root.style.setProperty('--color-primary-hover', colors.primaryHover)
     root.style.setProperty('--color-primary-text', colors.primaryText)
+    root.style.setProperty('--color-primary-subtle', paletteTokens.primarySubtle)
+    root.style.setProperty('--color-primary-border', paletteTokens.primaryBorder)
+    root.style.setProperty('--color-primary-glow', paletteTokens.ring)
+    root.style.setProperty('--primary-gradient-from', paletteTokens.gradientFrom)
+    root.style.setProperty('--primary-gradient-to', paletteTokens.gradientTo)
     root.style.setProperty('--color-positive', colors.positive)
     root.style.setProperty('--color-positive-bg', colors.positiveBg)
     root.style.setProperty('--color-negative', colors.negative)
@@ -73,10 +109,22 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } else {
       root.classList.remove('dark')
     }
-  }, [colors, isDark])
+  }, [colors, paletteTokens, isDark])
+
+  const availablePalettes = Object.values(colorPalettes)
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, colors, isDark }}>
+    <ThemeContext.Provider
+      value={{
+        mode,
+        setMode,
+        palette,
+        setPalette,
+        availablePalettes,
+        colors,
+        isDark,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   )

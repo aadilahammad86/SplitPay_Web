@@ -139,6 +139,49 @@ describe('Local Storage - IndexedDB Persistence & Transactional Outbox (INV-6, A
     await emptyStore.importBackup(jsonBackup)
     expect(emptyStore.getState().people.some((p) => p.name === 'Frank')).toBe(true)
   })
+
+  it('updates local profile name and handle with transactional outbox persistence', async () => {
+    const store = new LedgerStore(adapter)
+    await store.init()
+
+    const updated = await store.updateLocalProfile({ name: 'Swalih', handle: 'swalih86' })
+    expect(updated.name).toBe('Swalih')
+    expect(updated.handle).toBe('swalih86')
+    expect(store.me?.name).toBe('Swalih')
+    expect(store.me?.handle).toBe('swalih86')
+
+    // Verify outbox op exists
+    const pending = await adapter.getPendingOps()
+    const updateOp = pending.find((o) => o.kind === 'addPerson' && (o.payload as { name: string }).name === 'Swalih')
+    expect(updateOp).toBeDefined()
+  })
+
+  it('updates friend profile name and handle with transactional outbox persistence', async () => {
+    const store = new LedgerStore(adapter)
+    await store.init()
+
+    const friend = await store.addFriend('Bob', 'bobby')
+    const updated = await store.updatePerson(friend.id, { name: 'Robert', handle: 'robert_c' })
+
+    expect(updated.name).toBe('Robert')
+    expect(updated.handle).toBe('robert_c')
+    const found = store.getState().people.find((p) => p.id === friend.id)
+    expect(found?.name).toBe('Robert')
+    expect(found?.handle).toBe('robert_c')
+  })
+
+  it('loads sample demo ledger with friends, group, and multiple expenses', async () => {
+    const store = new LedgerStore(adapter)
+    await store.init()
+
+    await store.loadSampleDemoLedger(Currencies.INR)
+    const state = store.getState()
+
+    expect(state.people.length).toBeGreaterThanOrEqual(4) // You + Alex + Maya + Liam
+    expect(state.groups.length).toBe(1)
+    expect(state.groups[0]?.name).toBe('Weekend Getaway (Goa)')
+    expect(state.expenses.length).toBe(3)
+  })
 })
 
 describe('Local Storage - MemoryStorageAdapter', () => {

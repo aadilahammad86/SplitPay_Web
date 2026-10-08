@@ -16,7 +16,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenInstall,
 }) => {
   const { store, ledgerState, syncState, syncEngine, sharedLedgerId } = useStore()
-  const { mode, setMode } = useTheme()
+  const { mode, setMode, palette, setPalette, availablePalettes } = useTheme()
   const me = store.me
 
   const navItems = [
@@ -45,6 +45,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     else setMode('system')
   }
 
+  const cyclePalette = () => {
+    const ids = availablePalettes.map((p) => p.id)
+    const nextIdx = (ids.indexOf(palette) + 1) % ids.length
+    setPalette(ids[nextIdx]!)
+  }
+
   const themeLabel = {
     system: 'System Theme',
     light: 'Light Theme',
@@ -67,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="flex items-center gap-3 cursor-pointer group px-2"
           onClick={() => onNavigate('dashboard')}
         >
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-extrabold text-xl shadow-md group-hover:scale-105 transition-transform">
+          <div className="w-10 h-10 rounded-2xl hero-gradient flex items-center justify-center text-white font-extrabold text-xl shadow-md group-hover:scale-105 transition-transform">
             ₹
           </div>
           <div>
@@ -75,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <h1 className="font-extrabold text-lg tracking-tight text-[var(--color-text)]">
                 SplitPay
               </h1>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-subtle text-primary border border-primary-border">
                 PWA
               </span>
             </div>
@@ -88,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* User Card */}
         <div className="p-3 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex items-center justify-between">
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-xl bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-xs shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-primary text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-sm">
               {me?.name ? me.name.charAt(0).toUpperCase() : 'Y'}
             </div>
             <div className="overflow-hidden">
@@ -103,8 +109,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('settings')}
-            className="p-1 rounded-lg hover:bg-[var(--color-border)] text-[var(--color-text-muted)] text-xs"
-            title="Edit profile"
+            className="p-1.5 rounded-lg hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] text-xs transition-colors"
+            title="Edit profile & username"
           >
             ✏️
           </button>
@@ -114,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={onAddExpense}
-          className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-98"
+          className="w-full py-2.5 px-4 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-98"
         >
           <span className="text-base leading-none">+</span>
           <span>Add New Expense</span>
@@ -131,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onNavigate(item.id)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   isActive
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-primary text-white shadow-sm'
                     : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-subtle)]'
                 }`}
               >
@@ -197,21 +203,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </button>
 
-        {/* Theme and Install Quick Actions */}
-        <div className="flex items-center gap-2">
+        {/* Theme, Palette, and Install Quick Actions */}
+        <div className="grid grid-cols-3 gap-1.5">
           <button
             type="button"
             onClick={cycleTheme}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl border border-[var(--color-border)] transition-colors"
-            title={`Current: ${themeLabel} (Click to toggle)`}
+            className="flex items-center justify-center gap-1 py-1.5 px-2 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl border border-[var(--color-border)] transition-colors"
+            title={`Mode: ${themeLabel} (Click to toggle)`}
           >
             <span>{themeIcon}</span>
-            <span className="text-[11px] capitalize">{mode}</span>
+            <span className="text-[10px] capitalize">{mode}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={cyclePalette}
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl border border-[var(--color-border)] transition-colors"
+            title={`Palette: ${palette} (Click to cycle accent color)`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-primary shrink-0" />
+            <span className="text-[10px] capitalize truncate">{palette}</span>
+          </button>
+
           <button
             type="button"
             onClick={onOpenInstall}
-            className="flex items-center justify-center py-1.5 px-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-xl border border-indigo-200 dark:border-indigo-800 text-xs font-semibold transition-colors"
+            className="flex items-center justify-center py-1.5 px-2 bg-primary-subtle text-primary border border-primary-border hover:bg-primary hover:text-white rounded-xl text-xs font-semibold transition-colors"
             title="Install PWA on this device"
           >
             📲 Install

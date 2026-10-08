@@ -131,41 +131,61 @@ export class LedgerStore {
   }
 
   async createLocalProfile(name: string): Promise<Person> {
-    const trimmed = name.trim() || 'You'
-    const currentMe = this.me
-    if (currentMe) {
-      const updated: Person = { ...currentMe, name: trimmed }
-      const op = opAddPerson({
-        opId: generateUlid(),
-        deviceId: this.state.deviceId,
-        atMicros: Date.now() * 1000,
-        person: updated,
-      })
-      await this.adapter.addPerson(updated, op)
-      const people = await this.adapter.getPeople()
-      const pending = await this.adapter.getPendingOps()
-      this.setState({ people, pendingOpsCount: pending.length })
-      return updated
-    }
+    return this.updateLocalProfile({ name })
+  }
 
-    const newId = generateUlid()
-    const person: Person = { id: newId, name: trimmed }
+  async updateLocalProfile(updates: { name: string; handle?: string }): Promise<Person> {
+    const trimmedName = updates.name.trim() || 'You'
+    const trimmedHandle = updates.handle !== undefined ? (updates.handle.trim() || undefined) : this.me?.handle
+    const currentMe = this.me
+    const myId = currentMe?.id || this.state.localPersonId || generateUlid()
+
+    const updated: Person = {
+      id: myId,
+      name: trimmedName,
+      handle: trimmedHandle,
+    }
     const op = opAddPerson({
       opId: generateUlid(),
       deviceId: this.state.deviceId,
       atMicros: Date.now() * 1000,
-      person,
+      person: updated,
     })
-    await this.adapter.addPerson(person, op)
-    await this.adapter.setMeta('local_person_id', newId)
+    await this.adapter.addPerson(updated, op)
+    if (!this.state.localPersonId) {
+      await this.adapter.setMeta('local_person_id', myId)
+    }
     const people = await this.adapter.getPeople()
     const pending = await this.adapter.getPendingOps()
     this.setState({
       people,
-      localPersonId: newId,
+      localPersonId: myId,
       pendingOpsCount: pending.length,
     })
-    return person
+    return updated
+  }
+
+  async updatePerson(personId: string, updates: { name: string; handle?: string }): Promise<Person> {
+    const existing = this.state.people.find((p) => p.id === personId)
+    if (!existing) {
+      throw new Error(`Person with id ${personId} not found`)
+    }
+    const updated: Person = {
+      ...existing,
+      name: updates.name.trim() || existing.name,
+      handle: updates.handle !== undefined ? (updates.handle.trim() || undefined) : existing.handle,
+    }
+    const op = opAddPerson({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      person: updated,
+    })
+    await this.adapter.addPerson(updated, op)
+    const people = await this.adapter.getPeople()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ people, pendingOpsCount: pending.length })
+    return updated
   }
 
   async addFriend(name: string, handle?: string): Promise<Person> {
@@ -382,6 +402,61 @@ export class LedgerStore {
       settlements,
       localPersonId,
       pendingOpsCount: pending.length,
+    })
+  }
+
+  async loadSampleDemoLedger(currency: CurrencyCode = Currencies.INR): Promise<void> {
+    const me = this.me
+    const myId = me?.id || this.state.localPersonId
+    if (!myId) return
+
+    // Add 3 sample friends
+    const alex = await this.addFriend('Alex Rivera', 'alex_r')
+    const maya = await this.addFriend('Maya Chen', 'maya_c')
+    const liam = await this.addFriend('Liam Patel', 'liam_p')
+
+    // Create a sample trip group
+    const group = await this.createGroup({
+      name: 'Weekend Getaway (Goa)',
+      kind: 'trip',
+      memberIds: [alex.id, maya.id, liam.id],
+      currency,
+    })
+
+    // Add sample expense 1: Airbnb stay paid by You, split equally among all 4
+    await this.addExpense({
+      description: 'Beachfront Villa Reservation',
+      totalMinor: 1200000,
+      currency,
+      paidBy: myId,
+      groupId: group.id,
+      memberIds: [myId, alex.id, maya.id, liam.id],
+      mode: 'equal',
+      categoryEmoji: '🏠',
+    })
+
+    // Add sample expense 2: Seafood dinner paid by Alex
+    await this.addExpense({
+      description: 'Seafood Dinner & Beach Drinks',
+      totalMinor: 480000,
+      currency,
+      paidBy: alex.id,
+      groupId: group.id,
+      memberIds: [myId, alex.id, maya.id, liam.id],
+      mode: 'equal',
+      categoryEmoji: '🍔',
+    })
+
+    // Add sample expense 3: Direct 1:1 taxi with Maya
+    await this.addExpense({
+      description: 'Airport Cab Transfer',
+      totalMinor: 150000,
+      currency,
+      paidBy: myId,
+      groupId: null,
+      memberIds: [myId, maya.id],
+      mode: 'equal',
+      categoryEmoji: '🚕',
     })
   }
 

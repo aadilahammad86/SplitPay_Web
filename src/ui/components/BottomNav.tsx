@@ -27,12 +27,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onNavigate }) 
               onClick={() => onNavigate(tab.id)}
               className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all relative ${
                 isActive
-                  ? 'text-indigo-600 dark:text-indigo-400 font-bold scale-105'
+                  ? 'text-primary font-bold scale-105'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-medium'
               }`}
             >
               {isActive && (
-                <span className="absolute -top-1 w-6 h-1 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                <span className="absolute -top-1 w-6 h-1 rounded-full bg-primary" />
               )}
               <span className="text-lg leading-none mb-0.5">{tab.icon}</span>
               <span className="text-[10px] tracking-tight">{tab.label}</span>

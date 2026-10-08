@@ -109,7 +109,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => setShowAddExpense(true)}
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
           >
             <span>+</span>
             <span>Add Expense</span>
@@ -132,11 +132,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Top 3 Metric Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Card 1: Net Balance Hero Card */}
-        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden card-hover sm:col-span-2 lg:col-span-1">
+        <div className="hero-gradient rounded-3xl p-6 text-white shadow-xl relative overflow-hidden card-hover sm:col-span-2 lg:col-span-1">
           <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none" />
           <div className="relative z-10 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wider uppercase text-indigo-200">
+              <span className="text-xs font-semibold tracking-wider uppercase text-white/80">
                 Your Net Balance
               </span>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">
@@ -152,7 +152,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {(Math.abs(overall.netMinor) / 100).toFixed(2)}
                 </span>
               </div>
-              <p className="text-xs text-indigo-200 mt-1">
+              <p className="text-xs text-white/80 mt-1">
                 {overall.netMinor > 0
                   ? 'Total amount friends owe you overall'
                   : overall.netMinor < 0
@@ -161,15 +161,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-indigo-500/40 text-xs">
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/20 text-xs">
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5">
-                <span className="block text-[10px] text-indigo-200">You are owed</span>
+                <span className="block text-[10px] text-white/80">You are owed</span>
                 <span className="text-sm font-extrabold text-emerald-300">
                   +{BASE_CURRENCY.symbol}{(overall.totalOwedToYouMinor / 100).toFixed(2)}
                 </span>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5">
-                <span className="block text-[10px] text-indigo-200">You owe</span>
+                <span className="block text-[10px] text-white/80">You owe</span>
                 <span className="text-sm font-extrabold text-rose-300">
                   -{BASE_CURRENCY.symbol}{(overall.totalYouOweMinor / 100).toFixed(2)}
                 </span>
@@ -204,7 +204,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="w-full bg-[var(--color-surface-subtle)] h-2 rounded-full overflow-hidden">
               <div
-                className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                className="bg-primary h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${Math.min(
                     100,
@@ -267,7 +267,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('activity')}
-                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                className="text-xs font-bold text-primary hover:underline"
               >
                 View all →
               </button>
@@ -282,7 +282,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddExpense(true)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all inline-block"
+                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all inline-block"
                 >
                   + Add First Expense
                 </button>
@@ -349,7 +349,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('groups')}
-                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                className="text-xs font-bold text-primary hover:underline"
               >
                 Manage groups →
               </button>
@@ -364,7 +364,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('groups')}
-                  className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-bold text-xs rounded-lg hover:bg-indigo-100 transition-colors"
+                  className="px-3 py-1.5 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-lg hover:bg-primary hover:text-white transition-colors"
                 >
                   + Create Group
                 </button>
@@ -428,7 +428,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('friends')}
-                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                className="text-xs font-bold text-primary hover:underline"
               >
                 All friends →
               </button>
@@ -443,7 +443,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('friends')}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                  className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-sm transition-all"
                 >
                   + Add Friend
                 </button>
@@ -458,7 +458,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         onClick={() => onSelectFriend(friend.id)}
                         title={`View statement with ${friend.name}`}
                       >
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-sm">
+                        <div className="w-8 h-8 rounded-full hero-gradient text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-sm">
                           {personInitials(friend.name)}
                         </div>
                         <div className="overflow-hidden">
@@ -510,14 +510,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Smart Debt Simplification Info Card */}
-          <div className="p-5 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-3xl space-y-2.5">
+          <div className="p-5 bg-primary-subtle border border-primary-border rounded-3xl space-y-2.5">
             <div className="flex items-center gap-2">
               <span className="text-lg">⚡</span>
-              <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-950 dark:text-indigo-200">
+              <h4 className="font-bold text-xs uppercase tracking-wider text-primary">
                 Deterministic Settle Optimization
               </h4>
             </div>
-            <p className="text-xs text-indigo-900/80 dark:text-indigo-200/80 leading-relaxed">
+            <p className="text-xs text-[var(--color-text)] opacity-90 leading-relaxed">
               When multiple members spend in a group, SplitPay automatically condenses debts using a greedy min-cash-flow algorithm so you settle in the fewest possible payments.
             </p>
           </div>

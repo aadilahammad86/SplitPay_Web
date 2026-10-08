@@ -1,0 +1,392 @@
+import React, { useState } from 'react'
+import { Modal } from '../../ui/components/Modal'
+import { useStore } from '../../ui/storeContext'
+import { useTheme } from '../../ui/themeContext'
+import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
+import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
+
+interface OnboardingModalProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClose }) => {
+  const { store } = useStore()
+  const { mode, setMode, palette, setPalette, availablePalettes } = useTheme()
+
+  const [step, setStep] = useState<number>(0)
+  const [displayName, setDisplayName] = useState(store.me?.name === 'You' ? '' : store.me?.name || '')
+  const [username, setUsername] = useState(store.me?.handle || '')
+  const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(SupportedCurrencies[0])
+  const [loadingSample, setLoadingSample] = useState(false)
+
+  const handleFinish = async (loadSample: boolean = false) => {
+    try {
+      if (displayName.trim() || username.trim()) {
+        await store.updateLocalProfile({
+          name: displayName.trim() || 'You',
+          handle: username.trim() ? username.trim().replace(/^@/, '') : undefined,
+        })
+      }
+
+      if (loadSample) {
+        setLoadingSample(true)
+        await store.loadSampleDemoLedger(selectedCurrency)
+      }
+
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('splitpay_onboarding_completed', 'true')
+      }
+      onClose()
+    } catch (err) {
+      console.error('Failed to complete onboarding:', err)
+      onClose()
+    } finally {
+      setLoadingSample(false)
+    }
+  }
+
+  const handleSkip = () => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('splitpay_onboarding_completed', 'true')
+    }
+    onClose()
+  }
+
+  const stepsCount = 4
+
+  return (
+    <Modal isOpen={isOpen} onClose={handleSkip} title="" maxWidth="max-w-xl">
+      <div className="space-y-6 pt-1 text-sm animate-fade-in">
+        {/* Step Indicator & Header */}
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-primary text-white font-extrabold flex items-center justify-center text-sm shadow-sm">
+              SP
+            </span>
+            <div>
+              <h2 className="font-extrabold text-sm text-[var(--color-text)]">
+                Welcome to SplitPay
+              </h2>
+              <p className="text-[11px] text-[var(--color-text-muted)]">
+                Step {step + 1} of {stepsCount}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-semibold transition-colors"
+          >
+            Skip Tour ✕
+          </button>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full bg-[var(--color-surface-subtle)] h-1.5 rounded-full overflow-hidden">
+          <div
+            className="bg-primary h-full transition-all duration-300"
+            style={{ width: `${((step + 1) / stepsCount) * 100}%` }}
+          />
+        </div>
+
+        {/* STEP 0: Value-First Preview */}
+        {step === 0 && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="text-center space-y-1">
+              <h3 className="text-lg sm:text-xl font-extrabold text-[var(--color-text)] tracking-tight">
+                Splitting expenses without awkwardness or math errors
+              </h3>
+              <p className="text-xs text-[var(--color-text-muted)] max-w-md mx-auto">
+                SplitPay is designed from first principles with deterministic minor-unit math and local-first durability.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-1.5">
+                <span className="text-2xl">⚡</span>
+                <h4 className="font-bold text-xs text-[var(--color-text)]">Works Offline First</h4>
+                <p className="text-[11px] text-[var(--color-text-muted)]">
+                  Every split saves safely to device IndexedDB first. Never lose pending changes.
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-1.5">
+                <span className="text-2xl">🤝</span>
+                <h4 className="font-bold text-xs text-[var(--color-text)]">Smart Debt Settle</h4>
+                <p className="text-[11px] text-[var(--color-text-muted)]">
+                  Solves debts in minimal transfers with exact source breakdowns across groups.
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-1.5">
+                <span className="text-2xl">📱</span>
+                <h4 className="font-bold text-xs text-[var(--color-text)]">Multi-Device Sync</h4>
+                <p className="text-[11px] text-[var(--color-text-muted)]">
+                  Installable PWA for iPhone, Android, Mac, and PC with real-time shared ledgers.
+                </p>
+              </div>
+            </div>
+
+            {/* Interactive Preview Teaser Card */}
+            <div className="p-4 bg-primary-subtle border border-primary-border rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🏖️</span>
+                <div>
+                  <p className="font-bold text-xs text-[var(--color-text)]">Goa Beach Villa</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">₹12,000.00 split equally among 4</p>
+                </div>
+              </div>
+              <span className="font-extrabold text-xs text-primary px-3 py-1 bg-[var(--color-surface)] border border-primary-border rounded-xl">
+                ₹3,000.00 / person
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 1: Personal Profile Setup */}
+        {step === 1 && (
+          <div className="space-y-4 animate-fade-in">
+            <div>
+              <h3 className="text-lg font-extrabold text-[var(--color-text)] tracking-tight">
+                Set up your personal identity
+              </h3>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                Tell us how you would like to appear on bills and statements.
+              </p>
+            </div>
+
+            <div className="space-y-3.5 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  What should friends call you? (Display Name)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Swalih"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-sm text-[var(--color-text)] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  Unique Username / Handle
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 text-[var(--color-text-muted)] font-mono text-sm">
+                    @
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="swalih"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  Preferred Default Currency
+                </label>
+                <select
+                  value={selectedCurrency.code}
+                  onChange={(e) => {
+                    const c = SupportedCurrencies.find((curr) => curr.code === e.target.value)
+                    if (c) setSelectedCurrency(c)
+                  }}
+                  className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-bold text-sm text-[var(--color-text)] cursor-pointer"
+                >
+                  {SupportedCurrencies.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} ({c.symbol})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: Aesthetic Theme & Palette Picker */}
+        {step === 2 && (
+          <div className="space-y-4 animate-fade-in">
+            <div>
+              <h3 className="text-lg font-extrabold text-[var(--color-text)] tracking-tight">
+                Tailor your aesthetic theme
+              </h3>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                Every palette is designed to look gorgeous and accessible in both Light and Dark modes.
+              </p>
+            </div>
+
+            {/* Light / Dark Mode selector */}
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
+                Mode
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {(['system', 'light', 'dark', 'amoled'] as ThemeMode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className={`py-2 text-xs font-bold rounded-xl border capitalize transition-all ${
+                      mode === m
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-[var(--color-surface-subtle)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                    }`}
+                  >
+                    {m === 'system' ? '🌓 System' : m === 'light' ? '☀️ Light' : m === 'dark' ? '🌙 Dark' : '🖤 OLED'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Color Palette Picker */}
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
+                Color Palette Accent
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {availablePalettes.map((p) => {
+                  const isSelected = palette === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPalette(p.id as ColorPaletteId)}
+                      className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                        isSelected
+                          ? 'border-primary ring-2 ring-primary/20 bg-primary-subtle'
+                          : 'border-[var(--color-border)] bg-[var(--color-surface-subtle)] hover:border-[var(--color-text-muted)]'
+                      }`}
+                    >
+                      <div
+                        className="w-6 h-6 rounded-full shrink-0 shadow-sm border border-white/20"
+                        style={{ backgroundColor: p.swatchHex }}
+                      />
+                      <div className="overflow-hidden">
+                        <p className="font-bold text-xs text-[var(--color-text)] truncate">{p.name}</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)] capitalize">{p.id}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Live Interactive Preview Box */}
+            <div className="p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Live Preview
+              </span>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-primary">Active Palette Applied</span>
+                <span className="px-3 py-1 bg-primary text-white text-xs font-bold rounded-xl shadow-sm">
+                  Primary Button
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: Starter Option */}
+        {step === 3 && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-extrabold text-[var(--color-text)] tracking-tight">
+                Ready to dive in!
+              </h3>
+              <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto">
+                How would you like to start your SplitPay ledger?
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {/* Option A: Explore Demo */}
+              <button
+                type="button"
+                onClick={() => handleFinish(true)}
+                disabled={loadingSample}
+                className="p-5 bg-primary-subtle border-2 border-primary hover:border-primary-hover rounded-3xl text-left space-y-2 card-hover transition-all cursor-pointer group disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-primary text-white font-extrabold flex items-center justify-center text-xl shadow-sm">
+                  🏖️
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-[var(--color-text)] group-hover:text-primary transition-colors">
+                    Explore with Demo Ledger
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                    Loads sample friends (Alex, Maya, Liam) and a beach trip with real expenses to test features immediately.
+                  </p>
+                </div>
+                <span className="inline-block text-xs font-bold text-primary pt-1">
+                  {loadingSample ? 'Loading Demo...' : 'Load & Explore →'}
+                </span>
+              </button>
+
+              {/* Option B: Clean Slate */}
+              <button
+                type="button"
+                onClick={() => handleFinish(false)}
+                disabled={loadingSample}
+                className="p-5 bg-[var(--color-surface-subtle)] border-2 border-[var(--color-border)] hover:border-primary/50 rounded-3xl text-left space-y-2 card-hover transition-all cursor-pointer group disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] font-extrabold flex items-center justify-center text-xl shadow-sm">
+                  ✨
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-[var(--color-text)] group-hover:text-primary transition-colors">
+                    Start Clean Slate
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                    Start with a fresh, empty ledger. Add your own real friends, roommates, and expenses from scratch.
+                  </p>
+                </div>
+                <span className="inline-block text-xs font-bold text-[var(--color-text-muted)] group-hover:text-primary pt-1 transition-colors">
+                  Start Fresh →
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-between">
+          {step > 0 ? (
+            <button
+              type="button"
+              onClick={() => setStep(step - 1)}
+              className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] transition-colors"
+            >
+              ← Back
+            </button>
+          ) : (
+            <div />
+          )}
+
+          {step < stepsCount - 1 ? (
+            <button
+              type="button"
+              onClick={() => setStep(step + 1)}
+              className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95"
+            >
+              Next →
+            </button>
+          ) : (
+            <span className="text-[11px] text-[var(--color-text-muted)]">
+              Choose an option above to enter
+            </span>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
+}

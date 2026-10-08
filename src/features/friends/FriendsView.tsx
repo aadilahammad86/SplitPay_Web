@@ -5,6 +5,7 @@ import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { SourceChips } from '../../ui/components/SourceChips'
 import { Modal } from '../../ui/components/Modal'
 import { SettleUpModal } from '../settle/SettleUpModal'
+import { EditFriendModal } from './EditFriendModal'
 import { BASE_CURRENCY, personInitials, type Person } from '../../domain/entities'
 
 interface FriendsViewProps {
@@ -21,6 +22,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const [friendName, setFriendName] = useState('')
   const [friendHandle, setFriendHandle] = useState('')
   const [selectedFriend, setSelectedFriend] = useState<Person | null>(null)
+  const [editingFriend, setEditingFriend] = useState<Person | null>(null)
   const [showSettle, setShowSettle] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState(0)
@@ -233,12 +235,20 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
 
                 <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-between text-xs text-[var(--color-text-muted)]">
                   <span className="text-[11px]">Click to view history</span>
-                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => setEditingFriend(friend)}
+                      className="px-2.5 py-1 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors"
+                      title="Edit Friend"
+                    >
+                      ✏️ Edit
+                    </button>
                     {breakdown.netMinor !== 0 && (
                       <button
                         type="button"
                         onClick={() => handleOpenSettle(friend.id, breakdown.netMinor)}
-                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm"
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors"
                       >
                         Settle
                       </button>
@@ -246,7 +256,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     <button
                       type="button"
                       onClick={() => onNavigateToStatement(friend.id)}
-                      className="px-3 py-1 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)]"
+                      className="px-2.5 py-1 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors"
                     >
                       Statement
                     </button>
@@ -331,7 +341,18 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const toEdit = selectedFriend
+                    setSelectedFriend(null)
+                    setEditingFriend(toEdit)
+                  }}
+                  className="px-3.5 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all"
+                >
+                  ✏️ Edit Profile
+                </button>
                 {selectedFriendBreakdown.netMinor !== 0 && (
                   <button
                     type="button"
@@ -422,6 +443,13 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
           initialAmountMinor={settleAmountMinor}
         />
       )}
+
+      {/* Edit Friend Modal */}
+      <EditFriendModal
+        isOpen={!!editingFriend}
+        onClose={() => setEditingFriend(null)}
+        friend={editingFriend}
+      />
     </div>
   )
 }

@@ -47,7 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
           className="flex items-center gap-2.5 cursor-pointer"
           onClick={() => onNavigate('dashboard')}
         >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center text-white font-extrabold text-lg shadow-sm">
+          <div className="w-8 h-8 rounded-xl hero-gradient flex items-center justify-center text-white font-extrabold text-lg shadow-sm">
             ₹
           </div>
           <div>
@@ -120,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
             <button
               type="button"
               onClick={() => setShowInstall(true)}
-              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors"
+              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-xl bg-primary-subtle border border-primary-border text-primary hover:bg-primary hover:text-white transition-colors"
             >
               <span>📲</span>
               <span>Install</span>
