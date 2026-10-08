@@ -1,0 +1,477 @@
+import React, { useState } from 'react'
+import { useStore } from '../../ui/storeContext'
+import { simplifyDebts } from '../../domain/splitEngine'
+import { groupNets } from '../../domain/balance'
+import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
+import { Modal } from '../../ui/components/Modal'
+import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
+import { SettleUpModal } from '../settle/SettleUpModal'
+import {
+  type Group,
+  type GroupKind,
+  GroupKindInfo,
+} from '../../domain/entities'
+import { Currencies, type CurrencyCode, SupportedCurrencies } from '../../domain/money'
+
+interface GroupsViewProps {
+  onNavigateToGroupStatement: (groupId: string) => void
+}
+
+export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStatement }) => {
+  const { store, ledgerState } = useStore()
+  const me = store.me
+  const meId = me?.id || ''
+
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupKind, setNewGroupKind] = useState<GroupKind>('trip')
+  const [newGroupCurrency, setNewGroupCurrency] = useState<CurrencyCode>(Currencies.INR)
+  const [newGroupMembers, setNewGroupMembers] = useState<string[]>([])
+
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
+  const [showAddExpense, setShowAddExpense] = useState(false)
+  const [showSettle, setShowSettle] = useState(false)
+  const [settleFrom, setSettleFrom] = useState('')
+  const [settleTo, setSettleTo] = useState('')
+  const [settleAmount, setSettleAmount] = useState(0)
+
+  const [showAddMember, setShowAddMember] = useState(false)
+  const [memberToAdd, setMemberToAdd] = useState('')
+
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newGroupName.trim()) return
+
+    await store.createGroup({
+      name: newGroupName.trim(),
+      kind: newGroupKind,
+      memberIds: newGroupMembers,
+      currency: newGroupCurrency,
+    })
+
+    setNewGroupName('')
+    setNewGroupMembers([])
+    setShowCreateGroup(false)
+  }
+
+  const handleAddMemberToGroup = async () => {
+    if (!selectedGroup || !memberToAdd) return
+    await store.addGroupMember(selectedGroup.id, memberToAdd)
+    const updated = ledgerState.groups.find((g) => g.id === selectedGroup.id)
+    if (updated) setSelectedGroup(updated)
+    setShowAddMember(false)
+    setMemberToAdd('')
+  }
+
+  // Simplified Debts for selected group
+  const debtPlan = selectedGroup
+    ? simplifyDebts(
+        groupNets({
+          group: selectedGroup,
+          expenses: ledgerState.expenses,
+          settlements: ledgerState.settlements,
+        })
+      )
+    : []
+
+  const groupExpenses = selectedGroup
+    ? ledgerState.expenses.filter((e) => !e.isTombstone && e.groupId === selectedGroup.id)
+    : []
+
+  const peopleMap = new Map(ledgerState.people.map((p) => [p.id, p]))
+
+  return (
+    <div className="space-y-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-bold text-[var(--color-text)]">
+          Your Groups ({ledgerState.groups.length})
+        </h2>
+        <button
+          type="button"
+          onClick={() => {
+            setNewGroupMembers([meId])
+            setShowCreateGroup(true)
+          }}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all flex items-center gap-1.5"
+        >
+          <span>+</span>
+          <span>Create Group</span>
+        </button>
+      </div>
+
+      {/* Groups Grid */}
+      {ledgerState.groups.length === 0 ? (
+        <div className="p-8 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl">
+          <p className="text-sm text-[var(--color-text-muted)]">No groups created yet.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setNewGroupMembers([meId])
+              setShowCreateGroup(true)
+            }}
+            className="mt-3 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
+          >
+            + Create your first group
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {ledgerState.groups.map((group) => {
+            const kindInfo = GroupKindInfo[group.kind]
+            const totalGroupSpendMinor = ledgerState.expenses
+              .filter((e) => !e.isTombstone && e.groupId === group.id)
+              .reduce((acc, e) => acc + e.totalMinor, 0)
+
+            return (
+              <div
+                key={group.id}
+                onClick={() => setSelectedGroup(group)}
+                className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-indigo-500/50 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-2xl shadow-inner">
+                    {kindInfo.emoji}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-[var(--color-text)]">{group.name}</h3>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      {group.memberIds.length} members · {group.currency.code}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="block text-[10px] uppercase font-semibold text-[var(--color-text-muted)]">
+                    Total Spend
+                  </span>
+                  <MoneyDisplay
+                    minor={totalGroupSpendMinor}
+                    currency={group.currency}
+                    size="md"
+                    showSign={false}
+                    showColor={false}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      <Modal isOpen={showCreateGroup} onClose={() => setShowCreateGroup(false)} title="Create a Group">
+        <form onSubmit={handleCreateGroup} className="space-y-4 text-sm">
+          <div>
+            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+              Group Name
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Goa Trip 2026, Flat 402"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                Kind
+              </label>
+              <select
+                value={newGroupKind}
+                onChange={(e) => setNewGroupKind(e.target.value as GroupKind)}
+                className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
+              >
+                {(Object.keys(GroupKindInfo) as GroupKind[]).map((k) => (
+                  <option key={k} value={k}>
+                    {GroupKindInfo[k].emoji} {GroupKindInfo[k].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                Currency
+              </label>
+              <select
+                value={newGroupCurrency.code}
+                onChange={(e) => {
+                  const found = SupportedCurrencies.find((c) => c.code === e.target.value)
+                  if (found) setNewGroupCurrency(found)
+                }}
+                className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
+              >
+                {SupportedCurrencies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} ({c.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
+              Select Initial Members
+            </label>
+            <div className="space-y-1.5 max-h-40 overflow-y-auto p-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl">
+              {ledgerState.people.map((p) => {
+                const checked = newGroupMembers.includes(p.id)
+                return (
+                  <label key={p.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-[var(--color-surface)] cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        if (checked) setNewGroupMembers(newGroupMembers.filter((m) => m !== p.id))
+                        else setNewGroupMembers([...newGroupMembers, p.id])
+                      }}
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="font-semibold">{p.id === meId ? 'You' : p.name}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-[var(--color-border)] flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCreateGroup(false)}
+              className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md"
+            >
+              Create Group
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Group Detail Modal */}
+      {selectedGroup && (
+        <Modal
+          isOpen={Boolean(selectedGroup)}
+          onClose={() => setSelectedGroup(null)}
+          title={`${GroupKindInfo[selectedGroup.kind].emoji} ${selectedGroup.name}`}
+          maxWidth="max-w-2xl"
+        >
+          <div className="space-y-5 text-sm">
+            {/* Action Bar */}
+            <div className="flex flex-wrap gap-2 items-center justify-between pb-3 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  {selectedGroup.memberIds.length} members · {selectedGroup.currency.code}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAddMember(true)}
+                  className="px-2 py-0.5 text-xs rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] font-medium"
+                >
+                  + Add Member
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddExpense(true)}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
+                >
+                  + Expense
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = selectedGroup.id
+                    setSelectedGroup(null)
+                    onNavigateToGroupStatement(id)
+                  }}
+                  className="px-3 py-1.5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] font-semibold rounded-xl text-xs"
+                >
+                  Statement
+                </button>
+              </div>
+            </div>
+
+            {/* Simplified Debts Plan (Debt Simplification Algorithm - SE-V1) */}
+            <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-[var(--color-text)]">
+                    Simplified Repayment Plan
+                  </h4>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    Calculated via min-cash-flow (fewer payments)
+                  </p>
+                </div>
+              </div>
+
+              {debtPlan.length === 0 ? (
+                <div className="p-3 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                  ✓ All balances in this group are settled!
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {debtPlan.map((transfer, idx) => {
+                    const debtorName = transfer.from === meId ? 'You' : peopleMap.get(transfer.from)?.name || 'Unknown'
+                    const creditorName = transfer.to === meId ? 'You' : peopleMap.get(transfer.to)?.name || 'Unknown'
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl flex items-center justify-between gap-3 shadow-sm"
+                      >
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-bold text-[var(--color-text)]">{debtorName}</span>
+                          <span className="text-[var(--color-text-muted)]">pays</span>
+                          <span className="font-bold text-[var(--color-text)]">{creditorName}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <MoneyDisplay
+                            minor={transfer.amountMinor}
+                            currency={selectedGroup.currency}
+                            size="sm"
+                            showSign={false}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSettleFrom(transfer.from)
+                              setSettleTo(transfer.to)
+                              setSettleAmount(transfer.amountMinor)
+                              setShowSettle(true)
+                            }}
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                          >
+                            Settle
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Group Expenses List */}
+            <div>
+              <h4 className="font-bold text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
+                Group Expenses ({groupExpenses.length})
+              </h4>
+              {groupExpenses.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-muted)] italic">No expenses recorded in this group yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {groupExpenses.map((exp) => (
+                    <div
+                      key={exp.id}
+                      className="p-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xl">{exp.categoryEmoji}</span>
+                        <div>
+                          <p className="font-semibold text-xs text-[var(--color-text)]">{exp.description}</p>
+                          <span className="text-[10px] text-[var(--color-text-muted)]">
+                            Paid by {exp.paidBy === meId ? 'You' : peopleMap.get(exp.paidBy)?.name || 'Unknown'} ·{' '}
+                            {new Date(Math.floor(exp.createdAtMicros / 1000)).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <MoneyDisplay
+                        minor={exp.totalMinor}
+                        currency={exp.currency}
+                        size="sm"
+                        showSign={false}
+                        showColor={false}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Add Member Modal */}
+      {showAddMember && selectedGroup && (
+        <Modal isOpen={showAddMember} onClose={() => setShowAddMember(false)} title="Add Member to Group">
+          <div className="space-y-4 text-sm">
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                Select Person
+              </label>
+              <select
+                value={memberToAdd}
+                onChange={(e) => setMemberToAdd(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
+              >
+                <option value="">Select a friend...</option>
+                {ledgerState.people
+                  .filter((p) => !selectedGroup.memberIds.includes(p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="pt-2 border-t border-[var(--color-border)] flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddMember(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!memberToAdd}
+                onClick={handleAddMemberToGroup}
+                className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-md"
+              >
+                Add Member
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Sub-modals for Expense & Settle */}
+      {showAddExpense && selectedGroup && (
+        <ExpenseEditorModal
+          isOpen={showAddExpense}
+          onClose={() => setShowAddExpense(false)}
+          initialGroupId={selectedGroup.id}
+        />
+      )}
+
+      {showSettle && selectedGroup && (
+        <SettleUpModal
+          isOpen={showSettle}
+          onClose={() => setShowSettle(false)}
+          initialGroupId={selectedGroup.id}
+          initialAmountMinor={settleAmount}
+          initialFromId={settleFrom}
+          initialToId={settleTo}
+        />
+      )}
+    </div>
+  )
+}

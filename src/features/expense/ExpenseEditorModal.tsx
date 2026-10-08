@@ -1,0 +1,392 @@
+import React, { useState } from 'react'
+import { Modal } from '../../ui/components/Modal'
+import { useStore } from '../../ui/storeContext'
+import {
+  Currencies,
+  type CurrencyCode,
+  SupportedCurrencies,
+  Money,
+} from '../../domain/money'
+import {
+  type SplitMode,
+  SplitModeLabels,
+} from '../../domain/entities'
+
+interface ExpenseEditorModalProps {
+  isOpen: boolean
+  onClose: () => void
+  initialGroupId?: string | null
+  initialFriendId?: string | null
+}
+
+const CATEGORY_EMOJIS = ['🧾', '🍔', '☕', '🛒', '✈️', '🏨', '🚕', '🍿', '🏠', '🎁', '⚡', '🍻']
+
+export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
+  isOpen,
+  onClose,
+  initialGroupId = null,
+  initialFriendId = null,
+}) => {
+  const { store, ledgerState } = useStore()
+  const me = store.me
+  const meId = ledgerState.localPersonId || ''
+
+  const [description, setDescription] = useState('')
+  const [amountStr, setAmountStr] = useState('')
+  const [currency, setCurrency] = useState<CurrencyCode>(() => {
+    if (initialGroupId) {
+      const g = ledgerState.groups.find((grp) => grp.id === initialGroupId)
+      if (g) return g.currency
+    }
+    return Currencies.INR
+  })
+  const [paidBy, setPaidBy] = useState<string>(() => meId)
+  const [groupId, setGroupId] = useState<string | null>(initialGroupId)
+  const [mode, setMode] = useState<SplitMode>('equal')
+  const [categoryEmoji, setCategoryEmoji] = useState('🧾')
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(() => {
+    if (initialGroupId) {
+      const group = ledgerState.groups.find((g) => g.id === initialGroupId)
+      if (group) return [...group.memberIds]
+    } else if (initialFriendId) {
+      return [meId, initialFriendId]
+    }
+    return [meId, ...ledgerState.people.filter((p) => p.id !== meId).map((p) => p.id)]
+  })
+
+  // Split-specific state
+  const [exactAmounts, setExactAmounts] = useState<Record<string, string>>({})
+  const [percentages, setPercentages] = useState<Record<string, string>>({})
+  const [weights, setWeights] = useState<Record<string, string>>({})
+  const [adjustments, setAdjustments] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string | null>(null)
+
+  const totalMinor = Math.round((parseFloat(amountStr) || 0) * currency.scale)
+
+  const handleToggleMember = (id: string) => {
+    if (selectedMemberIds.includes(id)) {
+      if (selectedMemberIds.length > 1) {
+        setSelectedMemberIds(selectedMemberIds.filter((m) => m !== id))
+      }
+    } else {
+      setSelectedMemberIds([...selectedMemberIds, id])
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (!description.trim()) {
+      setError('Please provide a description.')
+      return
+    }
+    if (isNaN(totalMinor) || totalMinor <= 0) {
+      setError('Please enter a valid amount greater than zero.')
+      return
+    }
+    if (!paidBy || !selectedMemberIds.includes(paidBy)) {
+      setError('The payer must be one of the participants.')
+      return
+    }
+
+    try {
+      let exactList: number[] | undefined
+      let bpList: number[] | undefined
+      let weightsList: number[] | undefined
+      let adjList: number[] | undefined
+
+      if (mode === 'exact') {
+        exactList = selectedMemberIds.map((m) => Math.round((parseFloat(exactAmounts[m] || '0') || 0) * currency.scale))
+        const sum = exactList.reduce((a, b) => a + b, 0)
+        if (sum !== totalMinor) {
+          setError(`Exact amounts sum to ${new Money(sum, currency).plain()} but total is ${new Money(totalMinor, currency).plain()}`)
+          return
+        }
+      } else if (mode === 'percentage') {
+        // basis points (100% = 10000 bp)
+        bpList = selectedMemberIds.map((m) => Math.round((parseFloat(percentages[m] || '0') || 0) * 100))
+        const sum = bpList.reduce((a, b) => a + b, 0)
+        if (sum !== 10000) {
+          setError(`Percentages must total 100.00%, current sum is ${(sum / 100).toFixed(2)}%`)
+          return
+        }
+      } else if (mode === 'shares') {
+        weightsList = selectedMemberIds.map((m) => parseInt(weights[m] || '1', 10) || 1)
+      } else if (mode === 'adjustment') {
+        adjList = selectedMemberIds.map((m) => Math.round((parseFloat(adjustments[m] || '0') || 0) * currency.scale))
+      }
+
+      await store.addExpense({
+        description: description.trim(),
+        totalMinor,
+        currency,
+        paidBy,
+        groupId,
+        memberIds: selectedMemberIds,
+        mode,
+        categoryEmoji,
+        exactAmounts: exactList,
+        basisPoints: bpList,
+        weights: weightsList,
+        adjustments: adjList,
+      })
+
+      // Reset form & close
+      setDescription('')
+      setAmountStr('')
+      setError(null)
+      onClose()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const peopleMap = new Map(ledgerState.people.map((p) => [p.id, p]))
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Expense" maxWidth="max-w-xl">
+      <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+        {error && (
+          <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-semibold">
+            {error}
+          </div>
+        )}
+
+        {/* Emoji and Description */}
+        <div className="flex gap-2">
+          <div className="relative">
+            <select
+              value={categoryEmoji}
+              onChange={(e) => setCategoryEmoji(e.target.value)}
+              className="h-11 px-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl text-xl cursor-pointer"
+            >
+              {CATEGORY_EMOJIS.map((emoji) => (
+                <option key={emoji} value={emoji}>
+                  {emoji}
+                </option>
+              ))}
+            </select>
+          </div>
+          <input
+            type="text"
+            required
+            placeholder="What was this expense for?"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="flex-1 px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+
+        {/* Amount & Currency */}
+        <div className="flex gap-2">
+          <div className="w-28">
+            <select
+              value={currency.code}
+              onChange={(e) => {
+                const found = SupportedCurrencies.find((c) => c.code === e.target.value)
+                if (found) setCurrency(found)
+              }}
+              className="w-full px-3 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-bold cursor-pointer"
+            >
+              {SupportedCurrencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} ({c.symbol})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="relative flex-1">
+            <input
+              type="number"
+              step={currency.digits === 0 ? '1' : currency.digits === 3 ? '0.001' : '0.01'}
+              min="0"
+              required
+              placeholder="0.00"
+              value={amountStr}
+              onChange={(e) => setAmountStr(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl text-lg font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+
+        {/* Paid By and Group Attribution */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+              Paid by
+            </label>
+            <select
+              value={paidBy}
+              onChange={(e) => setPaidBy(e.target.value)}
+              className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
+            >
+              {selectedMemberIds.map((id) => (
+                <option key={id} value={id}>
+                  {id === me?.id ? 'You' : peopleMap.get(id)?.name ?? 'Unknown'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+              Group (Optional)
+            </label>
+            <select
+              value={groupId ?? ''}
+              onChange={(e) => {
+                const val = e.target.value || null
+                setGroupId(val)
+                if (val) {
+                  const grp = ledgerState.groups.find((g) => g.id === val)
+                  if (grp) {
+                    setCurrency(grp.currency)
+                    setSelectedMemberIds([...grp.memberIds])
+                  }
+                }
+              }}
+              className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
+            >
+              <option value="">No Group (Direct 1:1)</option>
+              {ledgerState.groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Split Mode Selector */}
+        <div>
+          <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
+            Split Mode
+          </label>
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 p-1 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl">
+            {(['equal', 'exact', 'percentage', 'shares', 'adjustment'] as SplitMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  mode === m
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                }`}
+              >
+                {SplitModeLabels[m]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Participants & Share breakdown inputs */}
+        <div>
+          <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-2">
+            Split Between ({selectedMemberIds.length} people)
+          </label>
+          <div className="space-y-2 max-h-48 overflow-y-auto p-2 bg-[var(--color-surface-subtle)]/50 border border-[var(--color-border)] rounded-xl">
+            {ledgerState.people.map((person) => {
+              const isSelected = selectedMemberIds.includes(person.id)
+              return (
+                <div
+                  key={person.id}
+                  className="flex items-center justify-between p-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]"
+                >
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleMember(person.id)}
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="font-semibold text-xs">
+                      {person.id === me?.id ? 'You' : person.name}
+                    </span>
+                  </label>
+
+                  {isSelected && (
+                    <div className="flex items-center gap-2">
+                      {mode === 'exact' && (
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="Amount"
+                          value={exactAmounts[person.id] || ''}
+                          onChange={(e) =>
+                            setExactAmounts({ ...exactAmounts, [person.id]: e.target.value })
+                          }
+                          className="w-24 px-2 py-1 text-xs border rounded bg-[var(--color-surface-subtle)] font-bold text-right"
+                        />
+                      )}
+                      {mode === 'percentage' && (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="%"
+                            value={percentages[person.id] || ''}
+                            onChange={(e) =>
+                              setPercentages({ ...percentages, [person.id]: e.target.value })
+                            }
+                            className="w-16 px-2 py-1 text-xs border rounded bg-[var(--color-surface-subtle)] font-bold text-right"
+                          />
+                          <span className="text-xs font-bold">%</span>
+                        </div>
+                      )}
+                      {mode === 'shares' && (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="1"
+                            value={weights[person.id] || '1'}
+                            onChange={(e) =>
+                              setWeights({ ...weights, [person.id]: e.target.value })
+                            }
+                            className="w-14 px-2 py-1 text-xs border rounded bg-[var(--color-surface-subtle)] font-bold text-right"
+                          />
+                          <span className="text-xs text-[var(--color-text-muted)]">share(s)</span>
+                        </div>
+                      )}
+                      {mode === 'adjustment' && (
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="+/- 0"
+                          value={adjustments[person.id] || '0'}
+                          onChange={(e) =>
+                            setAdjustments({ ...adjustments, [person.id]: e.target.value })
+                          }
+                          className="w-20 px-2 py-1 text-xs border rounded bg-[var(--color-surface-subtle)] font-bold text-right"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Submit Buttons */}
+        <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition-all"
+          >
+            Save Expense
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
