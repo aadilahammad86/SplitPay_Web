@@ -40,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
   const isError = syncState?.status === 'error'
 
   return (
-    <header className="sticky top-0 z-40 bg-[var(--color-surface)]/90 backdrop-blur-md border-b border-[var(--color-border)] px-4 py-3 safe-top">
+    <header className="md:hidden sticky top-0 z-40 bg-[var(--color-surface)]/90 backdrop-blur-md border-b border-[var(--color-border)] px-4 py-3 safe-top">
       <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
         {/* Logo and Brand */}
         <div

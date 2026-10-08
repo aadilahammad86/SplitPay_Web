@@ -81,19 +81,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
   const peopleMap = new Map(ledgerState.people.map((p) => [p.id, p]))
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-fade-in">
       {/* Header bar */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold text-[var(--color-text)]">
-          Your Groups ({ledgerState.groups.length})
-        </h2>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pb-1">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight">
+            Your Groups ({ledgerState.groups.length})
+          </h2>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+            Trips, flatmates, and events with automatic debt simplification
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => {
             setNewGroupMembers([meId])
             setShowCreateGroup(true)
           }}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all flex items-center gap-1.5"
+          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
         >
           <span>+</span>
           <span>Create Group</span>
@@ -102,21 +107,27 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
 
       {/* Groups Grid */}
       {ledgerState.groups.length === 0 ? (
-        <div className="p-8 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl">
-          <p className="text-sm text-[var(--color-text-muted)]">No groups created yet.</p>
+        <div className="p-10 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-3">
+          <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-3xl mx-auto shadow-sm">
+            🏝
+          </div>
+          <h3 className="font-bold text-base text-[var(--color-text)]">No groups created yet</h3>
+          <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto">
+            Create a group for an upcoming vacation, shared household, or dinner party to track pool expenses.
+          </p>
           <button
             type="button"
             onClick={() => {
               setNewGroupMembers([meId])
               setShowCreateGroup(true)
             }}
-            className="mt-3 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
+            className="mt-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-md hover:bg-indigo-700 transition-all inline-block"
           >
             + Create your first group
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {ledgerState.groups.map((group) => {
             const kindInfo = GroupKindInfo[group.kind]
             const totalGroupSpendMinor = ledgerState.expenses
@@ -127,23 +138,31 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               <div
                 key={group.id}
                 onClick={() => setSelectedGroup(group)}
-                className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-indigo-500/50 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+                className="p-5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-indigo-500/40 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-4 card-hover"
               >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-2xl shadow-inner">
-                    {kindInfo.emoji}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-2xl shadow-inner">
+                      {kindInfo.emoji}
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-surface-subtle)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
+                      {group.currency.code}
+                    </span>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-[var(--color-text)]">{group.name}</h3>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {group.memberIds.length} members · {group.currency.code}
+
+                  <div className="mt-3">
+                    <h3 className="font-bold text-sm text-[var(--color-text)] truncate">
+                      {group.name}
+                    </h3>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                      {group.memberIds.length} members · {kindInfo.label}
                     </p>
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="block text-[10px] uppercase font-semibold text-[var(--color-text-muted)]">
-                    Total Spend
+                <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-text-muted)]">
+                    Total Pool Spend
                   </span>
                   <MoneyDisplay
                     minor={totalGroupSpendMinor}

@@ -18,13 +18,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectFriend,
   onSelectGroup,
 }) => {
-  const { store, ledgerState } = useStore()
+  const { store, ledgerState, sharedLedgerId } = useStore()
   const me = store.me
+  const meId = me?.id || ''
 
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [showSettleUp, setShowSettleUp] = useState(false)
+  const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
+  const [settleAmountMinor, setSettleAmountMinor] = useState<number>(0)
 
-  const meId = me?.id || ''
   const friendIds = ledgerState.people.filter((p) => p.id !== meId).map((p) => p.id)
 
   const overall = calculateOverallBalance({
@@ -34,268 +36,510 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     settlements: ledgerState.settlements,
   })
 
-  // Recent 6 transactions (expenses + settlements)
+  // Calculate total spending this month
+  const totalSpentMinor = ledgerState.expenses
+    .filter((e) => !e.isTombstone && e.paidBy === meId)
+    .reduce((sum, e) => sum + e.totalMinor, 0)
+
+  // Recent transactions (expenses + settlements combined, reverse chronological)
   const recentTransactions = [
     ...ledgerState.expenses.filter((e) => !e.isTombstone).map((e) => ({
       id: e.id,
       title: e.description,
-      amountMinor: e.totalMinor,
+      totalMinor: e.totalMinor,
       currency: e.currency,
-      date: new Date(Math.floor(e.createdAtMicros / 1000)),
-      emoji: e.categoryEmoji,
+      paidBy: e.paidBy,
+      paidByName: ledgerState.people.find((p) => p.id === e.paidBy)?.name || 'Someone',
+      myShareMinor: e.shares.find((s) => s.owedBy === meId)?.amountMinor || 0,
+      createdAtMicros: e.createdAtMicros,
+      emoji: e.categoryEmoji || '🧾',
       isSettlement: false,
+      groupId: e.groupId,
     })),
     ...ledgerState.settlements.map((s) => ({
       id: s.id,
       title: s.note ? `Payment: ${s.note}` : 'Payment recorded',
-      amountMinor: s.amountMinor,
+      totalMinor: s.amountMinor,
       currency: s.currency,
-      date: new Date(Math.floor(s.createdAtMicros / 1000)),
+      paidBy: s.from,
+      paidByName: ledgerState.people.find((p) => p.id === s.from)?.name || 'Someone',
+      myShareMinor: 0,
+      createdAtMicros: s.createdAtMicros,
       emoji: '🤝',
       isSettlement: true,
+      groupId: s.groupId,
     })),
-  ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5)
+  ].sort((a, b) => b.createdAtMicros - a.createdAtMicros).slice(0, 6)
+
+  // Friends breakdown with non-zero balances
+  const friendsWithBalances = ledgerState.people
+    .filter((p) => p.id !== meId)
+    .map((friend) => {
+      const breakdown = breakdownFor({
+        me: meId,
+        friend: friend.id,
+        expenses: ledgerState.expenses,
+        settlements: ledgerState.settlements,
+      })
+      return { friend, breakdown }
+    })
+    .sort((a, b) => Math.abs(b.breakdown.netMinor) - Math.abs(a.breakdown.netMinor))
+
+  const handleQuickSettle = (friendId: string, netMinor: number) => {
+    setSettleFriendId(friendId)
+    setSettleAmountMinor(netMinor)
+    setShowSettleUp(true)
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Balance Summary Header */}
-      <section className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="relative z-10 space-y-4">
-          <div>
-            <span className="text-xs font-semibold tracking-wider uppercase text-indigo-200">
-              Total Net Balance
-            </span>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-                {overall.netMinor > 0 ? '+' : overall.netMinor < 0 ? '-' : ''}
-                {BASE_CURRENCY.symbol}
-                {(Math.abs(overall.netMinor) / 100).toFixed(2)}
-              </span>
-              <span className="text-xs font-medium text-indigo-200">
-                {overall.netMinor > 0 ? 'owed to you' : overall.netMinor < 0 ? 'you owe' : 'all settled'}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-indigo-500/40">
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3">
-              <span className="block text-[11px] font-medium text-indigo-200">You are owed</span>
-              <span className="text-lg font-bold text-emerald-300">
-                +{BASE_CURRENCY.symbol}{(overall.totalOwedToYouMinor / 100).toFixed(2)}
-              </span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3">
-              <span className="block text-[11px] font-medium text-indigo-200">You owe</span>
-              <span className="text-lg font-bold text-rose-300">
-                -{BASE_CURRENCY.symbol}{(overall.totalYouOweMinor / 100).toFixed(2)}
-              </span>
-            </div>
-          </div>
-
-          {/* Quick Action Buttons */}
-          <div className="flex gap-2.5 pt-1">
-            <button
-              type="button"
-              onClick={() => setShowAddExpense(true)}
-              className="flex-1 py-3 px-4 bg-white text-indigo-700 hover:bg-indigo-50 font-bold rounded-2xl shadow-md text-sm transition-all text-center flex items-center justify-center gap-1.5"
-            >
-              <span>+</span>
-              <span>Add Expense</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSettleUp(true)}
-              className="flex-1 py-3 px-4 bg-indigo-500/40 hover:bg-indigo-500/60 border border-white/20 text-white font-bold rounded-2xl text-sm transition-all text-center flex items-center justify-center gap-1.5"
-            >
-              <span>🤝</span>
-              <span>Settle Up</span>
-            </button>
-          </div>
+    <div className="space-y-6 animate-fade-in">
+      {/* Top Welcome Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight">
+            Welcome back, {me?.name || 'Friend'} 👋
+          </h2>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+            {sharedLedgerId ? `Shared Ledger: ${sharedLedgerId}` : 'Local-first offline ledger active'} · All calculations verified in integer minor units
+          </p>
         </div>
-      </section>
 
-      {/* Friends Balance Section */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-[var(--color-text)]">Friends & Balances</h2>
+        {/* Quick Action Buttons */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onNavigate('friends')}
-            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+            onClick={() => setShowAddExpense(true)}
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
           >
-            View all ({friendIds.length})
+            <span>+</span>
+            <span>Add Expense</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSettleFriendId(null)
+              setSettleAmountMinor(0)
+              setShowSettleUp(true)
+            }}
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
+          >
+            <span>🤝</span>
+            <span>Settle Up</span>
           </button>
         </div>
+      </div>
 
-        {friendIds.length === 0 ? (
-          <div className="p-6 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl">
-            <p className="text-sm text-[var(--color-text-muted)]">No friends added yet.</p>
-            <button
-              type="button"
-              onClick={() => onNavigate('friends')}
-              className="mt-3 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
-            >
-              + Add a Friend
-            </button>
+      {/* Top 3 Metric Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Card 1: Net Balance Hero Card */}
+        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden card-hover sm:col-span-2 lg:col-span-1">
+          <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="relative z-10 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold tracking-wider uppercase text-indigo-200">
+                Your Net Balance
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">
+                {overall.netMinor > 0 ? 'In Credit' : overall.netMinor < 0 ? 'In Debt' : 'Settled'}
+              </span>
+            </div>
+
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+                  {overall.netMinor > 0 ? '+' : overall.netMinor < 0 ? '-' : ''}
+                  {BASE_CURRENCY.symbol}
+                  {(Math.abs(overall.netMinor) / 100).toFixed(2)}
+                </span>
+              </div>
+              <p className="text-xs text-indigo-200 mt-1">
+                {overall.netMinor > 0
+                  ? 'Total amount friends owe you overall'
+                  : overall.netMinor < 0
+                  ? 'Total amount you owe to friends overall'
+                  : 'You are completely settled with everyone! 🎉'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-indigo-500/40 text-xs">
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5">
+                <span className="block text-[10px] text-indigo-200">You are owed</span>
+                <span className="text-sm font-extrabold text-emerald-300">
+                  +{BASE_CURRENCY.symbol}{(overall.totalOwedToYouMinor / 100).toFixed(2)}
+                </span>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5">
+                <span className="block text-[10px] text-indigo-200">You owe</span>
+                <span className="text-sm font-extrabold text-rose-300">
+                  -{BASE_CURRENCY.symbol}{(overall.totalYouOweMinor / 100).toFixed(2)}
+                </span>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {friendIds.slice(0, 4).map((fId) => {
-              const friend = ledgerState.people.find((p) => p.id === fId)
-              if (!friend) return null
+        </div>
 
-              const breakdown = breakdownFor({
-                me: meId,
-                friend: fId,
-                expenses: ledgerState.expenses,
-                settlements: ledgerState.settlements,
-              })
+        {/* Card 2: Total Spending & Out of Pocket */}
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 shadow-sm card-hover flex flex-col justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                You Paid Out
+              </span>
+              <span className="text-lg">💳</span>
+            </div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
+              {BASE_CURRENCY.symbol}{(totalSpentMinor / 100).toFixed(2)}
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Total expenses where you were the initial payer
+            </p>
+          </div>
 
-              return (
-                <div
-                  key={fId}
-                  onClick={() => onSelectFriend(fId)}
-                  className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-indigo-500/50 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+          <div className="pt-4 border-t border-[var(--color-border)] mt-4">
+            <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)] mb-1.5">
+              <span>Ledger Activity</span>
+              <span className="font-bold text-[var(--color-text)]">
+                {ledgerState.expenses.filter((e) => !e.isTombstone).length} expenses
+              </span>
+            </div>
+            <div className="w-full bg-[var(--color-surface-subtle)] h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.max(15, (ledgerState.expenses.filter((e) => !e.isTombstone).length / 20) * 100)
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Groups & Collaboration Status */}
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 shadow-sm card-hover flex flex-col justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Your Circle
+              </span>
+              <span className="text-lg">🏝</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
+                {ledgerState.groups.length}
+              </span>
+              <span className="text-xs text-[var(--color-text-muted)] font-medium">
+                groups · {ledgerState.people.filter((p) => p.id !== meId).length} friends
+              </span>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {ledgerState.groups.length === 0
+                ? 'Create a trip, home, or event group to split together'
+                : 'Active shared expense pools'}
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-[var(--color-border)] mt-4 flex items-center justify-between">
+            <span className="text-xs text-[var(--color-text-muted)]">Debt Simplification</span>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+              ✓ Active (min-cash-flow)
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Dual-Column Responsive Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: Recent Activity & Group Summaries (Col 7) */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Recent Activity Card */}
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)]">
+              <div>
+                <h3 className="font-bold text-base text-[var(--color-text)]">
+                  Recent Activity
+                </h3>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Latest expenses and settlements
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('activity')}
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                View all →
+              </button>
+            </div>
+
+            {recentTransactions.length === 0 ? (
+              <div className="py-10 text-center space-y-3">
+                <span className="text-4xl block">🧾</span>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  No activity recorded yet in this ledger.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowAddExpense(true)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all inline-block"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-sm">
-                        {personInitials(friend.name)}
+                  + Add First Expense
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--color-border)]">
+                {recentTransactions.map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="py-3.5 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-subtle)] -mx-2 px-2 rounded-xl transition-colors"
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-lg shrink-0">
+                        {tx.emoji}
                       </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-[var(--color-text)]">{friend.name}</h3>
-                        {friend.handle && (
-                          <span className="text-[11px] text-[var(--color-text-muted)]">
-                            @{friend.handle}
-                          </span>
+                      <div className="overflow-hidden">
+                        <p className="font-bold text-xs text-[var(--color-text)] truncate">
+                          {tx.title}
+                        </p>
+                        <p className="text-[11px] text-[var(--color-text-muted)] truncate">
+                          {tx.paidBy === meId ? 'You paid' : `${tx.paidByName} paid`} ·{' '}
+                          {new Date(Math.floor(tx.createdAtMicros / 1000)).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <MoneyDisplay
+                        minor={tx.totalMinor}
+                        currency={tx.currency}
+                        size="sm"
+                        showSign={false}
+                      />
+                      {tx.paidBy === meId ? (
+                        <span className="block text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          you lent
+                        </span>
+                      ) : (
+                        <span className="block text-[10px] font-semibold text-rose-500 dark:text-rose-400">
+                          you borrowed
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Active Groups Showcase */}
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)]">
+              <div>
+                <h3 className="font-bold text-base text-[var(--color-text)]">
+                  Your Groups ({ledgerState.groups.length})
+                </h3>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Trips, households, and shared pools
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('groups')}
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                Manage groups →
+              </button>
+            </div>
+
+            {ledgerState.groups.length === 0 ? (
+              <div className="py-8 text-center space-y-2">
+                <span className="text-3xl block">🏝</span>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  No groups created yet.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('groups')}
+                  className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-bold text-xs rounded-lg hover:bg-indigo-100 transition-colors"
+                >
+                  + Create Group
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                {ledgerState.groups.map((group) => {
+                  const kind = GroupKindInfo[group.kind]
+                  const groupExpensesCount = ledgerState.expenses.filter(
+                    (e) => !e.isTombstone && e.groupId === group.id
+                  ).length
+                  const totalGroupSpendMinor = ledgerState.expenses
+                    .filter((e) => !e.isTombstone && e.groupId === group.id)
+                    .reduce((acc, e) => acc + e.totalMinor, 0)
+
+                  return (
+                    <div
+                      key={group.id}
+                      onClick={() => onSelectGroup(group.id)}
+                      className="p-4 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] rounded-2xl cursor-pointer transition-all card-hover"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-2xl">{kind.emoji}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
+                          {group.currency.code}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-sm text-[var(--color-text)] mt-2 truncate">
+                        {group.name}
+                      </h4>
+                      <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                        {group.memberIds.length} members · {groupExpensesCount} expenses
+                      </p>
+                      <div className="mt-3 pt-2 border-t border-[var(--color-border)] flex items-center justify-between text-xs">
+                        <span className="text-[11px] text-[var(--color-text-muted)]">Total Pool</span>
+                        <span className="font-extrabold text-[var(--color-text)]">
+                          {group.currency.symbol}{(totalGroupSpendMinor / group.currency.scale).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Friends Balances & Smart Settle (Col 5) */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Friends Balances Card */}
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)]">
+              <div>
+                <h3 className="font-bold text-base text-[var(--color-text)]">
+                  Friends ({ledgerState.people.filter((p) => p.id !== meId).length})
+                </h3>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Who owes who with source chips
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('friends')}
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                All friends →
+              </button>
+            </div>
+
+            {friendsWithBalances.length === 0 ? (
+              <div className="py-8 text-center space-y-2">
+                <span className="text-3xl block">👥</span>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  No friends added yet.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('friends')}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                >
+                  + Add Friend
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--color-border)]">
+                {friendsWithBalances.map(({ friend, breakdown }) => (
+                  <div key={friend.id} className="py-3.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div
+                        className="flex items-center gap-2.5 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
+                        onClick={() => onSelectFriend(friend.id)}
+                        title={`View statement with ${friend.name}`}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-sm">
+                          {personInitials(friend.name)}
+                        </div>
+                        <div className="overflow-hidden">
+                          <p className="font-bold text-xs text-[var(--color-text)] truncate">
+                            {friend.name}
+                          </p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">
+                            {breakdown.netMinor === 0
+                              ? 'Square / Settled'
+                              : breakdown.theyOweYou
+                              ? 'Owes you'
+                              : 'You owe'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <MoneyDisplay
+                          minor={breakdown.netMinor}
+                          currency={BASE_CURRENCY}
+                          size="sm"
+                          showSign={true}
+                        />
+                        {breakdown.netMinor !== 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickSettle(friend.id, breakdown.netMinor)}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg shadow-sm transition-all active:scale-95"
+                          >
+                            Settle
+                          </button>
                         )}
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <MoneyDisplay
-                        minor={breakdown.netMinor}
-                        currency={BASE_CURRENCY}
-                        size="md"
-                        showSign={true}
-                      />
-                      <span className="block text-[10px] text-[var(--color-text-muted)]">
-                        {breakdown.netMinor > 0 ? 'owes you' : breakdown.netMinor < 0 ? 'you owe' : 'settled'}
-                      </span>
-                    </div>
+                    {/* Source Chips Decomposition (SE-12) */}
+                    {breakdown.slices.length > 0 && (
+                      <div className="pl-10">
+                        <SourceChips
+                          slices={breakdown.slices}
+                          groups={ledgerState.groups}
+                        />
+                      </div>
+                    )}
                   </div>
-
-                  {/* Cross-context source chips breakdown */}
-                  <SourceChips
-                    slices={breakdown.slices}
-                    groups={ledgerState.groups}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* Groups Section */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-[var(--color-text)]">Groups</h2>
-          <button
-            type="button"
-            onClick={() => onNavigate('groups')}
-            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            View all ({ledgerState.groups.length})
-          </button>
-        </div>
-
-        {ledgerState.groups.length === 0 ? (
-          <div className="p-6 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl">
-            <p className="text-sm text-[var(--color-text-muted)]">No active groups yet.</p>
-            <button
-              type="button"
-              onClick={() => onNavigate('groups')}
-              className="mt-3 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
-            >
-              + Create a Group
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {ledgerState.groups.slice(0, 4).map((group) => {
-              const info = GroupKindInfo[group.kind]
-              return (
-                <div
-                  key={group.id}
-                  onClick={() => onSelectGroup(group.id)}
-                  className="p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-indigo-500/50 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer"
-                >
-                  <span className="text-2xl mb-1.5 block">{info.emoji}</span>
-                  <h3 className="font-bold text-sm text-[var(--color-text)] truncate">{group.name}</h3>
-                  <span className="text-[11px] text-[var(--color-text-muted)]">
-                    {group.memberIds.length} members · {group.currency.code}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* Recent Activity Section */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-[var(--color-text)]">Recent Activity</h2>
-          <button
-            type="button"
-            onClick={() => onNavigate('activity')}
-            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            View full history
-          </button>
-        </div>
-
-        {recentTransactions.length === 0 ? (
-          <div className="p-6 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl">
-            <p className="text-sm text-[var(--color-text-muted)]">No expenses or payments recorded yet.</p>
-          </div>
-        ) : (
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl divide-y divide-[var(--color-border)] overflow-hidden shadow-sm">
-            {recentTransactions.map((tx) => (
-              <div key={tx.id} className="p-3.5 flex items-center justify-between hover:bg-[var(--color-surface-subtle)] transition-colors">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{tx.emoji}</span>
-                  <div>
-                    <h4 className="font-semibold text-sm text-[var(--color-text)]">{tx.title}</h4>
-                    <span className="text-[11px] text-[var(--color-text-muted)]">
-                      {tx.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </span>
-                  </div>
-                </div>
-                <MoneyDisplay
-                  minor={tx.amountMinor}
-                  currency={tx.currency}
-                  showSign={false}
-                  showColor={false}
-                  size="sm"
-                />
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </section>
 
-      {/* Modals */}
-      <ExpenseEditorModal
-        isOpen={showAddExpense}
-        onClose={() => setShowAddExpense(false)}
-      />
-      <SettleUpModal
-        isOpen={showSettleUp}
-        onClose={() => setShowSettleUp(false)}
-      />
+          {/* Smart Debt Simplification Info Card */}
+          <div className="p-5 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/20 border border-indigo-200 dark:border-indigo-800/60 rounded-3xl space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚡</span>
+              <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-950 dark:text-indigo-200">
+                Deterministic Settle Optimization
+              </h4>
+            </div>
+            <p className="text-xs text-indigo-900/80 dark:text-indigo-200/80 leading-relaxed">
+              When multiple members spend in a group, SplitPay automatically condenses debts using a greedy min-cash-flow algorithm so you settle in the fewest possible payments.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sub-modals for Expense & Settle */}
+      {showAddExpense && (
+        <ExpenseEditorModal
+          isOpen={showAddExpense}
+          onClose={() => setShowAddExpense(false)}
+        />
+      )}
+
+      {showSettleUp && (
+        <SettleUpModal
+          isOpen={showSettleUp}
+          onClose={() => setShowSettleUp(false)}
+          initialFriendId={settleFriendId}
+          initialAmountMinor={settleAmountMinor}
+        />
+      )}
     </div>
   )
 }

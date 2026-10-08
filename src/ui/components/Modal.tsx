@@ -28,27 +28,30 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
+      {/* Backdrop with blur */}
       <div
-        className="fixed inset-0"
+        className="fixed inset-0 bg-black/60 backdrop-blur-md transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
+
+      {/* Modal Dialog Box */}
       <div
-        className={`relative w-full ${maxWidth} bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10`}
+        className={`relative w-full ${maxWidth} bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10 animate-slide-up`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
-          <h2 id="modal-title" className="text-lg font-bold text-[var(--color-text)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+          <h2 id="modal-title" className="text-base sm:text-lg font-bold text-[var(--color-text)]">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-subtle)] transition-colors"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-subtle)] transition-colors text-sm"
             aria-label="Close dialog"
           >
             ✕

@@ -94,13 +94,15 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
   }
 
   return (
-    <div className="space-y-5 text-sm">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in text-sm">
       {/* Title & Download CSV action */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pb-1">
         <div>
-          <h2 className="text-base font-bold text-[var(--color-text)]">Ledger Statements & Export</h2>
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Generate and export CSV statements for any friend or group.
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight">
+            Statements & Export
+          </h2>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+            Generate and export RFC 4180 CSV statements for any friend or group.
           </p>
         </div>
 
