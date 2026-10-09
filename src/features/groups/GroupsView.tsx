@@ -4,6 +4,7 @@ import { simplifyDebts } from '../../domain/splitEngine'
 import { groupNets } from '../../domain/balance'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { Modal } from '../../ui/components/Modal'
+import { Select } from '../../ui/components/Select'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import {
@@ -202,37 +203,33 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
                 Kind
               </label>
-              <select
+              <Select
                 value={newGroupKind}
-                onChange={(e) => setNewGroupKind(e.target.value as GroupKind)}
-                className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
-              >
-                {(Object.keys(GroupKindInfo) as GroupKind[]).map((k) => (
-                  <option key={k} value={k}>
-                    {GroupKindInfo[k].emoji} {GroupKindInfo[k].label}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setNewGroupKind(val as GroupKind)}
+                options={(Object.keys(GroupKindInfo) as GroupKind[]).map((k) => ({
+                  value: k,
+                  label: `${GroupKindInfo[k].emoji} ${GroupKindInfo[k].label}`,
+                }))}
+                ariaLabel="Group Kind"
+              />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
                 Currency
               </label>
-              <select
+              <Select
                 value={newGroupCurrency.code}
-                onChange={(e) => {
-                  const found = SupportedCurrencies.find((c) => c.code === e.target.value)
+                onChange={(val) => {
+                  const found = SupportedCurrencies.find((c) => c.code === val)
                   if (found) setNewGroupCurrency(found)
                 }}
-                className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
-              >
-                {SupportedCurrencies.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} ({c.symbol})
-                  </option>
-                ))}
-              </select>
+                options={SupportedCurrencies.map((c) => ({
+                  value: c.code,
+                  label: `${c.code} (${c.symbol})`,
+                }))}
+                ariaLabel="Group Currency"
+              />
             </div>
           </div>
 
@@ -452,20 +449,21 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
                 Select Person
               </label>
-              <select
+              <Select
                 value={memberToAdd}
-                onChange={(e) => setMemberToAdd(e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
-              >
-                <option value="">Select a friend...</option>
-                {ledgerState.people
-                  .filter((p) => !selectedGroup.memberIds.includes(p.id))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
+                onChange={(val) => setMemberToAdd(val)}
+                placeholder="Select a friend..."
+                options={[
+                  { value: '', label: 'Select a friend...' },
+                  ...ledgerState.people
+                    .filter((p) => !selectedGroup.memberIds.includes(p.id))
+                    .map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                    })),
+                ]}
+                ariaLabel="Select Person"
+              />
             </div>
             <div className="pt-2 border-t border-[var(--color-border)] flex justify-end gap-2">
               <button

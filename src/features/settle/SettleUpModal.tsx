@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Modal } from '../../ui/components/Modal'
+import { Select } from '../../ui/components/Select'
 import { useStore } from '../../ui/storeContext'
 import type { CurrencyCode } from '../../domain/money'
 import { SupportedCurrencies } from '../../domain/money'
@@ -117,58 +118,53 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
             <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
               Who paid?
             </label>
-            <select
+            <Select
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-bold cursor-pointer"
-            >
-              {ledgerState.people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.id === me?.id ? 'You' : p.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setFrom(val)}
+              options={ledgerState.people.map((p) => ({
+                value: p.id,
+                label: p.id === me?.id ? 'You' : p.name,
+              }))}
+              ariaLabel="Who paid?"
+            />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
               Who received?
             </label>
-            <select
+            <Select
               value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-bold cursor-pointer"
-            >
-              {ledgerState.people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.id === me?.id ? 'You' : p.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setTo(val)}
+              options={ledgerState.people.map((p) => ({
+                value: p.id,
+                label: p.id === me?.id ? 'You' : p.name,
+              }))}
+              ariaLabel="Who received?"
+            />
           </div>
         </div>
 
         {/* Amount and Currency */}
         <div className="flex gap-2">
-          <div className="w-28">
-            <select
+          <div className="w-32 shrink-0">
+            <Select
               value={currency.code}
-              onChange={(e) => {
-                const found = SupportedCurrencies.find((c) => c.code === e.target.value)
+              onChange={(val) => {
+                const found = SupportedCurrencies.find((c) => c.code === val)
                 if (found) setCurrency(found)
               }}
-              className="w-full px-3 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-bold cursor-pointer"
-            >
-              {SupportedCurrencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} ({c.symbol})
-                </option>
-              ))}
-            </select>
+              options={SupportedCurrencies.map((c) => ({
+                value: c.code,
+                label: `${c.code} (${c.symbol})`,
+              }))}
+              ariaLabel="Currency"
+            />
           </div>
           <div className="relative flex-1">
             <input
               type="number"
+              inputMode="decimal"
               step={currency.digits === 0 ? '1' : currency.digits === 3 ? '0.001' : '0.01'}
               min="0"
               required
@@ -185,18 +181,18 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
           <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
             Apply to Group (Optional)
           </label>
-          <select
+          <Select
             value={groupId ?? ''}
-            onChange={(e) => setGroupId(e.target.value || null)}
-            className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium cursor-pointer"
-          >
-            <option value="">Direct settlement (reduces direct balance)</option>
-            {ledgerState.groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setGroupId(val || null)}
+            options={[
+              { value: '', label: 'Direct settlement (reduces direct balance)' },
+              ...ledgerState.groups.map((g) => ({
+                value: g.id,
+                label: g.name,
+              })),
+            ]}
+            ariaLabel="Apply to Group (Optional)"
+          />
         </div>
 
         {/* Note */}

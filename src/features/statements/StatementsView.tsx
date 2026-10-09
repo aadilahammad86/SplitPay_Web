@@ -7,6 +7,7 @@ import {
 } from '../../domain/statement'
 import { BASE_CURRENCY } from '../../domain/entities'
 import { Icon } from '../../ui/components/Icon'
+import { Select } from '../../ui/components/Select'
 
 interface StatementsViewProps {
   initialSubjectId?: string | null
@@ -162,25 +163,16 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
             <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
               {subjectType === 'friend' ? 'Choose Friend' : 'Choose Group'}
             </label>
-            <select
+            <Select
               value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="w-full px-3 py-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-bold cursor-pointer"
-            >
-              {subjectType === 'friend' ? (
-                friends.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))
-              ) : (
-                groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))
-              )}
-            </select>
+              onChange={(val) => setSelectedId(val)}
+              options={
+                subjectType === 'friend'
+                  ? friends.map((f) => ({ value: f.id, label: f.name }))
+                  : groups.map((g) => ({ value: g.id, label: g.name }))
+              }
+              ariaLabel={subjectType === 'friend' ? 'Choose Friend' : 'Choose Group'}
+            />
           </div>
         </div>
 

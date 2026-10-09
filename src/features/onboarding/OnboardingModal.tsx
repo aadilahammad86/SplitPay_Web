@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Modal } from '../../ui/components/Modal'
+import { Select } from '../../ui/components/Select'
 import { useStore } from '../../ui/storeContext'
 import { useTheme } from '../../ui/themeContext'
 import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
@@ -198,20 +199,18 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                 <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
                   Preferred Default Currency
                 </label>
-                <select
+                <Select
                   value={selectedCurrency.code}
-                  onChange={(e) => {
-                    const c = SupportedCurrencies.find((curr) => curr.code === e.target.value)
+                  onChange={(val) => {
+                    const c = SupportedCurrencies.find((curr) => curr.code === val)
                     if (c) setSelectedCurrency(c)
                   }}
-                  className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-bold text-sm text-[var(--color-text)] cursor-pointer"
-                >
-                  {SupportedCurrencies.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code} ({c.symbol})
-                    </option>
-                  ))}
-                </select>
+                  options={SupportedCurrencies.map((c) => ({
+                    value: c.code,
+                    label: `${c.code} (${c.symbol})`,
+                  }))}
+                  ariaLabel="Preferred Default Currency"
+                />
               </div>
             </div>
           </div>
