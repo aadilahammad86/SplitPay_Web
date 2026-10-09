@@ -4,6 +4,7 @@ import { useStore } from '../../ui/storeContext'
 import { useTheme } from '../../ui/themeContext'
 import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
+import { Icon } from '../../ui/components/Icon'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -62,7 +63,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
         <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
           <div className="flex items-center gap-2">
             <span className="w-8 h-8 rounded-xl bg-primary text-white font-extrabold flex items-center justify-center text-sm shadow-sm">
-              SP
+              <Icon name="rupee" size={20} />
             </span>
             <div>
               <h2 className="font-extrabold text-sm text-[var(--color-text)]">
@@ -77,9 +78,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
           <button
             type="button"
             onClick={handleSkip}
-            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-semibold transition-colors"
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-semibold transition-colors inline-flex items-center gap-1"
           >
-            Skip Tour ✕
+            <span>Skip Tour</span>
+            <Icon name="close" size={14} />
           </button>
         </div>
 
@@ -105,7 +107,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
               <div className="p-3.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-1.5">
-                <span className="text-2xl">⚡</span>
+                <Icon name="lightning" size={24} className="text-primary" />
                 <h4 className="font-bold text-xs text-[var(--color-text)]">Works Offline First</h4>
                 <p className="text-[11px] text-[var(--color-text-muted)]">
                   Every split saves safely to device IndexedDB first. Never lose pending changes.
@@ -113,7 +115,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
               </div>
 
               <div className="p-3.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-1.5">
-                <span className="text-2xl">🤝</span>
+                <Icon name="moneyHand" size={24} className="text-primary" />
                 <h4 className="font-bold text-xs text-[var(--color-text)]">Smart Debt Settle</h4>
                 <p className="text-[11px] text-[var(--color-text-muted)]">
                   Solves debts in minimal transfers with exact source breakdowns across groups.
@@ -121,7 +123,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
               </div>
 
               <div className="p-3.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-1.5">
-                <span className="text-2xl">📱</span>
+                <Icon name="smartphone" size={24} className="text-primary" />
                 <h4 className="font-bold text-xs text-[var(--color-text)]">Multi-Device Sync</h4>
                 <p className="text-[11px] text-[var(--color-text-muted)]">
                   Installable PWA for iPhone, Android, Mac, and PC with real-time shared ledgers.
@@ -132,7 +134,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
             {/* Interactive Preview Teaser Card */}
             <div className="p-4 bg-primary-subtle border border-primary-border rounded-2xl flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">🏖️</span>
+                <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center">
+                  <Icon name="beach" size={20} />
+                </div>
                 <div>
                   <p className="font-bold text-xs text-[var(--color-text)]">Goa Beach Villa</p>
                   <p className="text-[11px] text-[var(--color-text-muted)]">₹12,000.00 split equally among 4</p>
@@ -236,13 +240,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                     key={m}
                     type="button"
                     onClick={() => setMode(m)}
-                    className={`py-2 text-xs font-bold rounded-xl border capitalize transition-all ${
+                    className={`py-2 px-1 text-xs font-bold rounded-xl border capitalize transition-all flex items-center justify-center gap-1.5 ${
                       mode === m
                         ? 'bg-primary text-white border-primary shadow-sm'
                         : 'bg-[var(--color-surface-subtle)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
-                    {m === 'system' ? '🌓 System' : m === 'light' ? '☀️ Light' : m === 'dark' ? '🌙 Dark' : '🖤 OLED'}
+                    <Icon
+                      name={m === 'system' ? 'monitor' : m === 'light' ? 'sun' : 'moon'}
+                      size={14}
+                    />
+                    <span>{m === 'amoled' ? 'OLED' : m}</span>
                   </button>
                 ))}
               </div>
@@ -268,9 +276,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                       }`}
                     >
                       <div
-                        className="w-6 h-6 rounded-full shrink-0 shadow-sm border border-white/20"
+                        className="w-6 h-6 rounded-full shrink-0 shadow-sm border border-white/20 flex items-center justify-center"
                         style={{ backgroundColor: p.swatchHex }}
-                      />
+                      >
+                        {isSelected && <Icon name="check" size={11} className="text-white" />}
+                      </div>
                       <div className="overflow-hidden">
                         <p className="font-bold text-xs text-[var(--color-text)] truncate">{p.name}</p>
                         <p className="text-[10px] text-[var(--color-text-muted)] capitalize">{p.id}</p>
@@ -317,7 +327,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                 className="p-5 bg-primary-subtle border-2 border-primary hover:border-primary-hover rounded-3xl text-left space-y-2 card-hover transition-all cursor-pointer group disabled:opacity-50"
               >
                 <div className="w-10 h-10 rounded-2xl bg-primary text-white font-extrabold flex items-center justify-center text-xl shadow-sm">
-                  🏖️
+                  <Icon name="beach" size={22} />
                 </div>
                 <div>
                   <h4 className="font-bold text-sm text-[var(--color-text)] group-hover:text-primary transition-colors">
@@ -339,8 +349,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                 disabled={loadingSample}
                 className="p-5 bg-[var(--color-surface-subtle)] border-2 border-[var(--color-border)] hover:border-primary/50 rounded-3xl text-left space-y-2 card-hover transition-all cursor-pointer group disabled:opacity-50"
               >
-                <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] font-extrabold flex items-center justify-center text-xl shadow-sm">
-                  ✨
+                <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] font-extrabold flex items-center justify-center text-primary shadow-sm">
+                  <Icon name="star" size={22} />
                 </div>
                 <div>
                   <h4 className="font-bold text-sm text-[var(--color-text)] group-hover:text-primary transition-colors">

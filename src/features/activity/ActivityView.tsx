@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useStore } from '../../ui/storeContext'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { BASE_CURRENCY } from '../../domain/entities'
+import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 export const ActivityView: React.FC = () => {
   const { store, ledgerState } = useStore()
@@ -81,7 +82,7 @@ export const ActivityView: React.FC = () => {
             onClick={() => setFilter('all')}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
               filter === 'all'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-primary text-white shadow-sm'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -92,7 +93,7 @@ export const ActivityView: React.FC = () => {
             onClick={() => setFilter('expenses')}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
               filter === 'expenses'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-primary text-white shadow-sm'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -103,7 +104,7 @@ export const ActivityView: React.FC = () => {
             onClick={() => setFilter('settlements')}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
               filter === 'settlements'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-primary text-white shadow-sm'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -115,8 +116,8 @@ export const ActivityView: React.FC = () => {
       {/* Activity Timeline List */}
       {filteredItems.length === 0 ? (
         <div className="p-10 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-3">
-          <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-3xl mx-auto shadow-sm">
-            🧾
+          <div className="w-16 h-16 rounded-3xl bg-primary-subtle text-primary flex items-center justify-center text-3xl mx-auto shadow-sm">
+            <Icon name="receipt" size={32} />
           </div>
           <h3 className="font-bold text-base text-[var(--color-text)]">No activity recorded yet</h3>
           <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto">
@@ -133,8 +134,8 @@ export const ActivityView: React.FC = () => {
               }`}
             >
               <div className="flex items-center gap-3.5 overflow-hidden">
-                <div className="w-11 h-11 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-xl shrink-0">
-                  {item.emoji}
+                <div className="w-11 h-11 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary shrink-0">
+                  <CategoryIcon category={item.emoji} size={20} />
                 </div>
                 <div className="overflow-hidden">
                   <div className="flex items-center gap-2">
@@ -182,19 +183,20 @@ export const ActivityView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleRestoreExpense(item.id)}
-                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors"
+                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary-subtle text-primary hover:bg-primary hover:text-white transition-colors inline-flex items-center gap-1"
                       >
-                        Restore
+                        <Icon name="reload" size={13} />
+                        <span>Restore</span>
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleDeleteExpense(item.id)}
-                        className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-sm"
+                        className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                         title="Delete expense"
                         aria-label="Delete expense"
                       >
-                        🗑️
+                        <Icon name="delete" size={16} />
                       </button>
                     )}
                   </div>

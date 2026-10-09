@@ -4,6 +4,7 @@ import { useStore } from '../../ui/storeContext'
 import type { CurrencyCode } from '../../domain/money'
 import { SupportedCurrencies } from '../../domain/money'
 import { BASE_CURRENCY } from '../../domain/entities'
+import { Icon } from '../../ui/components/Icon'
 
 interface SettleUpModalProps {
   isOpen: boolean
@@ -93,7 +94,16 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Settle Up">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <Icon name="moneyHand" size={20} className="text-emerald-500" />
+          <span>Settle Up</span>
+        </span>
+      }
+    >
       <form onSubmit={handleSubmit} className="space-y-4 text-sm">
         {error && (
           <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-semibold">
@@ -214,9 +224,10 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
           </button>
           <button
             type="submit"
-            className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-all"
+            className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95"
           >
-            Record Payment
+            <Icon name="check" size={14} />
+            <span>Record Payment</span>
           </button>
         </div>
       </form>

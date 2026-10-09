@@ -6,6 +6,7 @@ import { SourceChips } from '../../ui/components/SourceChips'
 import { BASE_CURRENCY, GroupKindInfo, personInitials } from '../../domain/entities'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
+import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 interface DashboardViewProps {
   onNavigate: (tab: string) => void
@@ -96,8 +97,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Top Welcome Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight">
-            Welcome back, {me?.name || 'Friend'} 👋
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight flex items-center gap-2">
+            <span>Welcome back, {me?.name || 'Friend'}</span>
+            <Icon name="star" size={22} className="text-amber-500 animate-pulse" />
           </h2>
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
             {sharedLedgerId ? `Shared Ledger: ${sharedLedgerId}` : 'Local-first offline ledger active'} · All calculations verified in integer minor units
@@ -111,7 +113,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={() => setShowAddExpense(true)}
             className="flex-1 sm:flex-none px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
           >
-            <span>+</span>
+            <Icon name="plus" size={16} />
             <span>Add Expense</span>
           </button>
           <button
@@ -123,7 +125,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             }}
             className="flex-1 sm:flex-none px-4 py-2.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
           >
-            <span>🤝</span>
+            <Icon name="moneyHand" size={16} />
             <span>Settle Up</span>
           </button>
         </div>
@@ -157,7 +159,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   ? 'Total amount friends owe you overall'
                   : overall.netMinor < 0
                   ? 'Total amount you owe to friends overall'
-                  : 'You are completely settled with everyone! 🎉'}
+                  : 'You are completely settled with everyone!'}
               </p>
             </div>
 
@@ -185,7 +187,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
                 You Paid Out
               </span>
-              <span className="text-lg">💳</span>
+              <Icon name="creditcard" size={22} className="text-primary" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
               {BASE_CURRENCY.symbol}{(totalSpentMinor / 100).toFixed(2)}
@@ -223,7 +225,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
                 Your Circle
               </span>
-              <span className="text-lg">🏝</span>
+              <Icon name="beach" size={22} className="text-primary" />
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
@@ -275,16 +277,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {recentTransactions.length === 0 ? (
               <div className="py-10 text-center space-y-3">
-                <span className="text-4xl block">🧾</span>
+                <Icon name="receipt" size={40} className="mx-auto text-[var(--color-text-muted)] opacity-60" />
                 <p className="text-xs text-[var(--color-text-muted)]">
                   No activity recorded yet in this ledger.
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowAddExpense(true)}
-                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all inline-block"
+                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
                 >
-                  + Add First Expense
+                  <Icon name="plus" size={14} />
+                  <span>Add First Expense</span>
                 </button>
               </div>
             ) : (
@@ -295,8 +298,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     className="py-3.5 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-subtle)] -mx-2 px-2 rounded-xl transition-colors"
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-lg shrink-0">
-                        {tx.emoji}
+                      <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary shrink-0">
+                        <CategoryIcon category={tx.emoji} size={20} />
                       </div>
                       <div className="overflow-hidden">
                         <p className="font-bold text-xs text-[var(--color-text)] truncate">
@@ -357,16 +360,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {ledgerState.groups.length === 0 ? (
               <div className="py-8 text-center space-y-2">
-                <span className="text-3xl block">🏝</span>
+                <Icon name="beach" size={36} className="mx-auto text-[var(--color-text-muted)] opacity-60" />
                 <p className="text-xs text-[var(--color-text-muted)]">
                   No groups created yet.
                 </p>
                 <button
                   type="button"
                   onClick={() => onNavigate('groups')}
-                  className="px-3 py-1.5 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-lg hover:bg-primary hover:text-white transition-colors"
+                  className="px-3 py-1.5 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-lg hover:bg-primary hover:text-white transition-colors inline-flex items-center gap-1.5"
                 >
-                  + Create Group
+                  <Icon name="plus" size={12} />
+                  <span>Create Group</span>
                 </button>
               </div>
             ) : (
@@ -387,7 +391,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       className="p-4 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] rounded-2xl cursor-pointer transition-all card-hover"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-2xl">{kind.emoji}</span>
+                        <div className="w-9 h-9 rounded-xl bg-primary-subtle text-primary flex items-center justify-center">
+                          <CategoryIcon category={kind.emoji} size={20} />
+                        </div>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
                           {group.currency.code}
                         </span>
@@ -436,16 +442,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {friendsWithBalances.length === 0 ? (
               <div className="py-8 text-center space-y-2">
-                <span className="text-3xl block">👥</span>
+                <Icon name="users" size={36} className="mx-auto text-[var(--color-text-muted)] opacity-60" />
                 <p className="text-xs text-[var(--color-text-muted)]">
                   No friends added yet.
                 </p>
                 <button
                   type="button"
                   onClick={() => onNavigate('friends')}
-                  className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                  className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
                 >
-                  + Add Friend
+                  <Icon name="plus" size={14} />
+                  <span>Add Friend</span>
                 </button>
               </div>
             ) : (
@@ -512,7 +519,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Smart Debt Simplification Info Card */}
           <div className="p-5 bg-primary-subtle border border-primary-border rounded-3xl space-y-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-lg">⚡</span>
+              <Icon name="lightning" size={18} className="text-primary" />
               <h4 className="font-bold text-xs uppercase tracking-wider text-primary">
                 Deterministic Settle Optimization
               </h4>

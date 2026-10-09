@@ -4,6 +4,7 @@ import type { Group } from '../../domain/entities'
 import { GroupKindInfo } from '../../domain/entities'
 import { MoneyDisplay } from './MoneyDisplay'
 import { BASE_CURRENCY } from '../../domain/entities'
+import { CategoryIcon } from './Icon'
 
 interface SourceChipsProps {
   slices: readonly BalanceSlice[]
@@ -39,7 +40,7 @@ export const SourceChips: React.FC<SourceChipsProps> = ({
                 : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
             }`}
           >
-            <span>{emoji}</span>
+            <CategoryIcon category={emoji} size={13} />
             <span>{label}:</span>
             <MoneyDisplay
               minor={slice.amountMinor}

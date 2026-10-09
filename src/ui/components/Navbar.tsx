@@ -3,6 +3,7 @@ import { useTheme } from '../themeContext'
 import { useStore } from '../storeContext'
 import { InstallModal } from '../../pwa/InstallModal'
 import { isStandalone } from '../../pwa/pwaManager'
+import { Icon, type IconName } from './Icon'
 
 interface NavbarProps {
   currentTab: string
@@ -28,11 +29,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
     else setMode('system')
   }
 
-  const themeIcon = {
-    system: '🌓',
-    light: '☀️',
-    dark: '🌙',
-    amoled: '🖤',
+  const themeIcon: IconName = {
+    system: 'monitor' as IconName,
+    light: 'sun' as IconName,
+    dark: 'moon' as IconName,
+    amoled: 'moon' as IconName,
   }[mode]
 
   const isSyncing = syncState?.status === 'syncing'
@@ -47,8 +48,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
           className="flex items-center gap-2.5 cursor-pointer"
           onClick={() => onNavigate('dashboard')}
         >
-          <div className="w-8 h-8 rounded-xl hero-gradient flex items-center justify-center text-white font-extrabold text-lg shadow-sm">
-            ₹
+          <div className="w-8 h-8 rounded-xl hero-gradient flex items-center justify-center text-white shadow-sm">
+            <Icon name="rupee" size={20} strokeWidth={2.5} />
           </div>
           <div>
             <h1 className="font-extrabold text-lg tracking-tight text-[var(--color-text)]">
@@ -83,17 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
                 : 'All changes synced'
             }
           >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isSyncing
-                  ? 'bg-blue-500 animate-pulse'
-                  : isOffline
-                  ? 'bg-amber-500'
-                  : isError
-                  ? 'bg-rose-500'
-                  : 'bg-emerald-500'
-              }`}
-            />
+            <Icon name="reload" size={12} className={isSyncing ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">
               {isSyncing ? 'Syncing...' : isOffline ? 'Offline' : isError ? 'Error' : 'Online'}
             </span>
@@ -112,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
             title={`Theme: ${mode} (click to cycle)`}
             aria-label={`Current theme is ${mode}. Click to change.`}
           >
-            <span>{themeIcon}</span>
+            <Icon name={themeIcon} size={15} />
           </button>
 
           {/* Install Button (hidden when already installed) */}
@@ -120,9 +111,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
             <button
               type="button"
               onClick={() => setShowInstall(true)}
-              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-xl bg-primary-subtle border border-primary-border text-primary hover:bg-primary hover:text-white transition-colors"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-xl bg-primary-subtle border border-primary-border text-primary hover:bg-primary hover:text-white transition-colors"
             >
-              <span>📲</span>
+              <Icon name="smartphone" size={13} />
               <span>Install</span>
             </button>
           )}
@@ -134,7 +125,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
             className="p-1.5 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] transition-colors text-sm"
             aria-label="Settings"
           >
-            ⚙️
+            <Icon name="settings" size={16} />
           </button>
         </div>
       </div>

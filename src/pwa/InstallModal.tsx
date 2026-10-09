@@ -1,6 +1,7 @@
 import React from 'react'
 import { Modal } from '../ui/components/Modal'
 import { detectPlatform, canPromptInstall, promptInstall } from './pwaManager'
+import { Icon } from '../ui/components/Icon'
 
 interface InstallModalProps {
   isOpen: boolean
@@ -19,11 +20,20 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Install SplitPay">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <Icon name="smartphone" size={20} className="text-primary" />
+          <span>Install SplitPay</span>
+        </span>
+      }
+    >
       <div className="space-y-5 text-sm text-[var(--color-text)]">
         <div className="flex items-center gap-3 p-3 bg-[var(--color-surface-subtle)] rounded-xl border border-[var(--color-border)]">
-          <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
-            ₹
+          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white text-2xl font-bold shadow-md">
+            <Icon name="rupee" size={26} />
           </div>
           <div>
             <h3 className="font-bold text-base">SplitPay PWA</h3>
@@ -41,9 +51,10 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
             <button
               type="button"
               onClick={handleInstallClick}
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all"
+              className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
             >
-              Install App
+              <Icon name="smartphone" size={18} />
+              <span>Install App</span>
             </button>
           </div>
         ) : platform === 'ios' ? (
@@ -52,24 +63,25 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
             <ol className="space-y-2.5 list-decimal list-inside text-[var(--color-text-muted)]">
               <li>
                 Tap the <strong className="text-[var(--color-text)]">Share</strong> icon{' '}
-                <span className="inline-block px-1.5 py-0.5 rounded bg-[var(--color-surface-subtle)] border border-[var(--color-border)]">
-                  [↑]
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[var(--color-surface-subtle)] border border-[var(--color-border)] align-middle">
+                  <Icon name="share" size={13} />
                 </span>{' '}
                 in the bottom bar of Safari.
               </li>
               <li>
                 Scroll down in the share sheet and tap{' '}
                 <strong className="text-[var(--color-text)]">Add to Home Screen</strong>{' '}
-                <span className="inline-block px-1.5 py-0.5 rounded bg-[var(--color-surface-subtle)] border border-[var(--color-border)]">
-                  [+]
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[var(--color-surface-subtle)] border border-[var(--color-border)] align-middle">
+                  <Icon name="plus" size={13} />
                 </span>.
               </li>
               <li>
                 Tap <strong className="text-[var(--color-text)]">Add</strong> in the top right corner.
               </li>
             </ol>
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-600 dark:text-amber-400">
-              Note: Apple requires Safari for installation. If you are using Chrome or Firefox on iOS, open this link in Safari first.
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-600 dark:text-amber-400 flex items-start gap-2">
+              <Icon name="info" size={16} className="shrink-0 mt-0.5" />
+              <span>Note: Apple requires Safari for installation. If you are using Chrome or Firefox on iOS, open this link in Safari first.</span>
             </div>
           </div>
         ) : (

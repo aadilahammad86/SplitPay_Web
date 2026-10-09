@@ -13,6 +13,7 @@ import { SettingsView } from './features/settings/SettingsView'
 import { ExpenseEditorModal } from './features/expense/ExpenseEditorModal'
 import { InstallModal } from './pwa/InstallModal'
 import { OnboardingModal } from './features/onboarding/OnboardingModal'
+import { Icon } from './ui/components/Icon'
 
 const AppContent: React.FC = () => {
   const { ledgerState } = useStore()
@@ -55,7 +56,7 @@ const AppContent: React.FC = () => {
     return (
       <div className="flex-1 min-h-screen flex flex-col items-center justify-center p-6 text-center bg-[var(--color-bg)]">
         <div className="w-14 h-14 rounded-3xl bg-primary flex items-center justify-center text-white text-3xl font-extrabold animate-pulse shadow-xl mb-4">
-          ₹
+          <Icon name="rupee" size={32} />
         </div>
         <h2 className="font-extrabold text-xl text-[var(--color-text)] tracking-tight">SplitPay</h2>
         <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
@@ -71,7 +72,7 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--color-bg)] text-[var(--color-text)] animate-fade-in">
         <div className="w-full max-w-sm p-6 sm:p-8 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-xl text-center space-y-5">
           <div className="w-14 h-14 rounded-2xl bg-primary-subtle text-primary border border-primary-border flex items-center justify-center text-2xl mx-auto shadow-sm">
-            🔒
+            <Icon name="lock" size={28} />
           </div>
           <div>
             <h2 className="text-xl font-extrabold tracking-tight">SplitPay Locked</h2>
@@ -107,9 +108,10 @@ const AppContent: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold text-sm rounded-2xl shadow-md transition-all active:scale-95"
+              className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold text-sm rounded-2xl shadow-md transition-all active:scale-95 inline-flex items-center justify-center gap-2"
             >
-              Unlock Ledger
+              <Icon name="unlock" size={16} />
+              <span>Unlock Ledger</span>
             </button>
           </form>
         </div>

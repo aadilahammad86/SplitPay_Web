@@ -12,6 +12,7 @@ import {
   GroupKindInfo,
 } from '../../domain/entities'
 import { Currencies, type CurrencyCode, SupportedCurrencies } from '../../domain/money'
+import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 interface GroupsViewProps {
   onNavigateToGroupStatement: (groupId: string) => void
@@ -98,9 +99,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
             setNewGroupMembers([meId])
             setShowCreateGroup(true)
           }}
-          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
+          className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
         >
-          <span>+</span>
+          <Icon name="plus" size={16} />
           <span>Create Group</span>
         </button>
       </div>
@@ -108,8 +109,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
       {/* Groups Grid */}
       {ledgerState.groups.length === 0 ? (
         <div className="p-10 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-3">
-          <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-3xl mx-auto shadow-sm">
-            🏝
+          <div className="w-16 h-16 rounded-3xl bg-primary-subtle text-primary flex items-center justify-center text-3xl mx-auto shadow-sm">
+            <Icon name="beach" size={32} />
           </div>
           <h3 className="font-bold text-base text-[var(--color-text)]">No groups created yet</h3>
           <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto">
@@ -121,9 +122,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               setNewGroupMembers([meId])
               setShowCreateGroup(true)
             }}
-            className="mt-2 px-5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-md hover:bg-indigo-700 transition-all inline-block"
+            className="mt-2 px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-md hover:bg-primary-hover transition-all inline-flex items-center gap-1.5"
           >
-            + Create your first group
+            <Icon name="plus" size={14} />
+            <span>Create your first group</span>
           </button>
         </div>
       ) : (
@@ -138,12 +140,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               <div
                 key={group.id}
                 onClick={() => setSelectedGroup(group)}
-                className="p-5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-indigo-500/40 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-4 card-hover"
+                className="p-5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-primary/40 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-4 card-hover"
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-2xl shadow-inner">
-                      {kindInfo.emoji}
+                    <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary shadow-inner">
+                      <CategoryIcon category={kindInfo.emoji} size={24} />
                     </div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-surface-subtle)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
                       {group.currency.code}
@@ -282,7 +284,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
         <Modal
           isOpen={Boolean(selectedGroup)}
           onClose={() => setSelectedGroup(null)}
-          title={`${GroupKindInfo[selectedGroup.kind].emoji} ${selectedGroup.name}`}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
+                <CategoryIcon category={GroupKindInfo[selectedGroup.kind].emoji} size={18} />
+              </span>
+              <span>{selectedGroup.name}</span>
+            </span>
+          }
           maxWidth="max-w-2xl"
         >
           <div className="space-y-5 text-sm">
@@ -295,9 +304,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                 <button
                   type="button"
                   onClick={() => setShowAddMember(true)}
-                  className="px-2 py-0.5 text-xs rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] font-medium"
+                  className="px-2.5 py-1 text-xs rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] font-medium inline-flex items-center gap-1"
                 >
-                  + Add Member
+                  <Icon name="plus" size={12} />
+                  <span>Add Member</span>
                 </button>
               </div>
 
@@ -305,9 +315,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                 <button
                   type="button"
                   onClick={() => setShowAddExpense(true)}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
+                  className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl text-xs shadow-sm transition-all inline-flex items-center gap-1"
                 >
-                  + Expense
+                  <Icon name="plus" size={14} />
+                  <span>Expense</span>
                 </button>
                 <button
                   type="button"
@@ -316,9 +327,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                     setSelectedGroup(null)
                     onNavigateToGroupStatement(id)
                   }}
-                  className="px-3 py-1.5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] font-semibold rounded-xl text-xs"
+                  className="px-3 py-1.5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] font-semibold rounded-xl text-xs inline-flex items-center gap-1"
                 >
-                  Statement
+                  <Icon name="chart" size={14} />
+                  <span>Statement</span>
                 </button>
               </div>
             </div>
@@ -337,8 +349,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               </div>
 
               {debtPlan.length === 0 ? (
-                <div className="p-3 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-                  ✓ All balances in this group are settled!
+                <div className="p-3 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center justify-center gap-1.5">
+                  <Icon name="check" size={16} />
+                  <span>All balances in this group are settled!</span>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -372,9 +385,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                               setSettleAmount(transfer.amountMinor)
                               setShowSettle(true)
                             }}
-                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm inline-flex items-center gap-1"
                           >
-                            Settle
+                            <Icon name="moneyHand" size={12} />
+                            <span>Settle</span>
                           </button>
                         </div>
                       </div>
@@ -399,7 +413,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                       className="p-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl flex items-center justify-between"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="text-xl">{exp.categoryEmoji}</span>
+                        <div className="w-8 h-8 rounded-lg bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary">
+                          <CategoryIcon category={exp.categoryEmoji} size={16} />
+                        </div>
                         <div>
                           <p className="font-semibold text-xs text-[var(--color-text)]">{exp.description}</p>
                           <span className="text-[10px] text-[var(--color-text-muted)]">

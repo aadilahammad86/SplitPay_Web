@@ -7,6 +7,7 @@ import { Modal } from '../../ui/components/Modal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import { EditFriendModal } from './EditFriendModal'
 import { BASE_CURRENCY, personInitials, type Person } from '../../domain/entities'
+import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 interface FriendsViewProps {
   onNavigateToStatement: (friendId: string) => void
@@ -119,23 +120,23 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
 
         <div className="flex items-center gap-2">
           <div className="relative flex-1 sm:w-64">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)]">
-              🔍
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)] flex items-center">
+              <Icon name="search" size={16} />
             </span>
             <input
               type="text"
               placeholder="Search friends..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3.5 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full pl-9 pr-3.5 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
+            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
           >
-            <span>+</span>
+            <Icon name="plus" size={16} />
             <span>Add Friend</span>
           </button>
         </div>
@@ -144,8 +145,8 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
       {/* Friends Responsive Grid */}
       {filtered.length === 0 ? (
         <div className="p-10 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-3">
-          <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-3xl mx-auto shadow-sm">
-            👥
+          <div className="w-16 h-16 rounded-3xl bg-primary-subtle text-primary flex items-center justify-center text-3xl mx-auto shadow-sm">
+            <Icon name="users" size={32} />
           </div>
           <h3 className="font-bold text-base text-[var(--color-text)]">
             {search ? 'No friends match your search' : 'No friends added yet'}
@@ -159,9 +160,10 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="mt-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all inline-block"
+              className="mt-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
             >
-              + Add First Friend
+              <Icon name="plus" size={14} />
+              <span>Add First Friend</span>
             </button>
           )}
         </div>
@@ -179,12 +181,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               <div
                 key={friend.id}
                 onClick={() => setSelectedFriend(friend)}
-                className="p-5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-indigo-500/40 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-3 card-hover"
+                className="p-5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-primary/40 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-3 card-hover"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-sm shadow-sm shrink-0">
+                      <div className="w-12 h-12 rounded-2xl hero-gradient text-white font-extrabold flex items-center justify-center text-sm shadow-sm shrink-0">
                         {personInitials(friend.name)}
                       </div>
                       <div className="overflow-hidden">
@@ -239,26 +241,29 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     <button
                       type="button"
                       onClick={() => setEditingFriend(friend)}
-                      className="px-2.5 py-1 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors"
+                      className="px-2.5 py-1 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors inline-flex items-center gap-1"
                       title="Edit Friend"
                     >
-                      ✏️ Edit
+                      <Icon name="edit" size={13} />
+                      <span>Edit</span>
                     </button>
                     {breakdown.netMinor !== 0 && (
                       <button
                         type="button"
                         onClick={() => handleOpenSettle(friend.id, breakdown.netMinor)}
-                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors"
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors inline-flex items-center gap-1"
                       >
-                        Settle
+                        <Icon name="moneyHand" size={13} />
+                        <span>Settle</span>
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={() => onNavigateToStatement(friend.id)}
-                      className="px-2.5 py-1 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors"
+                      className="px-2.5 py-1 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors inline-flex items-center gap-1"
                     >
-                      Statement
+                      <Icon name="chart" size={13} />
+                      <span>Statement</span>
                     </button>
                   </div>
                 </div>
@@ -281,7 +286,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               placeholder="e.g. Rahul Sharma"
               value={friendName}
               onChange={(e) => setFriendName(e.target.value)}
-              className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
@@ -294,7 +299,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               placeholder="e.g. rahul_s"
               value={friendHandle}
               onChange={(e) => setFriendHandle(e.target.value)}
-              className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
@@ -308,9 +313,10 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition-all"
+              className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
             >
-              Save Friend
+              <Icon name="check" size={14} />
+              <span>Save Friend</span>
             </button>
           </div>
         </form>
@@ -349,9 +355,10 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     setSelectedFriend(null)
                     setEditingFriend(toEdit)
                   }}
-                  className="px-3.5 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all"
+                  className="px-3.5 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all inline-flex items-center gap-1.5"
                 >
-                  ✏️ Edit Profile
+                  <Icon name="edit" size={14} />
+                  <span>Edit Profile</span>
                 </button>
                 {selectedFriendBreakdown.netMinor !== 0 && (
                   <button
@@ -362,9 +369,10 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                       setSelectedFriend(null)
                       handleOpenSettle(id, net)
                     }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
                   >
-                    🤝 Settle Up
+                    <Icon name="moneyHand" size={14} />
+                    <span>Settle Up</span>
                   </button>
                 )}
                 <button
@@ -374,9 +382,10 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     setSelectedFriend(null)
                     onNavigateToStatement(id)
                   }}
-                  className="px-4 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all"
+                  className="px-4 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all inline-flex items-center gap-1.5"
                 >
-                  📊 Statement
+                  <Icon name="chart" size={14} />
+                  <span>Statement</span>
                 </button>
               </div>
             </div>
@@ -408,7 +417,9 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                   {mutualTransactions.map((tx) => (
                     <div key={tx.id} className="py-2.5 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2.5">
-                        <span className="text-lg">{tx.emoji}</span>
+                        <div className="w-7 h-7 rounded-lg bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary">
+                          <CategoryIcon category={tx.emoji} size={15} />
+                        </div>
                         <div>
                           <p className="font-bold text-[var(--color-text)]">{tx.title}</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">

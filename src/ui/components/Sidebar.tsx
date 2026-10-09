@@ -1,6 +1,7 @@
 import React from 'react'
 import { useStore } from '../storeContext'
 import { useTheme } from '../themeContext'
+import { Icon, type IconName } from './Icon'
 
 interface SidebarProps {
   currentTab: string
@@ -19,13 +20,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { mode, setMode, palette, setPalette, availablePalettes } = useTheme()
   const me = store.me
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🏠', count: null },
-    { id: 'friends', label: 'Friends', icon: '👥', count: ledgerState.people.filter((p) => p.id !== me?.id).length },
-    { id: 'groups', label: 'Groups', icon: '🏝', count: ledgerState.groups.length },
-    { id: 'activity', label: 'Activity', icon: '🧾', count: ledgerState.expenses.filter((e) => !e.isTombstone).length },
-    { id: 'statements', label: 'Statements', icon: '📊', count: null },
-    { id: 'settings', label: 'Settings', icon: '⚙️', count: null },
+  const navItems: { id: string; label: string; icon: IconName; count: number | null }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: 'home', count: null },
+    { id: 'friends', label: 'Friends', icon: 'users', count: ledgerState.people.filter((p) => p.id !== me?.id).length },
+    { id: 'groups', label: 'Groups', icon: 'beach', count: ledgerState.groups.length },
+    { id: 'activity', label: 'Activity', icon: 'receipt', count: ledgerState.expenses.filter((e) => !e.isTombstone).length },
+    { id: 'statements', label: 'Statements', icon: 'chart', count: null },
+    { id: 'settings', label: 'Settings', icon: 'settings', count: null },
   ]
 
   const isSyncing = syncState?.status === 'syncing'
@@ -58,11 +59,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     amoled: 'AMOLED Black',
   }[mode]
 
-  const themeIcon = {
-    system: '🌓',
-    light: '☀️',
-    dark: '🌙',
-    amoled: '🖤',
+  const themeIcon: IconName = {
+    system: 'monitor' as IconName,
+    light: 'sun' as IconName,
+    dark: 'moon' as IconName,
+    amoled: 'moon' as IconName,
   }[mode]
 
   return (
@@ -73,8 +74,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="flex items-center gap-3 cursor-pointer group px-2"
           onClick={() => onNavigate('dashboard')}
         >
-          <div className="w-10 h-10 rounded-2xl hero-gradient flex items-center justify-center text-white font-extrabold text-xl shadow-md group-hover:scale-105 transition-transform">
-            ₹
+          <div className="w-10 h-10 rounded-2xl hero-gradient flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+            <Icon name="rupee" size={24} strokeWidth={2.5} />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
@@ -112,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="p-1.5 rounded-lg hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] text-xs transition-colors"
             title="Edit profile & username"
           >
-            ✏️
+            <Icon name="edit" size={15} />
           </button>
         </div>
 
@@ -122,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={onAddExpense}
           className="w-full py-2.5 px-4 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-98"
         >
-          <span className="text-base leading-none">+</span>
+          <Icon name="plus" size={16} strokeWidth={2.5} />
           <span>Add New Expense</span>
         </button>
 
@@ -142,7 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-base leading-none">{item.icon}</span>
+                  <Icon name={item.icon} size={18} strokeWidth={isActive ? 2.5 : 2} />
                   <span>{item.label}</span>
                 </div>
                 {item.count !== null && item.count > 0 && (
@@ -181,16 +182,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title="Click to sync now"
         >
           <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isSyncing
-                  ? 'bg-blue-500 animate-pulse'
-                  : isOffline
-                  ? 'bg-amber-500'
-                  : isError
-                  ? 'bg-rose-500'
-                  : 'bg-emerald-500'
-              }`}
+            <Icon
+              name="reload"
+              size={14}
+              className={isSyncing ? 'animate-spin' : ''}
             />
             <span className="font-semibold text-[11px]">
               {isSyncing ? 'Syncing...' : isOffline ? 'Offline Mode' : isError ? 'Sync Error' : 'Online Sync'}
@@ -208,10 +203,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={cycleTheme}
-            className="flex items-center justify-center gap-1 py-1.5 px-2 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl border border-[var(--color-border)] transition-colors"
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl border border-[var(--color-border)] transition-colors"
             title={`Mode: ${themeLabel} (Click to toggle)`}
           >
-            <span>{themeIcon}</span>
+            <Icon name={themeIcon} size={15} />
             <span className="text-[10px] capitalize">{mode}</span>
           </button>
 
@@ -228,10 +223,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={onOpenInstall}
-            className="flex items-center justify-center py-1.5 px-2 bg-primary-subtle text-primary border border-primary-border hover:bg-primary hover:text-white rounded-xl text-xs font-semibold transition-colors"
+            className="flex items-center justify-center gap-1 py-1.5 px-2 bg-primary-subtle text-primary border border-primary-border hover:bg-primary hover:text-white rounded-xl text-xs font-semibold transition-colors"
             title="Install PWA on this device"
           >
-            📲 Install
+            <Icon name="smartphone" size={14} />
+            <span>Install</span>
           </button>
         </div>
       </div>

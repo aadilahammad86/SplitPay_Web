@@ -11,6 +11,7 @@ import {
   type SplitMode,
   SplitModeLabels,
 } from '../../domain/entities'
+import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 interface ExpenseEditorModalProps {
   isOpen: boolean
@@ -19,7 +20,20 @@ interface ExpenseEditorModalProps {
   initialFriendId?: string | null
 }
 
-const CATEGORY_EMOJIS = ['🧾', '🍔', '☕', '🛒', '✈️', '🏨', '🚕', '🍿', '🏠', '🎁', '⚡', '🍻']
+const CATEGORIES = [
+  { key: '🧾', label: 'Bill / Receipt' },
+  { key: '🍔', label: 'Food / Dining' },
+  { key: '☕', label: 'Coffee / Drinks' },
+  { key: '🛒', label: 'Groceries' },
+  { key: '✈️', label: 'Travel' },
+  { key: '🏨', label: 'Lodging' },
+  { key: '🚕', label: 'Transport' },
+  { key: '🍿', label: 'Entertainment' },
+  { key: '🏠', label: 'Rent / Home' },
+  { key: '🎁', label: 'Shopping' },
+  { key: '⚡', label: 'Utilities' },
+  { key: '🍻', label: 'Social' },
+]
 
 export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
   isOpen,
@@ -44,6 +58,7 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
   const [groupId, setGroupId] = useState<string | null>(initialGroupId)
   const [mode, setMode] = useState<SplitMode>('equal')
   const [categoryEmoji, setCategoryEmoji] = useState('🧾')
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(() => {
     if (initialGroupId) {
       const group = ledgerState.groups.find((g) => g.id === initialGroupId)
@@ -153,20 +168,47 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
           </div>
         )}
 
-        {/* Emoji and Description */}
+        {/* Category Picker and Description */}
         <div className="flex gap-2">
           <div className="relative">
-            <select
-              value={categoryEmoji}
-              onChange={(e) => setCategoryEmoji(e.target.value)}
-              className="h-11 px-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl text-xl cursor-pointer"
+            <button
+              type="button"
+              onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+              className="h-11 px-3 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Select category icon"
             >
-              {CATEGORY_EMOJIS.map((emoji) => (
-                <option key={emoji} value={emoji}>
-                  {emoji}
-                </option>
-              ))}
-            </select>
+              <CategoryIcon category={categoryEmoji} size={22} className="text-primary" />
+              <Icon name="chevronDown" size={14} className="text-[var(--color-text-muted)]" />
+            </button>
+
+            {showCategoryPicker && (
+              <div className="absolute left-0 top-12 z-30 w-64 p-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl shadow-xl grid grid-cols-4 gap-1.5 animate-slide-up">
+                {CATEGORIES.map((cat) => {
+                  const isSelected = categoryEmoji === cat.key
+                  return (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      onClick={() => {
+                        setCategoryEmoji(cat.key)
+                        setShowCategoryPicker(false)
+                      }}
+                      title={cat.label}
+                      className={`p-2 rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
+                        isSelected
+                          ? 'bg-primary text-white shadow-sm'
+                          : 'hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)]'
+                      }`}
+                    >
+                      <CategoryIcon category={cat.key} size={20} />
+                      <span className="text-[9px] font-medium truncate max-w-full">
+                        {cat.label.split('/')[0].trim()}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
           <input
             type="text"
@@ -174,7 +216,7 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
             placeholder="What was this expense for?"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="flex-1 px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
 
@@ -381,9 +423,10 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
           </button>
           <button
             type="submit"
-            className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition-all"
+            className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95"
           >
-            Save Expense
+            <Icon name="check" size={14} />
+            <span>Save Expense</span>
           </button>
         </div>
       </form>

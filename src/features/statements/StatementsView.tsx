@@ -6,6 +6,7 @@ import {
   generateStatementCsv,
 } from '../../domain/statement'
 import { BASE_CURRENCY } from '../../domain/entities'
+import { Icon } from '../../ui/components/Icon'
 
 interface StatementsViewProps {
   initialSubjectId?: string | null
@@ -110,9 +111,9 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
           <button
             type="button"
             onClick={handleDownloadCsv}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95"
           >
-            <span>📥</span>
+            <Icon name="document" size={16} />
             <span>Download CSV</span>
           </button>
         )}
@@ -133,11 +134,12 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
                   setSubjectType('friend')
                   setSelectedId(friends[0]?.id || '')
                 }}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  subjectType === 'friend' ? 'bg-indigo-600 text-white' : 'text-[var(--color-text-muted)]'
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all inline-flex items-center justify-center gap-1.5 ${
+                  subjectType === 'friend' ? 'bg-primary text-white shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
-                👥 Friend
+                <Icon name="users" size={14} />
+                <span>Friend</span>
               </button>
               <button
                 type="button"
@@ -145,11 +147,12 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
                   setSubjectType('group')
                   setSelectedId(groups[0]?.id || '')
                 }}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  subjectType === 'group' ? 'bg-indigo-600 text-white' : 'text-[var(--color-text-muted)]'
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all inline-flex items-center justify-center gap-1.5 ${
+                  subjectType === 'group' ? 'bg-primary text-white shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
-                🏝 Group
+                <Icon name="beach" size={14} />
+                <span>Group</span>
               </button>
             </div>
           </div>
@@ -190,7 +193,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
               onClick={() => setDateFilter('all')}
               className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
                 dateFilter === 'all'
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-primary text-white shadow-sm'
                   : 'bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)]'
               }`}
             >
@@ -201,7 +204,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
               onClick={() => setDateFilter('month')}
               className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
                 dateFilter === 'month'
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-primary text-white shadow-sm'
                   : 'bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)]'
               }`}
             >
@@ -212,7 +215,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
               onClick={() => setDateFilter('custom')}
               className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
                 dateFilter === 'custom'
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-primary text-white shadow-sm'
                   : 'bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)]'
               }`}
             >
@@ -293,7 +296,17 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
                       {item.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
                     <td className="py-2.5 px-3.5 font-semibold">
-                      {item.isSettlement ? '🤝 Payment' : '🧾 Expense'}
+                      {item.isSettlement ? (
+                        <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                          <Icon name="moneyHand" size={14} />
+                          <span>Payment</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-primary">
+                          <Icon name="receipt" size={14} />
+                          <span>Expense</span>
+                        </span>
+                      )}
                     </td>
                     <td className="py-2.5 px-3.5 font-medium text-[var(--color-text)]">
                       {item.description}
@@ -301,7 +314,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
                     <td className="py-2.5 px-3.5 text-right font-semibold">
                       {BASE_CURRENCY.symbol}{(item.totalMinor / 100).toFixed(2)}
                     </td>
-                    <td className="py-2.5 px-3.5 text-right font-bold text-indigo-600 dark:text-indigo-400">
+                    <td className="py-2.5 px-3.5 text-right font-bold text-primary">
                       {BASE_CURRENCY.symbol}{(item.yourShareMinor / 100).toFixed(2)}
                     </td>
                     <td className="py-2.5 px-3.5 text-[var(--color-text-muted)]">

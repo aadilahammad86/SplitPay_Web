@@ -1,4 +1,5 @@
 import React from 'react'
+import { Icon, type IconName } from './Icon'
 
 interface BottomNavProps {
   currentTab: string
@@ -6,13 +7,13 @@ interface BottomNavProps {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onNavigate }) => {
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-    { id: 'friends', label: 'Friends', icon: '👥' },
-    { id: 'groups', label: 'Groups', icon: '🏝' },
-    { id: 'activity', label: 'Activity', icon: '🧾' },
-    { id: 'statements', label: 'Statements', icon: '📊' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+  const tabs: { id: string; label: string; icon: IconName }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+    { id: 'friends', label: 'Friends', icon: 'users' },
+    { id: 'groups', label: 'Groups', icon: 'beach' },
+    { id: 'activity', label: 'Activity', icon: 'receipt' },
+    { id: 'statements', label: 'Statements', icon: 'chart' },
+    { id: 'settings', label: 'Settings', icon: 'settings' },
   ]
 
   return (
@@ -34,7 +35,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onNavigate }) 
               {isActive && (
                 <span className="absolute -top-1 w-6 h-1 rounded-full bg-primary" />
               )}
-              <span className="text-lg leading-none mb-0.5">{tab.icon}</span>
+              <span className="mb-0.5">
+                <Icon name={tab.icon} size={20} strokeWidth={isActive ? 2.5 : 2} />
+              </span>
               <span className="text-[10px] tracking-tight">{tab.label}</span>
             </button>
           )

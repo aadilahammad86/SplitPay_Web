@@ -3,6 +3,7 @@ import { useStore } from '../../ui/storeContext'
 import { useTheme } from '../../ui/themeContext'
 import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
 import { OnboardingModal } from '../onboarding/OnboardingModal'
+import { Icon, type IconName } from '../../ui/components/Icon'
 
 export const SettingsView: React.FC = () => {
   const {
@@ -177,11 +178,11 @@ export const SettingsView: React.FC = () => {
     reader.readAsText(file)
   }
 
-  const themeModes: { id: ThemeMode; label: string; icon: string; previewClass: string }[] = [
-    { id: 'system', label: 'System', icon: '🌓', previewClass: 'bg-slate-500' },
-    { id: 'light', label: 'Light', icon: '☀️', previewClass: 'bg-white border-slate-300' },
-    { id: 'dark', label: 'Dark', icon: '🌙', previewClass: 'bg-slate-900 border-slate-700' },
-    { id: 'amoled', label: 'AMOLED', icon: '🖤', previewClass: 'bg-black border-slate-800' },
+  const themeModes: { id: ThemeMode; label: string; iconName: IconName; previewClass: string }[] = [
+    { id: 'system', label: 'System', iconName: 'monitor', previewClass: 'bg-slate-500 text-white' },
+    { id: 'light', label: 'Light', iconName: 'sun', previewClass: 'bg-white text-amber-500 border-slate-300' },
+    { id: 'dark', label: 'Dark', iconName: 'moon', previewClass: 'bg-slate-900 text-indigo-300 border-slate-700' },
+    { id: 'amoled', label: 'AMOLED', iconName: 'moon', previewClass: 'bg-black text-white border-slate-800' },
   ]
 
   return (
@@ -199,9 +200,10 @@ export const SettingsView: React.FC = () => {
         <button
           type="button"
           onClick={() => setShowOnboarding(true)}
-          className="px-4 py-2 bg-primary-subtle border border-primary-border text-primary font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all self-start sm:self-auto shadow-sm"
+          className="px-4 py-2 bg-primary-subtle border border-primary-border text-primary font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all self-start sm:self-auto shadow-sm inline-flex items-center gap-1.5"
         >
-          ✨ Replay Setup Wizard
+          <Icon name="star" size={14} className="text-amber-500" />
+          <span>Replay Setup Wizard</span>
         </button>
       </div>
 
@@ -308,7 +310,7 @@ export const SettingsView: React.FC = () => {
                 }`}
               >
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-sm border ${t.previewClass}`}>
-                  {t.icon}
+                  <Icon name={t.iconName} size={15} />
                 </div>
                 <span className="text-xs capitalize">{t.label}</span>
               </button>
@@ -339,7 +341,7 @@ export const SettingsView: React.FC = () => {
                     className="w-7 h-7 rounded-xl shrink-0 shadow-sm border border-white/20 flex items-center justify-center"
                     style={{ backgroundColor: p.swatchHex }}
                   >
-                    {isSelected && <span className="text-white text-xs font-bold">✓</span>}
+                    {isSelected && <Icon name="check" size={13} className="text-white" />}
                   </div>
                   <div className="overflow-hidden">
                     <p className={`text-xs truncate ${isSelected ? 'font-bold text-primary' : 'font-semibold text-[var(--color-text)]'}`}>
@@ -368,13 +370,14 @@ export const SettingsView: React.FC = () => {
             </p>
           </div>
           <span
-            className={`px-3 py-1 text-xs font-bold rounded-xl border ${
+            className={`px-3 py-1 text-xs font-bold rounded-xl border flex items-center gap-1.5 ${
               hasPasscode
                 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
                 : 'bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)] border-[var(--color-border)]'
             }`}
           >
-            {hasPasscode ? '🔒 Protected' : '🔓 Unlocked'}
+            <Icon name={hasPasscode ? 'lock' : 'unlock'} size={13} />
+            <span>{hasPasscode ? 'Protected' : 'Unlocked'}</span>
           </span>
         </div>
 
@@ -484,10 +487,11 @@ export const SettingsView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCopyLedgerId}
-                className="px-3.5 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl transition-colors"
+                className="px-3.5 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl transition-colors inline-flex items-center gap-1.5"
                 title="Copy Ledger ID"
               >
-                {copiedLedger ? '✓ Copied' : '📋 Copy'}
+                <Icon name={copiedLedger ? 'check' : 'clipboard'} size={14} />
+                <span>{copiedLedger ? 'Copied' : 'Copy'}</span>
               </button>
               <button
                 type="submit"
@@ -541,9 +545,10 @@ export const SettingsView: React.FC = () => {
               type="button"
               onClick={handleManualSync}
               disabled={syncState?.status === 'syncing'}
-              className="px-4 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all"
+              className="px-4 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
             >
-              🔄 Sync Now
+              <Icon name="reload" size={14} className={syncState?.status === 'syncing' ? 'animate-spin' : ''} />
+              <span>Sync Now</span>
             </button>
           </div>
         </div>
@@ -644,13 +649,15 @@ export const SettingsView: React.FC = () => {
           <button
             type="button"
             onClick={handleExportBackup}
-            className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all"
+            className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
           >
-            💾 Export JSON Backup
+            <Icon name="save" size={15} />
+            <span>Export JSON Backup</span>
           </button>
 
-          <label className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer">
-            📥 Import JSON Backup
+          <label className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5">
+            <Icon name="cloud" size={15} />
+            <span>Import JSON Backup</span>
             <input
               type="file"
               accept=".json"
