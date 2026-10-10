@@ -3,7 +3,14 @@ import { useStore } from '../../ui/storeContext'
 import { useTheme } from '../../ui/themeContext'
 import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
 import { OnboardingModal } from '../onboarding/OnboardingModal'
+import { EmailVerificationModal } from '../auth/EmailVerificationModal'
+import { PhoneLinkingModal } from '../auth/PhoneLinkingModal'
+import { ContactSyncModal } from '../contacts/ContactSyncModal'
+import { formatE164Display } from '../../domain/phone'
 import { Icon, type IconName } from '../../ui/components/Icon'
+import { defaultAuthVerificationService } from '../../services/auth/authVerificationService'
+import { EmailJsProvider } from '../../services/email/emailJsProvider'
+import { defaultStubEmailProvider } from '../../services/email/stubEmailProvider'
 
 export const SettingsView: React.FC = () => {
   const {
@@ -24,6 +31,11 @@ export const SettingsView: React.FC = () => {
   const [profileHandle, setProfileHandle] = useState(me?.handle || '')
   const [savedProfileMsg, setSavedProfileMsg] = useState(false)
 
+  // Email & Phone Verification Modals
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [showPhoneModal, setShowPhoneModal] = useState(false)
+  const [showContactsModal, setShowContactsModal] = useState(false)
+
   // Security / App Passcode
   const [hasPasscode, setHasPasscode] = useState(() => {
     if (typeof localStorage !== 'undefined') {
@@ -43,6 +55,61 @@ export const SettingsView: React.FC = () => {
   const [ledgerInput, setLedgerInput] = useState(sharedLedgerId || 'default_ledger')
   const [savedLedgerMsg, setSavedLedgerMsg] = useState(false)
   const [copiedLedger, setCopiedLedger] = useState(false)
+
+  // Real-Life OTP Channels Configuration (100% Free For Life)
+  const [emailProviderType, setEmailProviderType] = useState<'stub' | 'emailjs'>(() => {
+    if (typeof localStorage !== 'undefined') {
+      return (localStorage.getItem('splitpay_email_provider') as 'stub' | 'emailjs') || 'stub'
+    }
+    return 'stub'
+  })
+  const [emailJsServiceId, setEmailJsServiceId] = useState(() => {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('splitpay_emailjs_service_id') || ''
+    }
+    return ''
+  })
+  const [emailJsTemplateId, setEmailJsTemplateId] = useState(() => {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('splitpay_emailjs_template_id') || ''
+    }
+    return ''
+  })
+  const [emailJsPublicKey, setEmailJsPublicKey] = useState(() => {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('splitpay_emailjs_public_key') || ''
+    }
+    return ''
+  })
+  const [otpChannelsStatusMsg, setOtpChannelsStatusMsg] = useState<string | null>(null)
+
+  const handleSaveOtpChannels = (e: React.FormEvent) => {
+    e.preventDefault()
+    setOtpChannelsStatusMsg(null)
+
+    if (typeof localStorage !== 'undefined') {
+      // Save Email Provider
+      localStorage.setItem('splitpay_email_provider', emailProviderType)
+      localStorage.setItem('splitpay_emailjs_service_id', emailJsServiceId.trim())
+      localStorage.setItem('splitpay_emailjs_template_id', emailJsTemplateId.trim())
+      localStorage.setItem('splitpay_emailjs_public_key', emailJsPublicKey.trim())
+
+      if (emailProviderType === 'emailjs') {
+        defaultAuthVerificationService.setEmailProvider(
+          new EmailJsProvider({
+            serviceId: emailJsServiceId.trim(),
+            templateId: emailJsTemplateId.trim(),
+            publicKey: emailJsPublicKey.trim(),
+          })
+        )
+      } else {
+        defaultAuthVerificationService.setEmailProvider(defaultStubEmailProvider)
+      }
+
+      setOtpChannelsStatusMsg('✓ Email settings successfully updated!')
+      setTimeout(() => setOtpChannelsStatusMsg(null), 3000)
+    }
+  }
 
   // Supabase Config
   const [supabaseUrl, setSupabaseUrl] = useState(() => {
@@ -277,6 +344,254 @@ export const SettingsView: React.FC = () => {
           <div className="p-3 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-0 text-[11px] text-[var(--color-text-muted)]">
             <span>Device ID: <code className="font-mono text-[var(--color-text)]">{ledgerState.deviceId.slice(0, 10)}...</code></span>
             <span>Local User ID: <code className="font-mono text-[var(--color-text)]">{ledgerState.localPersonId?.slice(0, 10)}...</code></span>
+          </div>
+        </form>
+      </div>
+
+      {/* Verification & Contact Matching Section */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="font-bold text-sm text-[var(--color-text)]">
+              Verification & Contact Sync
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              Verify email and phone ownership to enable secure contact matching and friend discovery.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowContactsModal(true)}
+            className="px-3.5 py-2 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all self-start sm:self-auto inline-flex items-center gap-1.5 shadow-sm active:scale-95"
+          >
+            <Icon name="users" size={14} />
+            <span>Find from Contacts</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Email verification card */}
+          <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex flex-col justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[var(--color-text-muted)] flex items-center gap-1.5">
+                  <Icon name="mail" size={14} />
+                  <span>Email Verification</span>
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    me?.emailVerified
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                  }`}
+                >
+                  {me?.emailVerified ? '✓ Verified' : 'Unverified'}
+                </span>
+              </div>
+              <p className="text-xs font-bold text-[var(--color-text)] truncate">
+                {me?.email || 'No email attached'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowEmailModal(true)}
+              className="w-full py-2 px-3 text-xs font-bold rounded-xl bg-[var(--color-surface)] hover:bg-[var(--color-border)] text-[var(--color-text)] border border-[var(--color-border)] transition-colors inline-flex items-center justify-center gap-1.5"
+            >
+              <Icon name="mail" size={13} />
+              <span>{me?.emailVerified ? 'Change Email' : 'Verify Email Address'}</span>
+            </button>
+          </div>
+
+          {/* Phone linking card */}
+          <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex flex-col justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[var(--color-text-muted)] flex items-center gap-1.5">
+                  <Icon name="phone" size={14} />
+                  <span>Phone Number</span>
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    me?.phoneVerified
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-slate-500/10 text-slate-500'
+                  }`}
+                >
+                  {me?.phoneVerified ? '✓ Linked' : 'Not linked'}
+                </span>
+              </div>
+              <p className="text-xs font-bold text-[var(--color-text)] truncate font-mono">
+                {me?.phone ? formatE164Display(me.phone) : 'No phone linked'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowPhoneModal(true)}
+              className="w-full py-2 px-3 text-xs font-bold rounded-xl bg-[var(--color-surface)] hover:bg-[var(--color-border)] text-[var(--color-text)] border border-[var(--color-border)] transition-colors inline-flex items-center justify-center gap-1.5"
+            >
+              <Icon name="phone" size={13} />
+              <span>{me?.phoneVerified ? 'Change Phone' : 'Link Phone Number'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Discoverability switch */}
+        <div className="pt-2 border-t border-[var(--color-border)] flex items-center justify-between">
+          <div>
+            <span className="text-xs font-bold text-[var(--color-text)] block">
+              Discoverable by Phone Number
+            </span>
+            <span className="text-[11px] text-[var(--color-text-muted)] block">
+              Allow verified friends to find you when syncing their address book
+            </span>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={me?.discoverableByPhone ?? false}
+              disabled={!me?.phoneVerified}
+              onChange={async (e) => {
+                await store.updateLocalProfile({ discoverableByPhone: e.target.checked })
+              }}
+              className="sr-only peer"
+            />
+            <div className="w-10 h-6 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary disabled:opacity-40" />
+          </label>
+        </div>
+      </div>
+
+      {/* Real-Life OTP Delivery Channels (100% Free For Life) */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-sm text-[var(--color-text)]">
+              Real Email OTP Delivery (100% Free For Life)
+            </h3>
+            <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full">
+              Live Emails
+            </span>
+          </div>
+          <p className="text-xs text-[var(--color-text-muted)] mt-1">
+            SplitPay uses cryptographic Email OTP for ownership verification and registers phone numbers directly to accounts for contact matching. Choose how verification emails are delivered.
+          </p>
+        </div>
+
+        <form onSubmit={handleSaveOtpChannels} className="space-y-4">
+          {/* Email Delivery Provider */}
+          <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[var(--color-text)] flex items-center gap-1.5">
+                <Icon name="mail" size={14} />
+                <span>Email Delivery Method</span>
+              </span>
+              <span className="text-[11px] font-medium text-[var(--color-text-muted)]">
+                {emailProviderType === 'emailjs' ? 'Real Email (EmailJS)' : 'In-Memory Simulator'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setEmailProviderType('emailjs')}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  emailProviderType === 'emailjs'
+                    ? 'border-primary bg-primary-subtle text-primary font-bold'
+                    : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:border-primary/40'
+                }`}
+              >
+                <div className="text-xs font-bold">EmailJS (Free for Life)</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                  Sends real emails to any inbox worldwide via your Gmail. 200 free emails/mo forever.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setEmailProviderType('stub')}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  emailProviderType === 'stub'
+                    ? 'border-primary bg-primary-subtle text-primary font-bold'
+                    : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:border-primary/40'
+                }`}
+              >
+                <div className="text-xs font-bold">Dev Simulator</div>
+                <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                  Shows instant in-app banner with OTP for rapid local testing.
+                </div>
+              </button>
+            </div>
+
+            {emailProviderType === 'emailjs' && (
+              <div className="space-y-3 pt-2 border-t border-[var(--color-border)] animate-fade-in">
+                <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
+                  <div className="font-bold">EmailJS Free Setup (Takes 60s, No Credit Card):</div>
+                  <ol className="list-decimal pl-4 space-y-0.5">
+                    <li>Create a free account at <a href="https://www.emailjs.com" target="_blank" rel="noreferrer" className="underline font-bold">emailjs.com</a>.</li>
+                    <li>Under <strong>Email Services</strong>, connect your personal <strong>Gmail</strong>. Copy the <strong>Service ID</strong>.</li>
+                    <li>Under <strong>Email Templates</strong>, create a template with subject and body containing <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">&#123;&#123;otp_code&#125;&#125;</code>. Copy the <strong>Template ID</strong>.</li>
+                    <li>Under <strong>Account &gt; API Keys</strong>, copy your <strong>Public Key</strong>.</li>
+                  </ol>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[var(--color-text-muted)] mb-1">
+                      Service ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="service_xyz"
+                      value={emailJsServiceId}
+                      onChange={(e) => setEmailJsServiceId(e.target.value)}
+                      className="w-full px-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-mono text-[var(--color-text)] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[var(--color-text-muted)] mb-1">
+                      Template ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="template_abc"
+                      value={emailJsTemplateId}
+                      onChange={(e) => setEmailJsTemplateId(e.target.value)}
+                      className="w-full px-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-mono text-[var(--color-text)] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[var(--color-text-muted)] mb-1">
+                      Public Key
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="user_publicKey"
+                      value={emailJsPublicKey}
+                      onChange={(e) => setEmailJsPublicKey(e.target.value)}
+                      className="w-full px-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-mono text-[var(--color-text)] focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {otpChannelsStatusMsg && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold animate-fade-in">
+                  {otpChannelsStatusMsg}
+                </span>
+              )}
+            </span>
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
+            >
+              Save Email Settings
+            </button>
           </div>
         </form>
       </div>
@@ -674,6 +989,26 @@ export const SettingsView: React.FC = () => {
       <OnboardingModal
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
+      />
+
+      {/* Email Verification Modal */}
+      <EmailVerificationModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        initialEmail={me?.email || ''}
+      />
+
+      {/* Phone Linking Modal */}
+      <PhoneLinkingModal
+        isOpen={showPhoneModal}
+        onClose={() => setShowPhoneModal(false)}
+        onOpenEmailModal={() => setShowEmailModal(true)}
+      />
+
+      {/* Contact Picker & Sync Modal */}
+      <ContactSyncModal
+        isOpen={showContactsModal}
+        onClose={() => setShowContactsModal(false)}
       />
     </div>
   )

@@ -70,7 +70,9 @@ export type IconName =
   | 'logout'
   | 'login'
   | 'bell'
-  | 'send';
+  | 'send'
+  | 'phone'
+  | 'mail';
 
 export interface IconProps extends React.SVGProps<SVGSVGElement> {
   name?: IconName
@@ -149,6 +151,8 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   login: (<><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m15 12-4-4m4 4-4 4m4-4H5m5 9a9 9 0 1 0 0-18"/></>),
   bell: (<><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5c-2 0-6 1.2-6 6v4l-2 2h5m3-12c4.8 0 6 4 6 6v4l2 2h-5M12 5V3M9 17v1c0 1 .6 3 3 3s3-2 3-3v-1m-6 0h6"/></>),
   send: (<><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m6 12-3 9 18-9L3 3l3 9zm0 0h6"/></>),
+  phone: (<><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 18.675c1.93.83 4.242 1.325 7 1.325v-4l-4-1-3 3.675zm0 0C9.159 17.023 6.824 14.045 5.5 11m0 0C4.4 8.472 4 5.898 4 4h4l1 4-3.5 3z"/></>),
+  mail: (<><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m7 9 3.75 3a2 2 0 0 0 2.5 0L17 9m4 8V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/></>),
 };
 
 export const Icon: React.FC<IconProps> = ({

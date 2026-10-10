@@ -6,6 +6,7 @@ import { SourceChips } from '../../ui/components/SourceChips'
 import { Modal } from '../../ui/components/Modal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import { EditFriendModal } from './EditFriendModal'
+import { ContactSyncModal } from '../contacts/ContactSyncModal'
 import { BASE_CURRENCY, personInitials, type Person } from '../../domain/entities'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
@@ -25,6 +26,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const [selectedFriend, setSelectedFriend] = useState<Person | null>(null)
   const [editingFriend, setEditingFriend] = useState<Person | null>(null)
   const [showSettle, setShowSettle] = useState(false)
+  const [showContactsModal, setShowContactsModal] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState(0)
 
@@ -131,6 +133,15 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               className="w-full pl-9 pr-3.5 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => setShowContactsModal(true)}
+            className="px-3.5 py-2.5 bg-[var(--color-surface)] hover:bg-[var(--color-border)] text-[var(--color-text)] border border-[var(--color-border)] font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
+            title="Find friends from your contacts"
+          >
+            <Icon name="users" size={15} />
+            <span className="hidden sm:inline">Sync Contacts</span>
+          </button>
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
@@ -460,6 +471,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
         isOpen={!!editingFriend}
         onClose={() => setEditingFriend(null)}
         friend={editingFriend}
+      />
+
+      {/* Contact Sync Modal */}
+      <ContactSyncModal
+        isOpen={showContactsModal}
+        onClose={() => setShowContactsModal(false)}
       />
     </div>
   )

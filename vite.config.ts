@@ -8,6 +8,20 @@ export default defineConfig({
     tailwindcss(),
     react(),
   ],
+  server: {
+    proxy: {
+      '/api/callmebot': {
+        target: 'https://api.callmebot.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/callmebot/, ''),
+      },
+      '/api/textbelt': {
+        target: 'https://textbelt.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/textbelt/, ''),
+      },
+    },
+  },
   build: {
     rollupOptions: {
       output: {

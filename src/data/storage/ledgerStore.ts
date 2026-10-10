@@ -134,16 +134,32 @@ export class LedgerStore {
     return this.updateLocalProfile({ name })
   }
 
-  async updateLocalProfile(updates: { name: string; handle?: string }): Promise<Person> {
-    const trimmedName = updates.name.trim() || 'You'
-    const trimmedHandle = updates.handle !== undefined ? (updates.handle.trim() || undefined) : this.me?.handle
+  async updateLocalProfile(updates: {
+    name?: string
+    handle?: string
+    email?: string
+    emailVerified?: boolean
+    phone?: string
+    phoneVerified?: boolean
+    discoverableByPhone?: boolean
+    inviteCode?: string
+  }): Promise<Person> {
     const currentMe = this.me
     const myId = currentMe?.id || this.state.localPersonId || generateUlid()
+    const trimmedName = updates.name !== undefined ? (updates.name.trim() || 'You') : (currentMe?.name || 'You')
+    const trimmedHandle = updates.handle !== undefined ? (updates.handle.trim() || undefined) : currentMe?.handle
 
     const updated: Person = {
+      ...currentMe,
       id: myId,
       name: trimmedName,
       handle: trimmedHandle,
+      email: updates.email !== undefined ? updates.email : currentMe?.email,
+      emailVerified: updates.emailVerified !== undefined ? updates.emailVerified : currentMe?.emailVerified,
+      phone: updates.phone !== undefined ? updates.phone : currentMe?.phone,
+      phoneVerified: updates.phoneVerified !== undefined ? updates.phoneVerified : currentMe?.phoneVerified,
+      discoverableByPhone: updates.discoverableByPhone !== undefined ? updates.discoverableByPhone : currentMe?.discoverableByPhone,
+      inviteCode: updates.inviteCode !== undefined ? updates.inviteCode : (currentMe?.inviteCode || `sp_${myId.slice(-6).toLowerCase()}`),
     }
     const op = opAddPerson({
       opId: generateUlid(),

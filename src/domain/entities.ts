@@ -26,6 +26,12 @@ export interface Person {
   id: string
   name: string
   handle?: string
+  email?: string
+  emailVerified?: boolean
+  phone?: string // Normalized E.164
+  phoneVerified?: boolean
+  discoverableByPhone?: boolean
+  inviteCode?: string
 }
 
 export function personInitials(name: string): string {
