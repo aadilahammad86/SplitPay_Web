@@ -6,6 +6,7 @@ import { SourceChips } from '../../ui/components/SourceChips'
 import { BASE_CURRENCY, GroupKindInfo, personInitials } from '../../domain/entities'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
+import { CreateGroupModal } from '../groups/CreateGroupModal'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 interface DashboardViewProps {
@@ -25,6 +26,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [showSettleUp, setShowSettleUp] = useState(false)
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState<number>(0)
 
@@ -225,7 +227,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
                 Your Circle
               </span>
-              <Icon name="beach" size={22} className="text-primary" />
+              <Icon name="users" size={22} className="text-primary" />
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
@@ -359,17 +361,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {ledgerState.groups.length === 0 ? (
-              <div className="py-8 text-center space-y-2">
-                <Icon name="beach" size={36} className="mx-auto text-[var(--color-text-muted)] opacity-60" />
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  No groups created yet.
-                </p>
+              <div className="py-8 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-primary-subtle text-primary border border-primary-border flex items-center justify-center mx-auto shadow-sm">
+                  <Icon name="users" size={24} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-[var(--color-text)]">
+                    No groups created yet
+                  </h4>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 max-w-xs mx-auto">
+                    Create a shared pool for a vacation, household, or dinner to split with multiple people.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => onNavigate('groups')}
-                  className="px-3 py-1.5 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-lg hover:bg-primary hover:text-white transition-colors inline-flex items-center gap-1.5"
+                  onClick={() => setShowCreateGroup(true)}
+                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all inline-flex items-center gap-1.5 active:scale-95"
                 >
-                  <Icon name="plus" size={12} />
+                  <Icon name="plus" size={14} />
                   <span>Create Group</span>
                 </button>
               </div>
@@ -545,6 +554,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           onClose={() => setShowSettleUp(false)}
           initialFriendId={settleFriendId}
           initialAmountMinor={settleAmountMinor}
+        />
+      )}
+
+      {showCreateGroup && (
+        <CreateGroupModal
+          isOpen={showCreateGroup}
+          onClose={() => setShowCreateGroup(false)}
+          onCreated={(groupId) => onSelectGroup(groupId)}
         />
       )}
     </div>

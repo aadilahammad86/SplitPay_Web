@@ -152,7 +152,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
                   subjectType === 'group' ? 'bg-primary text-white shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
-                <Icon name="beach" size={14} />
+                <Icon name="users" size={14} />
                 <span>Group</span>
               </button>
             </div>

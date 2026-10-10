@@ -274,7 +274,7 @@ export const SettingsView: React.FC = () => {
             </button>
           </div>
 
-          <div className="p-3 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl flex items-center justify-between text-[11px] text-[var(--color-text-muted)]">
+          <div className="p-3 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-0 text-[11px] text-[var(--color-text-muted)]">
             <span>Device ID: <code className="font-mono text-[var(--color-text)]">{ledgerState.deviceId.slice(0, 10)}...</code></span>
             <span>Local User ID: <code className="font-mono text-[var(--color-text)]">{ledgerState.localPersonId?.slice(0, 10)}...</code></span>
           </div>
@@ -476,29 +476,31 @@ export const SettingsView: React.FC = () => {
             <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
               Active Ledger ID
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 required
                 value={ledgerInput}
                 onChange={(e) => setLedgerInput(e.target.value)}
-                className="flex-1 px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none"
+                className="w-full flex-1 px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none min-w-0"
               />
-              <button
-                type="button"
-                onClick={handleCopyLedgerId}
-                className="px-3.5 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl transition-colors inline-flex items-center gap-1.5"
-                title="Copy Ledger ID"
-              >
-                <Icon name={copiedLedger ? 'check' : 'clipboard'} size={14} />
-                <span>{copiedLedger ? 'Copied' : 'Copy'}</span>
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
-              >
-                Set Ledger
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleCopyLedgerId}
+                  className="flex-1 sm:flex-none px-3.5 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl transition-colors inline-flex items-center justify-center gap-1.5 shrink-0"
+                  title="Copy Ledger ID"
+                >
+                  <Icon name={copiedLedger ? 'check' : 'clipboard'} size={14} />
+                  <span>{copiedLedger ? 'Copied' : 'Copy'}</span>
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 shrink-0 whitespace-nowrap text-center"
+                >
+                  Set Ledger
+                </button>
+              </div>
             </div>
             {savedLedgerMsg && (
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-2 block animate-fade-in">
@@ -645,17 +647,17 @@ export const SettingsView: React.FC = () => {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2.5 pt-1">
           <button
             type="button"
             onClick={handleExportBackup}
-            className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
+            className="w-full sm:w-auto px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center justify-center gap-1.5 active:scale-95"
           >
             <Icon name="save" size={15} />
             <span>Export JSON Backup</span>
           </button>
 
-          <label className="px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5">
+          <label className="w-full sm:w-auto px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 active:scale-95">
             <Icon name="cloud" size={15} />
             <span>Import JSON Backup</span>
             <input

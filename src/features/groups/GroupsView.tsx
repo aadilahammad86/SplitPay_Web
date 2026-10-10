@@ -7,12 +7,11 @@ import { Modal } from '../../ui/components/Modal'
 import { Select } from '../../ui/components/Select'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
+import { CreateGroupModal } from './CreateGroupModal'
 import {
   type Group,
-  type GroupKind,
   GroupKindInfo,
 } from '../../domain/entities'
-import { Currencies, type CurrencyCode, SupportedCurrencies } from '../../domain/money'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 interface GroupsViewProps {
@@ -25,11 +24,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
   const meId = me?.id || ''
 
   const [showCreateGroup, setShowCreateGroup] = useState(false)
-  const [newGroupName, setNewGroupName] = useState('')
-  const [newGroupKind, setNewGroupKind] = useState<GroupKind>('trip')
-  const [newGroupCurrency, setNewGroupCurrency] = useState<CurrencyCode>(Currencies.INR)
-  const [newGroupMembers, setNewGroupMembers] = useState<string[]>([])
-
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [showSettle, setShowSettle] = useState(false)
@@ -40,21 +34,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
   const [showAddMember, setShowAddMember] = useState(false)
   const [memberToAdd, setMemberToAdd] = useState('')
 
-  const handleCreateGroup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newGroupName.trim()) return
-
-    await store.createGroup({
-      name: newGroupName.trim(),
-      kind: newGroupKind,
-      memberIds: newGroupMembers,
-      currency: newGroupCurrency,
-    })
-
-    setNewGroupName('')
-    setNewGroupMembers([])
-    setShowCreateGroup(false)
-  }
 
   const handleAddMemberToGroup = async () => {
     if (!selectedGroup || !memberToAdd) return
@@ -96,10 +75,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
         </div>
         <button
           type="button"
-          onClick={() => {
-            setNewGroupMembers([meId])
-            setShowCreateGroup(true)
-          }}
+          onClick={() => setShowCreateGroup(true)}
           className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
         >
           <Icon name="plus" size={16} />
@@ -111,7 +87,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
       {ledgerState.groups.length === 0 ? (
         <div className="p-10 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-3">
           <div className="w-16 h-16 rounded-3xl bg-primary-subtle text-primary flex items-center justify-center text-3xl mx-auto shadow-sm">
-            <Icon name="beach" size={32} />
+            <Icon name="users" size={32} />
           </div>
           <h3 className="font-bold text-base text-[var(--color-text)]">No groups created yet</h3>
           <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto">
@@ -119,11 +95,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
           </p>
           <button
             type="button"
-            onClick={() => {
-              setNewGroupMembers([meId])
-              setShowCreateGroup(true)
-            }}
-            className="mt-2 px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-md hover:bg-primary-hover transition-all inline-flex items-center gap-1.5"
+            onClick={() => setShowCreateGroup(true)}
+            className="mt-2 px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-md hover:bg-primary-hover transition-all inline-flex items-center gap-1.5 active:scale-95"
           >
             <Icon name="plus" size={14} />
             <span>Create your first group</span>
@@ -182,99 +155,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
       )}
 
       {/* Create Group Modal */}
-      <Modal isOpen={showCreateGroup} onClose={() => setShowCreateGroup(false)} title="Create a Group">
-        <form onSubmit={handleCreateGroup} className="space-y-4 text-sm">
-          <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-              Group Name
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Goa Trip 2026, Flat 402"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-                Kind
-              </label>
-              <Select
-                value={newGroupKind}
-                onChange={(val) => setNewGroupKind(val as GroupKind)}
-                options={(Object.keys(GroupKindInfo) as GroupKind[]).map((k) => ({
-                  value: k,
-                  label: `${GroupKindInfo[k].emoji} ${GroupKindInfo[k].label}`,
-                }))}
-                ariaLabel="Group Kind"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-                Currency
-              </label>
-              <Select
-                value={newGroupCurrency.code}
-                onChange={(val) => {
-                  const found = SupportedCurrencies.find((c) => c.code === val)
-                  if (found) setNewGroupCurrency(found)
-                }}
-                options={SupportedCurrencies.map((c) => ({
-                  value: c.code,
-                  label: `${c.code} (${c.symbol})`,
-                }))}
-                ariaLabel="Group Currency"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
-              Select Initial Members
-            </label>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto p-2 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl">
-              {ledgerState.people.map((p) => {
-                const checked = newGroupMembers.includes(p.id)
-                return (
-                  <label key={p.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-[var(--color-surface)] cursor-pointer text-xs">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        if (checked) setNewGroupMembers(newGroupMembers.filter((m) => m !== p.id))
-                        else setNewGroupMembers([...newGroupMembers, p.id])
-                      }}
-                      className="rounded text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="font-semibold">{p.id === meId ? 'You' : p.name}</span>
-                  </label>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-[var(--color-border)] flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowCreateGroup(false)}
-              className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)]"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md"
-            >
-              Create Group
-            </button>
-          </div>
-        </form>
-      </Modal>
+      <CreateGroupModal
+        isOpen={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        onCreated={(gId) => {
+          const created = ledgerState.groups.find((g) => g.id === gId)
+          if (created) setSelectedGroup(created)
+        }}
+      />
 
       {/* Group Detail Modal */}
       {selectedGroup && (
