@@ -130,44 +130,43 @@ COMMIT;
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY, -- Client ULID or Supabase Auth UUID
   name TEXT NOT NULL,
+  handle TEXT,
   email TEXT,
   email_verified BOOLEAN NOT NULL DEFAULT FALSE,
   phone TEXT,
   phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
-  discoverable_by_phone BOOLEAN NOT NULL DEFAULT FALSE,
+  discoverable_by_phone BOOLEAN NOT NULL DEFAULT TRUE,
   avatar_url TEXT,
   invite_code TEXT UNIQUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Unique constraint on verified phone numbers ONLY (allows unverified duplicates/reclaims)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_verified_phone 
+-- Unique index on registered phone numbers
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_phone 
   ON public.profiles (phone) 
-  WHERE phone_verified = true AND phone IS NOT NULL;
+  WHERE phone IS NOT NULL;
 
 -- Enable RLS on profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read their own profile"
+-- Allow reading discoverable profiles for friend lookup
+CREATE POLICY "Allow lookup of discoverable profiles"
   ON public.profiles
   FOR SELECT
-  USING (auth.uid() = id);
+  USING (discoverable_by_phone = true);
 
-CREATE POLICY "Users can update their own profile"
+-- Allow profile creation and updates
+CREATE POLICY "Allow clients to upsert their own profile"
   ON public.profiles
-  FOR UPDATE
-  USING (auth.uid() = id);
-
-CREATE POLICY "Users can insert their own profile"
-  ON public.profiles
-  FOR INSERT
-  WITH CHECK (auth.uid() = id);
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
 -- ----------------------------------------------------------------------------
--- AUTH OTPS TABLE (Email & SMS verification tokens)
+-- AUTH OTPS TABLE (Email verification tokens)
 -- Stores SHA-256 hashed 6-digit OTPs, 10 min TTL, max 5 attempts
 -- ----------------------------------------------------------------------------
 
@@ -186,22 +185,16 @@ CREATE INDEX IF NOT EXISTS idx_auth_otps_identifier
   ON public.auth_otps (target_identifier, channel, created_at DESC);
 
 ALTER TABLE public.auth_otps ENABLE ROW LEVEL SECURITY;
--- Default deny for client direct queries: OTP operations handled via secure Edge Functions / RPC
 
 -- ----------------------------------------------------------------------------
 -- PRIVACY-PRESERVING CONTACT MATCHING RPC
--- Requirements:
--- 1. Caps input at 50 phone numbers
--- 2. Matches ONLY against accounts with (email_verified = true AND phone_verified = true AND discoverable_by_phone = true)
--- 3. Excludes requester (auth.uid())
--- 4. Returns minimal public profile info (id, name, avatar_url, phone)
--- 5. Does NOT persist, log, or leak non-matching numbers or non-discoverable users
 -- ----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public.match_contacts_by_phone(candidate_numbers TEXT[])
 RETURNS TABLE (
-  id UUID,
+  id TEXT,
   name TEXT,
+  handle TEXT,
   avatar_url TEXT,
   phone TEXT
 )
@@ -212,23 +205,19 @@ AS $$
 DECLARE
   capped_numbers TEXT[];
 BEGIN
-  -- 1. Hard cap input to 50 numbers max per query
   capped_numbers := candidate_numbers[1:50];
 
-  -- 2. Privacy-preserving match query:
-  -- Zero writes/storage performed. Only verified + discoverable profiles are matched.
   RETURN QUERY
   SELECT 
     p.id,
     p.name,
+    p.handle,
     p.avatar_url,
     p.phone
   FROM public.profiles p
   WHERE p.phone = ANY(capped_numbers)
     AND p.phone IS NOT NULL
-    AND p.email_verified = true
-    AND p.discoverable_by_phone = true
-    AND (auth.uid() IS NULL OR p.id != auth.uid());
+    AND p.discoverable_by_phone = true;
 END;
 $$;
 

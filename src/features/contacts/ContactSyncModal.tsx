@@ -4,30 +4,28 @@ import { Icon } from '../../ui/components/Icon'
 import {
   isContactPickerSupported,
   matchContactsAgainstDirectory,
+  lookupPersonByPhone,
   type MatchedFriend,
   type UnmatchedContact,
   type ContactCandidate,
 } from '../../services/contacts/contactMatchingService'
-import { normalizeToE164 } from '../../domain/phone'
+import { formatE164Display } from '../../domain/phone'
 import { useStore } from '../../ui/storeContext'
 
 interface ContactSyncModalProps {
   isOpen: boolean
   onClose: () => void
-  onAddManualFriend?: (name: string, phone: string) => void
 }
 
 export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
   isOpen,
   onClose,
-  onAddManualFriend,
 }) => {
   const { store, ledgerState } = useStore()
   const me = store.me
   const meId = me?.id || ''
 
   const supported = isContactPickerSupported()
-  const [hasConsented, setHasConsented] = useState(false)
   const [loading, setLoading] = useState(false)
   const [matches, setMatches] = useState<MatchedFriend[]>([])
   const [unmatched, setUnmatched] = useState<UnmatchedContact[]>([])
@@ -35,10 +33,16 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [copiedLink, setCopiedLink] = useState(false)
 
-  // Manual fallback inputs
-  const [manualName, setManualName] = useState('')
-  const [manualPhone, setManualPhone] = useState('')
-  const [manualMsg, setManualMsg] = useState<string | null>(null)
+  // Phone search state
+  const [phoneSearchQuery, setPhoneSearchQuery] = useState('')
+  const [searchingPhone, setSearchingPhone] = useState(false)
+  const [searchResult, setSearchResult] = useState<{
+    searched: boolean
+    match?: MatchedFriend
+    e164?: string
+    whatsappInviteUrl?: string
+    error?: string
+  } | null>(null)
 
   const inviteCode = me?.inviteCode || `sp_${meId.slice(-6).toLowerCase()}`
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://splitpay.app'
@@ -70,12 +74,36 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
     }
   }
 
+  const handleSearchPhone = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!phoneSearchQuery.trim()) return
+
+    setSearchingPhone(true)
+    const existingFriendIds = ledgerState.people.filter((p) => p.id !== meId).map((p) => p.id)
+
+    const res = await lookupPersonByPhone({
+      phoneInput: phoneSearchQuery.trim(),
+      localDirectory: [...ledgerState.people],
+      meId,
+      existingFriendIds,
+      inviteCode,
+    })
+
+    setSearchingPhone(false)
+    setSearchResult({
+      searched: true,
+      match: res.match,
+      e164: res.e164,
+      whatsappInviteUrl: res.whatsappInviteUrl,
+      error: res.error,
+    })
+  }
+
   const handleTriggerContactPicker = async () => {
     setErrorMsg(null)
     setLoading(true)
 
     try {
-      // TypeScript contact picker definition
       type ContactProperty = 'name' | 'tel'
       interface ContactPickerSelect {
         select: (props: ContactProperty[], options?: { multiple?: boolean }) => Promise<Array<{ name?: string[]; tel?: string[] }>>
@@ -118,297 +146,233 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
   }
 
   const handleAddMatchedFriend = async (friend: MatchedFriend) => {
-    await store.addFriend(friend.name, friend.handle)
-    // Update local state to reflect alreadyFriend
+    await store.addFriend(friend.name, friend.handle, {
+      id: friend.id,
+      phone: friend.phoneDisplay,
+      phoneVerified: true,
+    })
     setMatches((prev) =>
       prev.map((m) => (m.id === friend.id ? { ...m, alreadyFriend: true } : m))
     )
-  }
-
-  const handleManualAddFriendSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setManualMsg(null)
-
-    if (!manualName.trim() || !manualPhone.trim()) {
-      setManualMsg('Please provide both a name and phone number.')
-      return
+    if (searchResult?.match?.id === friend.id) {
+      setSearchResult((prev) => prev ? { ...prev, match: { ...prev.match!, alreadyFriend: true } } : null)
     }
-
-    const norm = normalizeToE164(manualPhone)
-    if (!norm.valid) {
-      setManualMsg(norm.error || 'Invalid phone number.')
-      return
-    }
-
-    if (onAddManualFriend) {
-      onAddManualFriend(manualName.trim(), norm.e164)
-    } else {
-      await store.addFriend(manualName.trim())
-    }
-
-    setManualName('')
-    setManualPhone('')
-    setManualMsg(`✓ Added ${manualName.trim()} to friends!`)
-    setTimeout(() => setManualMsg(null), 3000)
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Find Friends from Contacts" maxWidth="max-w-xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Find Friends & Contacts" maxWidth="max-w-xl">
       <div className="space-y-4 text-sm">
-        {/* Branch 1: Unsupported Browser Fallback (Desktop / iOS / non-compliant browser) */}
-        {!supported ? (
-          <div className="space-y-4">
-            <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-                <Icon name="smartphone" size={20} />
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-bold text-xs text-[var(--color-text)]">
-                  Device Address Book Sync
-                </h4>
-                <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                  The native Contact Picker API is supported on mobile browsers such as <strong>Chrome on Android</strong>. On this browser, you can add friends manually or share an instant invite link.
-                </p>
-              </div>
-            </div>
-
-            {/* Fallback 1: Shareable Invite Link */}
-            <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-xs text-[var(--color-text)]">Share Your Invite Link</h4>
-                  <p className="text-[11px] text-[var(--color-text-muted)]">
-                    Friends who open your link will automatically connect with you.
-                  </p>
-                </div>
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-primary-subtle text-primary border border-primary-border">
-                  {inviteCode}
-                </span>
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={shareableInviteUrl}
-                  className="flex-1 px-3.5 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-mono text-[var(--color-text-muted)] focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleShareInvite}
-                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95 shrink-0"
-                >
-                  <Icon name="share" size={14} />
-                  <span>{copiedLink ? 'Copied Link!' : 'Share / Copy'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Fallback 2: Manual Add by Phone */}
-            <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-3">
-              <h4 className="font-bold text-xs text-[var(--color-text)]">
-                Add Friend by Phone Number
-              </h4>
-              <form onSubmit={handleManualAddFriendSubmit} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Friend's Name"
-                    value={manualName}
-                    onChange={(e) => setManualName(e.target.value)}
-                    className="px-3.5 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-medium focus:outline-none text-[var(--color-text)]"
-                  />
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+91 98765 43210"
-                    value={manualPhone}
-                    onChange={(e) => setManualPhone(e.target.value)}
-                    className="px-3.5 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-mono focus:outline-none text-[var(--color-text)]"
-                  />
-                </div>
-                {manualMsg && (
-                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                    {manualMsg}
-                  </p>
-                )}
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl transition-all"
-                  >
-                    Add Friend
-                  </button>
-                </div>
-              </form>
-            </div>
+        {/* Search by Phone Number across Database */}
+        <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-3">
+          <div>
+            <h4 className="font-bold text-xs text-[var(--color-text)]">
+              Find Friend by Mobile Number
+            </h4>
+            <p className="text-[11px] text-[var(--color-text-muted)]">
+              Enter a friend's phone number to check if they're registered on SplitPay.
+            </p>
           </div>
-        ) : !hasConsented && !hasScanned ? (
-          /* Branch 2: Supported Mobile Browser Consent Screen */
-          <div className="space-y-4 py-2">
-            <div className="w-14 h-14 rounded-2xl hero-gradient text-white flex items-center justify-center mx-auto shadow-md">
-              <Icon name="users" size={28} />
-            </div>
 
-            <div className="text-center space-y-1.5">
-              <h4 className="font-extrabold text-base text-[var(--color-text)]">
-                Privacy-First Contact Sync
-              </h4>
-              <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto leading-relaxed">
-                SplitPay only checks your contacts against users who have explicitly verified their email, verified their phone, and opted into discoverability.
-              </p>
+          <form onSubmit={handleSearchPhone} className="flex gap-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-2.5 text-[var(--color-text-muted)]">
+                <Icon name="phone" size={14} />
+              </span>
+              <input
+                type="tel"
+                placeholder="e.g. 9876543210 or +91..."
+                value={phoneSearchQuery}
+                onChange={(e) => setPhoneSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-mono text-[var(--color-text)] focus:outline-none"
+              />
             </div>
+            <button
+              type="submit"
+              disabled={searchingPhone || !phoneSearchQuery.trim()}
+              className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 shrink-0 inline-flex items-center gap-1.5"
+            >
+              {searchingPhone ? <Icon name="reload" size={13} className="animate-spin" /> : <Icon name="users" size={13} />}
+              <span>Search</span>
+            </button>
+          </form>
 
-            <div className="p-3.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-2 text-xs">
-              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
-                <Icon name="shield" size={16} />
-                <span>Zero Unmatched Storage Invariant</span>
-              </div>
-              <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
-                Unmatched contacts are processed strictly in browser memory for optional invite links and are <strong>never stored on any server or persistent ledger</strong>.
-              </p>
-            </div>
-
-            <div className="pt-2 border-t border-[var(--color-border)] flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)]"
-              >
-                Not Now
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setHasConsented(true)
-                  handleTriggerContactPicker()
-                }}
-                className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95"
-              >
-                <Icon name="check" size={14} />
-                <span>Select Contacts</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Branch 3: Results (Matches & Unmatched Invites) */
-          <div className="space-y-4">
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-medium rounded-xl">
-                {errorMsg}
-              </div>
-            )}
-
-            {loading ? (
-              <div className="py-12 text-center space-y-3">
-                <Icon name="reload" size={32} className="animate-spin text-primary mx-auto" />
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Comparing contacts against verified directory...
-                </p>
-              </div>
-            ) : (
-              <>
-                {/* Matches Section */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
-                      Registered Friends Found ({matches.length})
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={handleTriggerContactPicker}
-                      className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      <Icon name="reload" size={12} />
-                      <span>Scan Again</span>
-                    </button>
+          {/* Search Results */}
+          {searchResult?.searched && (
+            <div className="pt-2 animate-fade-in">
+              {searchResult.error ? (
+                <p className="text-xs text-rose-500 font-medium">{searchResult.error}</p>
+              ) : searchResult.match ? (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                      {searchResult.match.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="overflow-hidden">
+                      <h5 className="font-bold text-xs text-[var(--color-text)] truncate">
+                        {searchResult.match.name}
+                      </h5>
+                      <p className="text-[11px] text-[var(--color-text-muted)] truncate font-mono">
+                        {searchResult.match.handle ? `@${searchResult.match.handle} · ` : ''}
+                        {searchResult.match.phoneDisplay}
+                      </p>
+                    </div>
                   </div>
 
-                  {matches.length === 0 ? (
-                    <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl text-center text-xs text-[var(--color-text-muted)]">
-                      No contacts from your selection are currently registered and discoverable on SplitPay.
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-[var(--color-border)] bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl overflow-hidden">
+                  <button
+                    type="button"
+                    disabled={searchResult.match.alreadyFriend}
+                    onClick={() => handleAddMatchedFriend(searchResult.match!)}
+                    className="px-3.5 py-1.5 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:bg-primary-hover disabled:opacity-50 shrink-0 inline-flex items-center gap-1"
+                  >
+                    <Icon name={searchResult.match.alreadyFriend ? 'check' : 'plus'} size={12} />
+                    <span>{searchResult.match.alreadyFriend ? 'Friend' : 'Add Friend'}</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div>
+                    <span className="font-bold text-[var(--color-text)] block">
+                      Not registered yet
+                    </span>
+                    <span className="text-[11px] text-[var(--color-text-muted)] font-mono">
+                      {searchResult.e164 ? formatE164Display(searchResult.e164) : phoneSearchQuery}
+                    </span>
+                  </div>
+
+                  {searchResult.whatsappInviteUrl && (
+                    <a
+                      href={searchResult.whatsappInviteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all self-start sm:self-auto"
+                    >
+                      <span>Invite via WhatsApp</span>
+                      <Icon name="share" size={12} />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Device Address Book Picker (Mobile Chrome) */}
+        {supported && (
+          <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-xs text-[var(--color-text)]">
+                  Import from Phone Address Book
+                </h4>
+                <p className="text-[11px] text-[var(--color-text-muted)]">
+                  Pick contacts directly from your phone to find friends in bulk.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleTriggerContactPicker}
+                className="px-3.5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
+              >
+                {loading ? <Icon name="reload" size={13} className="animate-spin" /> : <Icon name="users" size={13} />}
+                <span>Pick Contacts</span>
+              </button>
+            </div>
+
+            {/* Scanned Matches List */}
+            {hasScanned && (
+              <div className="space-y-3 pt-2 border-t border-[var(--color-border)] animate-fade-in">
+                {matches.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">
+                      Registered Friends ({matches.length})
+                    </span>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
                       {matches.map((friend) => (
                         <div
                           key={friend.id}
-                          className="p-3 flex items-center justify-between gap-3 text-xs"
+                          className="p-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl flex items-center justify-between"
                         >
                           <div>
-                            <p className="font-bold text-[var(--color-text)]">{friend.name}</p>
-                            <p className="text-[11px] text-[var(--color-text-muted)]">
-                              {friend.handle ? `@${friend.handle} · ` : ''}{friend.phoneDisplay}
-                            </p>
+                            <p className="font-bold text-xs text-[var(--color-text)]">{friend.name}</p>
+                            <p className="text-[10px] text-[var(--color-text-muted)] font-mono">{friend.phoneDisplay}</p>
                           </div>
-                          <div>
-                            {friend.alreadyFriend ? (
-                              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                In Circle
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleAddMatchedFriend(friend)}
-                                className="px-3 py-1 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-sm transition-all"
-                              >
-                                Add Friend
-                              </button>
-                            )}
-                          </div>
+                          <button
+                            type="button"
+                            disabled={friend.alreadyFriend}
+                            onClick={() => handleAddMatchedFriend(friend)}
+                            className="px-3 py-1 text-xs font-bold bg-primary text-white rounded-lg disabled:opacity-50"
+                          >
+                            {friend.alreadyFriend ? 'Added' : 'Add Friend'}
+                          </button>
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                {/* Unmatched Invites Section */}
                 {unmatched.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-[var(--color-border)]">
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider block">
                       Invite to SplitPay ({unmatched.length})
-                    </h4>
-                    <p className="text-[11px] text-[var(--color-text-muted)]">
-                      Send a personal WhatsApp message with your invite code.
-                    </p>
-
-                    <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1">
-                      {unmatched.map((contact, idx) => (
+                    </span>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {unmatched.map((u, i) => (
                         <div
-                          key={idx}
-                          className="p-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl flex items-center justify-between text-xs"
+                          key={`${u.e164}-${i}`}
+                          className="p-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl flex items-center justify-between"
                         >
-                          <div className="overflow-hidden pr-2">
-                            <p className="font-semibold text-[var(--color-text)] truncate">{contact.name}</p>
-                            <p className="text-[11px] text-[var(--color-text-muted)] font-mono">{contact.e164}</p>
+                          <div>
+                            <p className="font-bold text-xs text-[var(--color-text)]">{u.name}</p>
+                            <p className="text-[10px] text-[var(--color-text-muted)] font-mono">{formatE164Display(u.e164)}</p>
                           </div>
                           <a
-                            href={contact.whatsappUrl}
+                            href={u.whatsappUrl}
                             target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all inline-flex items-center gap-1 shrink-0"
+                            rel="noreferrer"
+                            className="px-3 py-1 text-xs font-bold bg-emerald-600 text-white rounded-lg shadow-sm"
                           >
-                            <Icon name="send" size={12} />
-                            <span>WhatsApp</span>
+                            Invite
                           </a>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-
-                <div className="pt-2 border-t border-[var(--color-border)] flex justify-end">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-5 py-2 text-xs font-bold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)]"
-                  >
-                    Done
-                  </button>
-                </div>
-              </>
+              </div>
             )}
+          </div>
+        )}
+
+        {/* Shareable Invite Link Card */}
+        <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="font-bold text-xs text-[var(--color-text)]">Share Your Invite Link</h4>
+            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-primary-subtle text-primary border border-primary-border">
+              {inviteCode}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              readOnly
+              value={shareableInviteUrl}
+              className="flex-1 px-3 py-1.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-mono text-[var(--color-text-muted)] focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleShareInvite}
+              className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 shrink-0"
+            >
+              <Icon name="share" size={13} />
+              <span>{copiedLink ? 'Copied!' : 'Share Link'}</span>
+            </button>
+          </div>
+        </div>
+
+        {errorMsg && (
+          <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-600 text-xs rounded-xl">
+            {errorMsg}
           </div>
         )}
       </div>

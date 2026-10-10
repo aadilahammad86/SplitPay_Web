@@ -85,7 +85,7 @@ describe('Services - Contact Matching & Privacy Rules', () => {
       },
     ]
 
-    it('matches ONLY accounts with verified email, registered phone, AND discoverability enabled', () => {
+    it('matches registered accounts with phone numbers where discoverability is enabled', () => {
       const candidates: ContactCandidate[] = [
         { name: 'Alice', phones: ['+14155550002'] },
         { name: 'Bob', phones: ['+14155550003'] },
@@ -101,16 +101,14 @@ describe('Services - Contact Matching & Privacy Rules', () => {
         defaultCountryPrefix: '+1',
       })
 
-      // Only Alice should match
-      expect(result.matches).toHaveLength(1)
-      expect(result.matches[0].id).toBe('user-discoverable')
-      expect(result.matches[0].name).toBe('Alice Discoverable')
+      // Alice and Charlie match because both have registered phones and discoverability enabled
+      expect(result.matches).toHaveLength(2)
+      expect(result.matches.map((m) => m.id)).toEqual(['user-discoverable', 'user-unverified-email'])
 
-      // Bob (private), Charlie (unverified email), Dave (unverified phone) are treated as unmatched
+      // Bob (private) and Dave (unregistered phone) are treated as unmatched
       // No leak of their existence!
       const unmatchedNames = result.unmatched.map((u) => u.name)
       expect(unmatchedNames).toContain('Bob')
-      expect(unmatchedNames).toContain('Charlie')
       expect(unmatchedNames).toContain('Dave')
     })
 

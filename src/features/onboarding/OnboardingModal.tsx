@@ -6,6 +6,7 @@ import { useTheme } from '../../ui/themeContext'
 import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
 import { Icon } from '../../ui/components/Icon'
+import { normalizeToE164 } from '../../domain/phone'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -19,17 +20,27 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
   const [step, setStep] = useState<number>(0)
   const [displayName, setDisplayName] = useState(store.me?.name === 'You' ? '' : store.me?.name || '')
   const [username, setUsername] = useState(store.me?.handle || '')
+  const [email, setEmail] = useState(store.me?.email || '')
+  const [phone, setPhone] = useState(store.me?.phone || '')
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(SupportedCurrencies[0])
   const [loadingSample, setLoadingSample] = useState(false)
 
   const handleFinish = async (loadSample: boolean = false) => {
     try {
-      if (displayName.trim() || username.trim()) {
-        await store.updateLocalProfile({
-          name: displayName.trim() || 'You',
-          handle: username.trim() ? username.trim().replace(/^@/, '') : undefined,
-        })
+      let normalizedPhone: string | undefined
+      if (phone.trim()) {
+        const norm = normalizeToE164(phone.trim())
+        if (norm.valid) normalizedPhone = norm.e164
       }
+
+      await store.updateLocalProfile({
+        name: displayName.trim() || 'You',
+        handle: username.trim() ? username.trim().replace(/^@/, '') : undefined,
+        email: email.trim() || undefined,
+        phone: normalizedPhone,
+        phoneVerified: !!normalizedPhone,
+        discoverableByPhone: true,
+      })
 
       if (loadSample) {
         setLoadingSample(true)
@@ -191,6 +202,34 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="you@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-sm text-[var(--color-text)] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                    Mobile Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
                   />
                 </div>
               </div>

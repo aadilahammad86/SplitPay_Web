@@ -8,7 +8,7 @@ import { useStore } from '../../ui/storeContext'
 interface PhoneLinkingModalProps {
   isOpen: boolean
   onClose: () => void
-  onOpenEmailModal: () => void
+  onOpenEmailModal?: () => void
 }
 
 const COUNTRY_CODES = [
@@ -24,7 +24,6 @@ const COUNTRY_CODES = [
 export const PhoneLinkingModal: React.FC<PhoneLinkingModalProps> = ({
   isOpen,
   onClose,
-  onOpenEmailModal,
 }) => {
   const { store, ledgerState } = useStore()
   const me = store.me
@@ -36,45 +35,6 @@ export const PhoneLinkingModal: React.FC<PhoneLinkingModalProps> = ({
   const [discoverable, setDiscoverable] = useState(me?.discoverableByPhone ?? true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  // Prerequisite: Email must be verified first
-  if (!me?.emailVerified) {
-    return (
-      <Modal isOpen={isOpen} onClose={onClose} title="Link Phone Number">
-        <div className="space-y-4 text-sm text-center py-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 flex items-center justify-center mx-auto shadow-sm">
-            <Icon name="alert" size={28} />
-          </div>
-          <div>
-            <h4 className="font-bold text-base text-[var(--color-text)]">Email Verification Required</h4>
-            <p className="text-xs text-[var(--color-text-muted)] max-w-xs mx-auto mt-1">
-              Please verify your email address first before linking a phone number for contact matching.
-            </p>
-          </div>
-          <div className="pt-2 flex justify-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onClose()
-                onOpenEmailModal()
-              }}
-              className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
-            >
-              <Icon name="mail" size={14} />
-              <span>Verify Email First</span>
-            </button>
-          </div>
-        </div>
-      </Modal>
-    )
-  }
 
   const handleSavePhone = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -88,7 +48,7 @@ export const PhoneLinkingModal: React.FC<PhoneLinkingModalProps> = ({
 
     // Unique check: verify no other user in directory has this verified number
     const existing = ledgerState.people.find(
-      (p) => p.id !== me.id && p.phone === normalized.e164 && p.phoneVerified === true
+      (p) => p.id !== me?.id && p.phone === normalized.e164 && p.phoneVerified === true
     )
     if (existing) {
       setErrorMsg('This phone number is already registered to another account.')

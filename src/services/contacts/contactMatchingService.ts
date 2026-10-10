@@ -1,5 +1,6 @@
 import { normalizeToE164, formatE164Display, getE164DigitsOnly } from '../../domain/phone'
 import type { Person } from '../../domain/entities'
+import { getSupabaseClient } from '../../supabase/supabaseClient'
 
 export interface ContactCandidate {
   name?: string
@@ -45,10 +46,7 @@ export function isContactPickerSupported(): boolean {
  * Privacy-preserving contact matcher:
  * 1. Normalizes input contacts to E.164.
  * 2. Caps batch size to MAX_CONTACT_BATCH_SIZE.
- * 3. Matches ONLY against candidates where:
- *    - emailVerified === true
- *    - phoneVerified === true
- *    - discoverableByPhone === true
+ * 3. Matches against registered accounts where discoverableByPhone !== false.
  * 4. Excludes the requester (meId).
  * 5. Does NOT persist unmatched phone numbers anywhere.
  */
@@ -73,13 +71,12 @@ export function matchContactsAgainstDirectory(params: {
   const unmatched: UnmatchedContact[] = []
   const seenE164 = new Set<string>()
 
-  // Eligible directory map: verified email + registered phone + discoverable=true
+  // Eligible directory map: registered phone + discoverable=true
   // Excludes the requester
   const eligibleDirectory = directory.filter(
     (p) =>
       p.id !== meId &&
-      p.emailVerified === true &&
-      p.discoverableByPhone === true &&
+      p.discoverableByPhone !== false &&
       !!p.phone
   )
 
@@ -138,5 +135,102 @@ export function matchContactsAgainstDirectory(params: {
     matches,
     unmatched,
     totalProcessed: processedCount,
+  }
+}
+
+/**
+ * Searches for an individual person by phone number across both local database and live Supabase database.
+ */
+export async function lookupPersonByPhone(params: {
+  phoneInput: string
+  localDirectory: Person[]
+  meId: string
+  existingFriendIds: string[]
+  defaultCountryPrefix?: string
+  inviteCode?: string
+}): Promise<{
+  valid: boolean
+  e164?: string
+  match?: MatchedFriend
+  whatsappInviteUrl?: string
+  error?: string
+}> {
+  const {
+    phoneInput,
+    localDirectory,
+    meId,
+    existingFriendIds,
+    defaultCountryPrefix = '+91',
+    inviteCode = 'splitpay',
+  } = params
+
+  const norm = normalizeToE164(phoneInput, defaultCountryPrefix)
+  if (!norm.valid) {
+    return { valid: false, error: norm.error || 'Please enter a valid phone number.' }
+  }
+
+  const e164 = norm.e164
+
+  // 1. Check local directory
+  const localMatch = localDirectory.find(
+    (p) => p.id !== meId && p.phone === e164 && p.discoverableByPhone !== false
+  )
+  if (localMatch) {
+    return {
+      valid: true,
+      e164,
+      match: {
+        id: localMatch.id,
+        name: localMatch.name,
+        handle: localMatch.handle,
+        phoneDisplay: formatE164Display(e164),
+        alreadyFriend: existingFriendIds.includes(localMatch.id),
+      },
+    }
+  }
+
+  // 2. Check live Supabase database if configured
+  try {
+    const supabase = getSupabaseClient()
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, handle, phone')
+        .eq('phone', e164)
+        .eq('discoverable_by_phone', true)
+        .limit(1)
+
+      if (!error && data && data.length > 0) {
+        const remoteUser = data[0]
+        if (remoteUser.id !== meId) {
+          return {
+            valid: true,
+            e164,
+            match: {
+              id: remoteUser.id,
+              name: remoteUser.name,
+              handle: remoteUser.handle,
+              phoneDisplay: formatE164Display(e164),
+              alreadyFriend: existingFriendIds.includes(remoteUser.id),
+            },
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore remote lookup network errors
+  }
+
+  // 3. Unmatched: prepare WhatsApp invite link
+  const digits = getE164DigitsOnly(e164)
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://splitpay.app'
+  const inviteLink = `${appUrl}?invite=${encodeURIComponent(inviteCode)}`
+  const inviteMessage = `Hey! I'm using SplitPay to track and split expenses with friends. Join me here: ${inviteLink}`
+  const whatsappInviteUrl = `https://wa.me/${digits}?text=${encodeURIComponent(inviteMessage)}`
+
+  return {
+    valid: true,
+    e164,
+    whatsappInviteUrl,
   }
 }

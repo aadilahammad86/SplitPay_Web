@@ -18,6 +18,7 @@ import {
   type SyncOp,
 } from '../../domain/syncOp'
 import { generateUlid } from '../../domain/ulid'
+import { getSupabaseClient } from '../../supabase/supabaseClient'
 import type { LedgerBackup, StorageAdapter } from './storageAdapter'
 
 export interface LedgerState {
@@ -178,6 +179,35 @@ export class LedgerStore {
       localPersonId: myId,
       pendingOpsCount: pending.length,
     })
+
+    // Sync profile to live database if Supabase client is connected
+    try {
+      const supabase = getSupabaseClient()
+      if (supabase) {
+        supabase
+          .from('profiles')
+          .upsert(
+            {
+              id: myId,
+              name: trimmedName,
+              handle: trimmedHandle,
+              email: updated.email,
+              phone: updated.phone,
+              discoverable_by_phone: updated.discoverableByPhone !== false,
+              invite_code: updated.inviteCode,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          )
+          .then(
+            () => {},
+            (err: unknown) => console.warn('Supabase profile sync warning:', err)
+          )
+      }
+    } catch {
+      // Ignore background sync errors
+    }
+
     return updated
   }
 
@@ -204,11 +234,21 @@ export class LedgerStore {
     return updated
   }
 
-  async addFriend(name: string, handle?: string): Promise<Person> {
+  async addFriend(
+    name: string,
+    handle?: string,
+    extra?: { id?: string; phone?: string; phoneVerified?: boolean }
+  ): Promise<Person> {
+    const friendId = extra?.id || generateUlid()
+    const existing = this.state.people.find((p) => p.id === friendId)
+    if (existing) return existing
+
     const person: Person = {
-      id: generateUlid(),
+      id: friendId,
       name: name.trim() || 'Friend',
       handle: handle?.trim() || undefined,
+      phone: extra?.phone,
+      phoneVerified: extra?.phoneVerified,
     }
     const op = opAddPerson({
       opId: generateUlid(),
