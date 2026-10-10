@@ -9,15 +9,14 @@ import { ContactSyncModal } from '../contacts/ContactSyncModal'
 import { formatE164Display } from '../../domain/phone'
 import { Icon, type IconName } from '../../ui/components/Icon'
 
-export const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  onOpenAdmin?: () => void
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
   const {
     store,
-    syncEngine,
-    syncState,
     ledgerState,
-    sharedLedgerId,
-    setSharedLedgerId,
-    connectSupabase,
   } = useStore()
 
   const { mode, setMode, palette, setPalette, availablePalettes } = useTheme()
@@ -47,27 +46,6 @@ export const SettingsView: React.FC = () => {
 
   // Onboarding Replay
   const [showOnboarding, setShowOnboarding] = useState(false)
-
-  // Shared Ledger ID
-  const [ledgerInput, setLedgerInput] = useState(sharedLedgerId || 'default_ledger')
-  const [savedLedgerMsg, setSavedLedgerMsg] = useState(false)
-  const [copiedLedger, setCopiedLedger] = useState(false)
-
-  // Supabase Config
-  const [supabaseUrl, setSupabaseUrl] = useState(() => {
-    if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('splitpay_supabase_url') || ''
-    }
-    return ''
-  })
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => {
-    if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('splitpay_supabase_anon_key') || ''
-    }
-    return ''
-  })
-  const [supabaseStatusMsg, setSupabaseStatusMsg] = useState<string | null>(null)
-  const [showCloudConfig, setShowCloudConfig] = useState(false)
 
   // Backup & Restore
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
@@ -115,44 +93,6 @@ export const SettingsView: React.FC = () => {
         setPasscodeMsg('✓ App Passcode removed.')
         setTimeout(() => setPasscodeMsg(null), 3000)
       }
-    }
-  }
-
-  const handleSaveLedgerId = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!ledgerInput.trim()) return
-    await setSharedLedgerId(ledgerInput.trim())
-    setSavedLedgerMsg(true)
-    setTimeout(() => setSavedLedgerMsg(false), 2500)
-  }
-
-  const handleCopyLedgerId = () => {
-    if (navigator.clipboard && ledgerInput) {
-      navigator.clipboard.writeText(ledgerInput)
-      setCopiedLedger(true)
-      setTimeout(() => setCopiedLedger(false), 2000)
-    }
-  }
-
-  const handleConnectSupabase = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSupabaseStatusMsg(null)
-    if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
-      setSupabaseStatusMsg('Please enter both Supabase URL and publishable Anon Key.')
-      return
-    }
-
-    try {
-      await connectSupabase({ url: supabaseUrl.trim(), anonKey: supabaseAnonKey.trim() })
-      setSupabaseStatusMsg('✓ Connected successfully! Sync is now active.')
-    } catch (err: unknown) {
-      setSupabaseStatusMsg(`Connection failed: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
-
-  const handleManualSync = async () => {
-    if (syncEngine) {
-      await syncEngine.syncNow()
     }
   }
 
@@ -584,176 +524,6 @@ export const SettingsView: React.FC = () => {
         )}
       </div>
 
-      {/* Shared Ledger (Multi-User Collaboration) */}
-      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
-        <div>
-          <h3 className="font-bold text-sm text-[var(--color-text)]">
-            Shared Ledger Collaboration
-          </h3>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            Two or more users on separate devices (Wi-Fi or cellular) sync together by sharing the same Ledger ID.
-          </p>
-        </div>
-
-        <form onSubmit={handleSaveLedgerId} className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
-              Active Ledger ID
-            </label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                required
-                value={ledgerInput}
-                onChange={(e) => setLedgerInput(e.target.value)}
-                className="w-full flex-1 px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none min-w-0"
-              />
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleCopyLedgerId}
-                  className="flex-1 sm:flex-none px-3.5 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl transition-colors inline-flex items-center justify-center gap-1.5 shrink-0"
-                  title="Copy Ledger ID"
-                >
-                  <Icon name={copiedLedger ? 'check' : 'clipboard'} size={14} />
-                  <span>{copiedLedger ? 'Copied' : 'Copy'}</span>
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 sm:flex-none px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 shrink-0 whitespace-nowrap text-center"
-                >
-                  Set Ledger
-                </button>
-              </div>
-            </div>
-            {savedLedgerMsg && (
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-2 block animate-fade-in">
-                ✓ Ledger ID switched to {ledgerInput}!
-              </span>
-            )}
-          </div>
-        </form>
-
-        {/* Sync Status Card */}
-        <div className="pt-2">
-          <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`w-2.5 h-2.5 rounded-full ${
-                    syncState?.status === 'syncing'
-                      ? 'bg-blue-500 animate-pulse'
-                      : !syncState?.isOnline
-                      ? 'bg-amber-500'
-                      : syncState?.status === 'error'
-                      ? 'bg-rose-500'
-                      : 'bg-emerald-500'
-                  }`}
-                />
-                <span className="font-bold text-xs text-[var(--color-text)]">
-                  {syncState?.status === 'syncing'
-                    ? 'Syncing in progress...'
-                    : !syncState?.isOnline
-                    ? 'Offline (Changes safely queued in IndexedDB outbox)'
-                    : syncState?.status === 'error'
-                    ? 'Sync Error'
-                    : 'Online & Up to Date'}
-                </span>
-              </div>
-              <p className="text-[11px] text-[var(--color-text-muted)]">
-                {ledgerState.pendingOpsCount === 0
-                  ? 'All local changes synced with remote peers'
-                  : `${ledgerState.pendingOpsCount} change(s) waiting to upload`}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleManualSync}
-              disabled={syncState?.status === 'syncing'}
-              className="px-4 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
-            >
-              <Icon name="reload" size={14} className={syncState?.status === 'syncing' ? 'animate-spin' : ''} />
-              <span>Sync Now</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Cloud Sync Configuration (Optional) */}
-      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-sm text-[var(--color-text)]">
-              Supabase Cloud Sync (Optional)
-            </h3>
-            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-              Connect your own free-tier Supabase database for multi-user cross-network syncing.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowCloudConfig(!showCloudConfig)}
-            className="text-xs font-bold text-primary hover:underline"
-          >
-            {showCloudConfig ? 'Hide Config' : 'Configure →'}
-          </button>
-        </div>
-
-        {showCloudConfig && (
-          <form onSubmit={handleConnectSupabase} className="space-y-4 pt-2 border-t border-[var(--color-border)] animate-fade-in">
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-                Supabase Project URL
-              </label>
-              <input
-                type="url"
-                required
-                placeholder="https://xyzcompany.supabase.co"
-                value={supabaseUrl}
-                onChange={(e) => setSupabaseUrl(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-                Publishable Anon Key (Never enter service-role key)
-              </label>
-              <input
-                type="password"
-                required
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                value={supabaseAnonKey}
-                onChange={(e) => setSupabaseAnonKey(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-xs text-[var(--color-text)] focus:outline-none"
-              />
-            </div>
-
-            {supabaseStatusMsg && (
-              <div
-                className={`p-3 rounded-xl text-xs font-semibold ${
-                  supabaseStatusMsg.startsWith('✓')
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-                }`}
-              >
-                {supabaseStatusMsg}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="submit"
-                className="px-5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all"
-              >
-                Connect Cloud Sync
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-
       {/* Local JSON Backup & Restore */}
       <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
         <div>
@@ -792,6 +562,21 @@ export const SettingsView: React.FC = () => {
             />
           </label>
         </div>
+      </div>
+
+      {/* Footer System Administration Link (Super Admin Access) */}
+      <div className="pt-4 border-t border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[var(--color-text-muted)]">
+        <span>SplitPay Web &middot; Local-First Architecture</span>
+        {onOpenAdmin && (
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="hover:text-[var(--color-text)] font-semibold inline-flex items-center gap-1.5 transition-colors text-[11px] py-1 px-2.5 rounded-lg hover:bg-[var(--color-surface-subtle)] border border-transparent hover:border-[var(--color-border)] self-start sm:self-auto"
+          >
+            <Icon name="lock" size={13} className="text-amber-500" />
+            <span>Super Admin Console</span>
+          </button>
+        )}
       </div>
 
       {/* Replayable Onboarding Modal */}

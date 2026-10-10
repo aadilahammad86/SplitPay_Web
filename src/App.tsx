@@ -13,11 +13,19 @@ import { SettingsView } from './features/settings/SettingsView'
 import { ExpenseEditorModal } from './features/expense/ExpenseEditorModal'
 import { InstallModal } from './pwa/InstallModal'
 import { OnboardingModal } from './features/onboarding/OnboardingModal'
+import { SuperAdminView } from './features/admin/SuperAdminView'
 import { Icon } from './ui/components/Icon'
 
 const AppContent: React.FC = () => {
   const { ledgerState } = useStore()
-  const [currentTab, setCurrentTab] = useState<string>('dashboard')
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hash === '#admin' || window.location.search.includes('admin=1')) {
+        return 'admin'
+      }
+    }
+    return 'dashboard'
+  })
   const [statementSubjectId, setStatementSubjectId] = useState<string | null>(null)
   const [showGlobalExpenseModal, setShowGlobalExpenseModal] = useState(false)
   const [showInstallModal, setShowInstallModal] = useState(false)
@@ -168,7 +176,13 @@ const AppContent: React.FC = () => {
             <StatementsView initialSubjectId={statementSubjectId} />
           )}
 
-          {currentTab === 'settings' && <SettingsView />}
+          {currentTab === 'settings' && (
+            <SettingsView onOpenAdmin={() => setCurrentTab('admin')} />
+          )}
+
+          {currentTab === 'admin' && (
+            <SuperAdminView onBackToApp={() => setCurrentTab('settings')} />
+          )}
         </main>
 
         {/* Mobile Floating Bottom Navigation Dock */}

@@ -66,6 +66,28 @@ export function getSupabaseClient(config?: SupabaseConfig): SupabaseClient | nul
     return clientInstance
   }
 
+  // Attempt to read from localStorage if configured via in-app Settings
+  if (typeof localStorage !== 'undefined') {
+    const localUrl = localStorage.getItem('splitpay_supabase_url')
+    const localKey = localStorage.getItem('splitpay_supabase_anon_key')
+    if (localUrl && localKey) {
+      try {
+        validatePublishableKey(localKey)
+        currentConfig = { url: localUrl, anonKey: localKey }
+        clientInstance = createClient(localUrl, localKey, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+          },
+        })
+        return clientInstance
+      } catch {
+        // ignore invalid key in localStorage
+      }
+    }
+  }
+
   return null
 }
 
