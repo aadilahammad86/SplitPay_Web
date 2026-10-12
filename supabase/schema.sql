@@ -115,10 +115,19 @@ CREATE POLICY "Ledger members can append operations"
 
 -- Realtime publication configuration
 -- Broadcasts new ops to connected peers in real time
-BEGIN;
-  DROP PUBLICATION IF EXISTS supabase_realtime;
-  CREATE PUBLICATION supabase_realtime FOR TABLE public.ops;
-COMMIT;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'ops'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.ops;
+    END IF;
+  ELSE
+    CREATE PUBLICATION supabase_realtime FOR TABLE public.ops;
+  END IF;
+END $$;
 
 -- ----------------------------------------------------------------------------
 -- PROFILES & CONTACT DISCOVERY
@@ -171,7 +180,7 @@ CREATE POLICY "Allow clients to upsert their own profile"
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.auth_otps (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   target_identifier TEXT NOT NULL, -- Email or E.164 Phone
   channel TEXT NOT NULL CHECK (channel IN ('email', 'sms', 'whatsapp')),
   otp_hash TEXT NOT NULL,          -- SHA-256 hex digest (never raw OTP)
