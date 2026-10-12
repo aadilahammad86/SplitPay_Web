@@ -165,8 +165,9 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
         ...ledgerState.settlements
           .filter(
             (s) =>
-              (store.isMe(s.from) && s.to === selectedFriend.id) ||
-              (s.from === selectedFriend.id && store.isMe(s.to))
+              !s.isTombstone &&
+              ((store.isMe(s.from) && s.to === selectedFriend.id) ||
+                (s.from === selectedFriend.id && store.isMe(s.to)))
           )
           .map((s) => ({
             id: s.id,

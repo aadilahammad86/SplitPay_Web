@@ -121,6 +121,22 @@ export class MemoryStorageAdapter implements StorageAdapter {
     this.ops.set(op.opId, { ...op, synced: 0 })
   }
 
+  async tombstoneSettlement(settlementId: string, op: SyncOp): Promise<void> {
+    const current = this.settlements.get(settlementId)
+    if (current) {
+      this.settlements.set(settlementId, { ...current, isTombstone: true })
+    }
+    this.ops.set(op.opId, { ...op, synced: 0 })
+  }
+
+  async restoreSettlement(settlementId: string, op: SyncOp): Promise<void> {
+    const current = this.settlements.get(settlementId)
+    if (current) {
+      this.settlements.set(settlementId, { ...current, isTombstone: false })
+    }
+    this.ops.set(op.opId, { ...op, synced: 0 })
+  }
+
   async deleteSettlement(settlementId: string): Promise<void> {
     this.settlements.delete(settlementId)
   }
@@ -131,7 +147,6 @@ export class MemoryStorageAdapter implements StorageAdapter {
     }
 
     const sorted = [...ops].sort((a, b) => a.opId.localeCompare(b.opId))
-    const tombstoneWinners = new Map<string, { opId: string; value: boolean }>()
 
     for (const op of sorted) {
       switch (op.kind) {
@@ -158,23 +173,44 @@ export class MemoryStorageAdapter implements StorageAdapter {
         case 'addSettlement':
           this.settlements.set(op.payload.id as string, decodeSettlement(op.payload))
           break
-        case 'tombstoneExpense':
-        case 'restoreExpense': {
-          const expId = String(op.payload.expenseId)
-          const isTomb = op.kind === 'tombstoneExpense'
-          const cur = tombstoneWinners.get(expId)
-          if (!cur || op.opId.localeCompare(cur.opId) > 0) {
-            tombstoneWinners.set(expId, { opId: op.opId, value: isTomb })
+      }
+    }
+
+    // Comprehensive tombstone reconciliation across ALL historical ops in this.ops
+    const expenseTombstones = new Map<string, { opId: string; value: boolean }>()
+    const settlementTombstones = new Map<string, { opId: string; value: boolean }>()
+
+    for (const o of this.ops.values()) {
+      if (o.kind === 'tombstoneExpense' || o.kind === 'restoreExpense') {
+        const expId = String(o.payload?.expenseId || o.payload?.expense_id || o.payload?.id || '')
+        if (expId) {
+          const cur = expenseTombstones.get(expId)
+          if (!cur || o.opId.localeCompare(cur.opId) > 0) {
+            expenseTombstones.set(expId, { opId: o.opId, value: o.kind === 'tombstoneExpense' })
           }
-          break
+        }
+      } else if (o.kind === 'tombstoneSettlement' || o.kind === 'restoreSettlement') {
+        const setId = String(o.payload?.settlementId || o.payload?.settlement_id || o.payload?.id || '')
+        if (setId) {
+          const cur = settlementTombstones.get(setId)
+          if (!cur || o.opId.localeCompare(cur.opId) > 0) {
+            settlementTombstones.set(setId, { opId: o.opId, value: o.kind === 'tombstoneSettlement' })
+          }
         }
       }
     }
 
-    for (const [expId, winner] of tombstoneWinners.entries()) {
+    for (const [expId, winner] of expenseTombstones.entries()) {
       const existing = this.expenses.get(expId)
       if (existing) {
         this.expenses.set(expId, { ...existing, isTombstone: winner.value })
+      }
+    }
+
+    for (const [setId, winner] of settlementTombstones.entries()) {
+      const existing = this.settlements.get(setId)
+      if (existing) {
+        this.settlements.set(setId, { ...existing, isTombstone: winner.value })
       }
     }
   }

@@ -254,6 +254,133 @@ describe('Sync Engine - Multi-Device Convergence & Offline Recovery (ADR 0003)',
     expect(storeA.getState().expenses.length).toBe(storeB.getState().expenses.length)
     expect(storeA.getState().settlements.length).toBe(storeB.getState().settlements.length)
   })
+
+  it('cross-device expense deletion: deleting an expense on device A tombstones it on device B and updates balance', async () => {
+    await engineA.start(sharedLedgerId)
+    await engineB.start(sharedLedgerId)
+
+    const aliceId = storeA.getState().localPersonId!
+    const bobId = storeB.getState().localPersonId!
+
+    // Alice creates an expense shared with Bob: 1000 INR
+    const exp = await storeA.addExpense({
+      description: 'Dinner',
+      totalMinor: 1000,
+      currency: Currencies.INR,
+      paidBy: aliceId,
+      groupId: null,
+      memberIds: [aliceId, bobId],
+      mode: 'equal',
+    })
+
+    // Both sync
+    await engineA.syncNow()
+    await engineB.syncNow()
+
+    expect(storeB.getState().expenses.length).toBe(1)
+    expect(storeB.getState().expenses[0]?.isTombstone).toBe(false)
+    expect(breakdownFor({ me: aliceId, friend: bobId, expenses: storeB.getState().expenses, settlements: [] }).netMinor).toBe(500)
+
+    // Alice deletes the expense
+    await storeA.deleteExpense(exp.id)
+    expect(storeA.getState().expenses[0]?.isTombstone).toBe(true)
+
+    // Alice syncs to push tombstone op, then Bob syncs to pull it
+    await engineA.syncNow()
+    await engineB.syncNow()
+
+    // Bob must now have the expense tombstoned and mutual balance is 0
+    expect(storeB.getState().expenses[0]?.isTombstone).toBe(true)
+    const bBreakdown = breakdownFor({
+      me: aliceId,
+      friend: bobId,
+      expenses: storeB.getState().expenses,
+      settlements: storeB.getState().settlements,
+    })
+    expect(bBreakdown.netMinor).toBe(0)
+  })
+
+  it('cross-device settlement deletion: deleting a settlement on device A tombstones it on device B and reverts balance', async () => {
+    await engineA.start(sharedLedgerId)
+    await engineB.start(sharedLedgerId)
+
+    const aliceId = storeA.getState().localPersonId!
+    const bobId = storeB.getState().localPersonId!
+
+    // Alice records a settlement of 500 INR to Bob
+    const settlement = await storeA.addSettlement({
+      from: aliceId,
+      to: bobId,
+      amountMinor: 500,
+      currency: Currencies.INR,
+      groupId: null,
+      note: 'Payment',
+    })
+
+    await engineA.syncNow()
+    await engineB.syncNow()
+
+    expect(storeB.getState().settlements.length).toBe(1)
+    expect(storeB.getState().settlements[0]?.isTombstone).toBeFalsy()
+
+    // Alice deletes the settlement
+    await storeA.deleteSettlement(settlement.id)
+    await engineA.syncNow()
+    await engineB.syncNow()
+
+    // Device B must reflect the tombstoned settlement
+    expect(storeB.getState().settlements[0]?.isTombstone).toBe(true)
+    const balanceOnB = breakdownFor({
+      me: bobId,
+      friend: aliceId,
+      expenses: storeB.getState().expenses,
+      settlements: storeB.getState().settlements,
+    })
+    expect(balanceOnB.netMinor).toBe(0)
+  })
+
+  it('out-of-order tombstone arrival: tombstone op arrives before expense op, expense remains tombstoned', async () => {
+    await engineB.start(sharedLedgerId)
+
+    const opTombstone = {
+      opId: '02_TOMBSTONE_OP',
+      deviceId: 'device_a',
+      kind: 'tombstoneExpense' as const,
+      payload: { expenseId: 'exp_out_of_order_1' },
+      createdAtMicros: 2000,
+    }
+
+    const opAdd = {
+      opId: '01_ADD_EXPENSE_OP',
+      deviceId: 'device_a',
+      kind: 'addExpense' as const,
+      payload: {
+        id: 'exp_out_of_order_1',
+        description: 'Late arrival expense',
+        totalMinor: 2000,
+        currency: 'INR',
+        paidBy: 'alice_1',
+        groupId: null,
+        mode: 'equal',
+        createdAtMicros: 1000,
+        categoryEmoji: '🧾',
+        isTombstone: false,
+        shares: [],
+      },
+      createdAtMicros: 1000,
+    }
+
+    // Apply tombstone FIRST (orphan)
+    await storeB.applyRemoteOps([opTombstone])
+
+    // Then later apply the original addExpense
+    await storeB.applyRemoteOps([opAdd])
+
+    // The expense must be tombstoned because the latest op for it is tombstoneExpense!
+    const exp = storeB.getState().expenses.find((e) => e.id === 'exp_out_of_order_1')
+    expect(exp).toBeDefined()
+    expect(exp?.isTombstone).toBe(true)
+  })
 })
 
 describe('Security & Secrets (INV RLS, Zero Service-Role)', () => {

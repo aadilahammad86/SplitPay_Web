@@ -69,7 +69,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       isSettlement: false,
       groupId: e.groupId,
     })),
-    ...ledgerState.settlements.map((s) => ({
+    ...ledgerState.settlements.filter((s) => !s.isTombstone).map((s) => ({
       id: s.id,
       title: s.note ? `Payment: ${s.note}` : 'Payment recorded',
       totalMinor: s.amountMinor,

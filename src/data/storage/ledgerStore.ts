@@ -15,6 +15,7 @@ import {
   opAddPerson,
   opAddSettlement,
   opSetTombstone,
+  opSetSettlementTombstone,
   type SyncOp,
 } from '../../domain/syncOp'
 import { generateUlid } from '../../domain/ulid'
@@ -724,9 +725,32 @@ export class LedgerStore {
   }
 
   async deleteSettlement(settlementId: string): Promise<void> {
-    await this.adapter.deleteSettlement(settlementId)
+    const op = opSetSettlementTombstone({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      settlementId,
+      tombstoned: true,
+    })
+    await this.adapter.tombstoneSettlement(settlementId, op)
     const settlements = await this.adapter.getSettlements()
-    this.setState({ settlements })
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ settlements, pendingOpsCount: pending.length })
+    this.notifyMutation()
+  }
+
+  async restoreSettlement(settlementId: string): Promise<void> {
+    const op = opSetSettlementTombstone({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      settlementId,
+      tombstoned: false,
+    })
+    await this.adapter.restoreSettlement(settlementId, op)
+    const settlements = await this.adapter.getSettlements()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ settlements, pendingOpsCount: pending.length })
     this.notifyMutation()
   }
 
@@ -749,10 +773,18 @@ export class LedgerStore {
 
   async deleteSettlements(settlementIds: string[]): Promise<void> {
     for (const id of settlementIds) {
-      await this.adapter.deleteSettlement(id)
+      const op = opSetSettlementTombstone({
+        opId: generateUlid(),
+        deviceId: this.state.deviceId,
+        atMicros: Date.now() * 1000,
+        settlementId: id,
+        tombstoned: true,
+      })
+      await this.adapter.tombstoneSettlement(id, op)
     }
     const settlements = await this.adapter.getSettlements()
-    this.setState({ settlements })
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ settlements, pendingOpsCount: pending.length })
     this.notifyMutation()
   }
 
@@ -772,7 +804,16 @@ export class LedgerStore {
     }
     const settlements = await this.adapter.getSettlements()
     for (const s of settlements) {
-      await this.adapter.deleteSettlement(s.id)
+      if (!s.isTombstone) {
+        const op = opSetSettlementTombstone({
+          opId: generateUlid(),
+          deviceId: this.state.deviceId,
+          atMicros: Date.now() * 1000,
+          settlementId: s.id,
+          tombstoned: true,
+        })
+        await this.adapter.tombstoneSettlement(s.id, op)
+      }
     }
     const updatedExpenses = await this.adapter.getExpenses()
     const updatedSettlements = await this.adapter.getSettlements()

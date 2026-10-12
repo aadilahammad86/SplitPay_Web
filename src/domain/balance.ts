@@ -49,6 +49,7 @@ export function breakdownFor(params: {
   }
 
   for (const st of settlements) {
+    if (st.isTombstone) continue
     if (isFriendFn(st.from) && isMeFn(st.to)) {
       const current = byGroup.get(st.groupId) ?? 0
       byGroup.set(st.groupId, current - st.amountMinor)

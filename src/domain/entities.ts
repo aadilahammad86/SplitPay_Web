@@ -88,6 +88,7 @@ export interface Settlement {
   groupId: string | null
   note: string
   createdAtMicros: number
+  isTombstone?: boolean
 }
 
 export interface ActivityEntry {

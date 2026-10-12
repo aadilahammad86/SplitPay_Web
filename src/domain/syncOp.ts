@@ -18,6 +18,8 @@ export type OpKind =
   | 'tombstoneExpense'
   | 'restoreExpense'
   | 'addSettlement'
+  | 'tombstoneSettlement'
+  | 'restoreSettlement'
 
 export interface SyncOp {
   opId: string
@@ -152,6 +154,7 @@ export function encodeSettlement(s: Settlement): Record<string, unknown> {
     groupId: s.groupId ?? null,
     note: s.note,
     createdAtMicros: s.createdAtMicros,
+    isTombstone: s.isTombstone ?? false,
   }
 }
 
@@ -166,6 +169,7 @@ export function decodeSettlement(m: Record<string, unknown>): Settlement {
     groupId: m.groupId ? String(m.groupId) : null,
     note: String(m.note ?? ''),
     createdAtMicros: parseIntegerMinor(m.createdAtMicros),
+    isTombstone: Boolean(m.isTombstone),
   }
 }
 
@@ -247,6 +251,22 @@ export function opAddSettlement(params: {
   }
 }
 
+export function opSetSettlementTombstone(params: {
+  opId: string
+  deviceId: string
+  atMicros: number
+  settlementId: string
+  tombstoned: boolean
+}): SyncOp {
+  return {
+    opId: params.opId,
+    deviceId: params.deviceId,
+    kind: params.tombstoned ? 'tombstoneSettlement' : 'restoreSettlement',
+    payload: { settlementId: params.settlementId, id: params.settlementId },
+    createdAtMicros: params.atMicros,
+  }
+}
+
 // -- Pure Idempotent Fold: applyOps ------------------------------------------
 
 /**
@@ -257,7 +277,7 @@ export function opAddSettlement(params: {
  *  2. Commutative: Sorted by opId before folding. Any devices observing the same
  *     set of ops produce the exact same ledger snapshot.
  *  3. Skew-proof: Tombstone/restore operations are evaluated in Pass 2
- *     using the highest opId among mutations for that expense.
+ *     using the highest opId among mutations for that expense or settlement.
  */
 export function applyOps(base: LedgerSnapshot, ops: Iterable<SyncOp>): LedgerSnapshot {
   const people = new Map<string, Person>()
@@ -281,8 +301,9 @@ export function applyOps(base: LedgerSnapshot, ops: Iterable<SyncOp>): LedgerSna
   // Canonical sort by opId ascending
   const ordered = Array.from(unique.values()).sort((a, b) => a.opId.localeCompare(b.opId))
 
-  // Pass 2 state: winning tombstone decision per expenseId: { opId, value }
-  const tombstoneWinner = new Map<string, { opId: string; value: boolean }>()
+  // Pass 2 state: winning tombstone decision per expenseId / settlementId: { opId, value }
+  const expenseTombstoneWinner = new Map<string, { opId: string; value: boolean }>()
+  const settlementTombstoneWinner = new Map<string, { opId: string; value: boolean }>()
 
   // Pass 1: Apply entity insertions and record tombstone intents
   for (const op of ordered) {
@@ -309,11 +330,23 @@ export function applyOps(base: LedgerSnapshot, ops: Iterable<SyncOp>): LedgerSna
       }
       case 'tombstoneExpense':
       case 'restoreExpense': {
-        const id = String(op.payload.expenseId)
+        const id = String(op.payload.expenseId || op.payload.expense_id || op.payload.id || '')
+        if (!id) break
         const value = op.kind === 'tombstoneExpense'
-        const current = tombstoneWinner.get(id)
+        const current = expenseTombstoneWinner.get(id)
         if (!current || op.opId.localeCompare(current.opId) > 0) {
-          tombstoneWinner.set(id, { opId: op.opId, value })
+          expenseTombstoneWinner.set(id, { opId: op.opId, value })
+        }
+        break
+      }
+      case 'tombstoneSettlement':
+      case 'restoreSettlement': {
+        const id = String(op.payload.settlementId || op.payload.settlement_id || op.payload.id || '')
+        if (!id) break
+        const value = op.kind === 'tombstoneSettlement'
+        const current = settlementTombstoneWinner.get(id)
+        if (!current || op.opId.localeCompare(current.opId) > 0) {
+          settlementTombstoneWinner.set(id, { opId: op.opId, value })
         }
         break
       }
@@ -321,10 +354,16 @@ export function applyOps(base: LedgerSnapshot, ops: Iterable<SyncOp>): LedgerSna
   }
 
   // Pass 2: Reconcile tombstones
-  for (const [expenseId, winner] of tombstoneWinner.entries()) {
+  for (const [expenseId, winner] of expenseTombstoneWinner.entries()) {
     const existing = expenses.get(expenseId)
     if (!existing) continue // orphan tombstone; ignored until expense lands
     expenses.set(expenseId, { ...existing, isTombstone: winner.value })
+  }
+
+  for (const [settlementId, winner] of settlementTombstoneWinner.entries()) {
+    const existing = settlements.get(settlementId)
+    if (!existing) continue // orphan tombstone; ignored until settlement lands
+    settlements.set(settlementId, { ...existing, isTombstone: winner.value })
   }
 
   // Canonical sorting

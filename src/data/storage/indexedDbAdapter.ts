@@ -287,6 +287,50 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
     return this.atomicWrite('settlements', settlement, op)
   }
 
+  async tombstoneSettlement(settlementId: string, op: SyncOp): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction(['settlements', 'ops'], 'readwrite')
+      const settlementsStore = tx.objectStore('settlements')
+      const opsStore = tx.objectStore('ops')
+
+      const getReq = settlementsStore.get(settlementId)
+      getReq.onsuccess = () => {
+        const settlement = getReq.result as Settlement | undefined
+        if (settlement) {
+          settlementsStore.put({ ...settlement, isTombstone: true })
+        }
+      }
+
+      const storedOp: StoredOp = { ...op, synced: 0 }
+      opsStore.put(storedOp)
+
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
+  async restoreSettlement(settlementId: string, op: SyncOp): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction(['settlements', 'ops'], 'readwrite')
+      const settlementsStore = tx.objectStore('settlements')
+      const opsStore = tx.objectStore('ops')
+
+      const getReq = settlementsStore.get(settlementId)
+      getReq.onsuccess = () => {
+        const settlement = getReq.result as Settlement | undefined
+        if (settlement) {
+          settlementsStore.put({ ...settlement, isTombstone: false })
+        }
+      }
+
+      const storedOp: StoredOp = { ...op, synced: 0 }
+      opsStore.put(storedOp)
+
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
   async deleteSettlement(settlementId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = this.getDatabase().transaction('settlements', 'readwrite')
@@ -318,7 +362,6 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
 
       // Order ops by opId
       const sorted = [...ops].sort((a, b) => a.opId.localeCompare(b.opId))
-      const tombstoneWinners = new Map<string, { opId: string; value: boolean }>()
 
       for (const op of sorted) {
         switch (op.kind) {
@@ -346,26 +389,55 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
           case 'addSettlement':
             settlementsStore.put(decodeSettlement(op.payload))
             break
-          case 'tombstoneExpense':
-          case 'restoreExpense': {
-            const expId = String(op.payload.expenseId)
-            const isTombstone = op.kind === 'tombstoneExpense'
-            const cur = tombstoneWinners.get(expId)
-            if (!cur || op.opId.localeCompare(cur.opId) > 0) {
-              tombstoneWinners.set(expId, { opId: op.opId, value: isTombstone })
-            }
-            break
-          }
         }
       }
 
-      // Reconcile tombstones
-      for (const [expId, winner] of tombstoneWinners.entries()) {
-        const getReq = expensesStore.get(expId)
-        getReq.onsuccess = () => {
-          const expense = getReq.result as Expense | undefined
-          if (expense) {
-            expensesStore.put({ ...expense, isTombstone: winner.value })
+      // Comprehensive tombstone reconciliation across ALL historical ops in opsStore
+      // Guarantees skew-proof consistency: tombstones arriving before, during, or after
+      // an expense/settlement will always prevail if the latest op is a tombstone.
+      const allOpsReq = opsStore.getAll()
+      allOpsReq.onsuccess = () => {
+        const allStoredOps = (allOpsReq.result || []) as SyncOp[]
+        const expenseTombstones = new Map<string, { opId: string; value: boolean }>()
+        const settlementTombstones = new Map<string, { opId: string; value: boolean }>()
+
+        for (const o of allStoredOps) {
+          if (o.kind === 'tombstoneExpense' || o.kind === 'restoreExpense') {
+            const expId = String(o.payload?.expenseId || o.payload?.expense_id || o.payload?.id || '')
+            if (expId) {
+              const cur = expenseTombstones.get(expId)
+              if (!cur || o.opId.localeCompare(cur.opId) > 0) {
+                expenseTombstones.set(expId, { opId: o.opId, value: o.kind === 'tombstoneExpense' })
+              }
+            }
+          } else if (o.kind === 'tombstoneSettlement' || o.kind === 'restoreSettlement') {
+            const setId = String(o.payload?.settlementId || o.payload?.settlement_id || o.payload?.id || '')
+            if (setId) {
+              const cur = settlementTombstones.get(setId)
+              if (!cur || o.opId.localeCompare(cur.opId) > 0) {
+                settlementTombstones.set(setId, { opId: o.opId, value: o.kind === 'tombstoneSettlement' })
+              }
+            }
+          }
+        }
+
+        for (const [expId, winner] of expenseTombstones.entries()) {
+          const getReq = expensesStore.get(expId)
+          getReq.onsuccess = () => {
+            const expense = getReq.result as Expense | undefined
+            if (expense && expense.isTombstone !== winner.value) {
+              expensesStore.put({ ...expense, isTombstone: winner.value })
+            }
+          }
+        }
+
+        for (const [setId, winner] of settlementTombstones.entries()) {
+          const getReq = settlementsStore.get(setId)
+          getReq.onsuccess = () => {
+            const settlement = getReq.result as Settlement | undefined
+            if (settlement && settlement.isTombstone !== winner.value) {
+              settlementsStore.put({ ...settlement, isTombstone: winner.value })
+            }
           }
         }
       }

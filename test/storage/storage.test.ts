@@ -300,7 +300,8 @@ describe('Local Storage - MemoryStorageAdapter', () => {
 
     // Delete settlement
     await store.deleteSettlement(settlement.id)
-    expect(store.getState().settlements.length).toBe(0)
+    expect(store.getState().settlements.filter((s) => !s.isTombstone).length).toBe(0)
+    expect(store.getState().settlements[0]?.isTombstone).toBe(true)
 
     // Bulk delete expenses
     await store.deleteExpenses([exp1.id, exp2.id])

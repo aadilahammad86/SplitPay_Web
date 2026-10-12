@@ -36,20 +36,27 @@ export const ActivityView: React.FC = () => {
         createdAtMicros: s.createdAtMicros,
         emoji: '🤝',
         isSettlement: true,
-        isTombstone: false,
+        isTombstone: Boolean(s.isTombstone),
         paidByName: store.isMe(s.from) ? 'You' : peopleMap.get(s.from)?.name || 'Unknown',
         payerId: s.from,
       })),
     ].sort((a, b) => b.createdAtMicros - a.createdAtMicros)
   }, [ledgerState.expenses, ledgerState.settlements, peopleMap, store])
 
+  const [showDeleted, setShowDeleted] = useState(false)
+
+  const deletedCount = useMemo(() => {
+    return allItems.filter((i) => i.isTombstone).length
+  }, [allItems])
+
   const filteredItems = useMemo(() => {
     return allItems.filter((item) => {
+      if (!showDeleted && item.isTombstone) return false
       if (filter === 'expenses') return !item.isSettlement
       if (filter === 'settlements') return item.isSettlement
       return true
     })
-  }, [allItems, filter])
+  }, [allItems, filter, showDeleted])
 
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
@@ -78,13 +85,17 @@ export const ActivityView: React.FC = () => {
   }
 
   const handleDeleteSettlement = async (id: string) => {
-    if (confirm('Are you sure you want to delete this settlement payment record?')) {
+    if (confirm('Are you sure you want to delete this settlement payment record? (This can be undone)')) {
       await store.deleteSettlement(id)
     }
   }
 
   const handleRestoreExpense = async (id: string) => {
     await store.restoreExpense(id)
+  }
+
+  const handleRestoreSettlement = async (id: string) => {
+    await store.restoreSettlement(id)
   }
 
   const handleClearSelected = async () => {
@@ -163,6 +174,22 @@ export const ActivityView: React.FC = () => {
 
           {allItems.length > 0 && (
             <div className="flex items-center gap-1.5">
+              {deletedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleted(!showDeleted)}
+                  className={`px-2.5 py-2 font-bold text-xs rounded-xl border transition-all flex items-center gap-1 active:scale-95 shrink-0 cursor-pointer ${
+                    showDeleted
+                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+                      : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                  }`}
+                  title={showDeleted ? 'Hide deleted items' : 'Show deleted/canceled items'}
+                >
+                  <Icon name="delete" size={14} />
+                  <span>{showDeleted ? 'Hide Deleted' : `Deleted (${deletedCount})`}</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -310,18 +337,32 @@ export const ActivityView: React.FC = () => {
 
                   {item.isSettlement ? (
                     <div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteSettlement(item.id)
-                        }}
-                        className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                        title="Delete settlement"
-                        aria-label="Delete settlement"
-                      >
-                        <Icon name="delete" size={16} />
-                      </button>
+                      {item.isTombstone ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRestoreSettlement(item.id)
+                          }}
+                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary-subtle text-primary hover:bg-primary hover:text-white transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Icon name="reload" size={13} />
+                          <span>Restore</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteSettlement(item.id)
+                          }}
+                          className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                          title="Delete settlement"
+                          aria-label="Delete settlement"
+                        >
+                          <Icon name="delete" size={16} />
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div>

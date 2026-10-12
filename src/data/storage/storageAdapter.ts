@@ -45,6 +45,8 @@ export interface StorageAdapter {
   tombstoneExpense(expenseId: string, op: SyncOp): Promise<void>
   restoreExpense(expenseId: string, op: SyncOp): Promise<void>
   addSettlement(settlement: Settlement, op: SyncOp): Promise<void>
+  tombstoneSettlement(settlementId: string, op: SyncOp): Promise<void>
+  restoreSettlement(settlementId: string, op: SyncOp): Promise<void>
   deleteSettlement(settlementId: string): Promise<void>
 
   // Remote ops integration
