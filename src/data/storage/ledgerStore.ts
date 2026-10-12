@@ -348,6 +348,40 @@ export class LedgerStore {
     return person
   }
 
+  async removeFriend(friendId: string): Promise<void> {
+    if (friendId === this.state.localPersonId) {
+      throw new Error('Cannot remove your own user profile.')
+    }
+    await this.adapter.removePerson(friendId)
+    // Remove this friend from any groups they were part of
+    for (const group of this.state.groups) {
+      if (group.memberIds.includes(friendId)) {
+        const updatedGroup: Group = {
+          ...group,
+          memberIds: group.memberIds.filter((id) => id !== friendId),
+        }
+        const op = opAddGroup({
+          opId: generateUlid(),
+          deviceId: this.state.deviceId,
+          atMicros: Date.now() * 1000,
+          group: updatedGroup,
+        })
+        await this.adapter.addGroup(updatedGroup, op)
+      }
+    }
+    const people = await this.adapter.getPeople()
+    const groups = await this.adapter.getGroups()
+    this.setState({ people, groups })
+  }
+
+  async removeFriends(friendIds: string[]): Promise<void> {
+    for (const id of friendIds) {
+      if (id !== this.state.localPersonId) {
+        await this.removeFriend(id)
+      }
+    }
+  }
+
   async createGroup(params: {
     name: string
     kind: GroupKind
@@ -387,6 +421,40 @@ export class LedgerStore {
     const updated: Group = {
       ...group,
       memberIds: [...group.memberIds, personId],
+    }
+    const op = opAddGroup({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      group: updated,
+    })
+    await this.adapter.addGroup(updated, op)
+    const groups = await this.adapter.getGroups()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ groups, pendingOpsCount: pending.length })
+  }
+
+  async deleteGroup(groupId: string): Promise<void> {
+    await this.adapter.removeGroup(groupId)
+    const groups = await this.adapter.getGroups()
+    this.setState({ groups })
+  }
+
+  async deleteGroups(groupIds: string[]): Promise<void> {
+    for (const id of groupIds) {
+      await this.adapter.removeGroup(id)
+    }
+    const groups = await this.adapter.getGroups()
+    this.setState({ groups })
+  }
+
+  async removeGroupMember(groupId: string, memberId: string): Promise<void> {
+    const group = this.state.groups.find((g) => g.id === groupId)
+    if (!group || !group.memberIds.includes(memberId)) return
+
+    const updated: Group = {
+      ...group,
+      memberIds: group.memberIds.filter((id) => id !== memberId),
     }
     const op = opAddGroup({
       opId: generateUlid(),
@@ -494,6 +562,107 @@ export class LedgerStore {
     const pending = await this.adapter.getPendingOps()
     this.setState({ settlements, pendingOpsCount: pending.length })
     return settlement
+  }
+
+  async deleteSettlement(settlementId: string): Promise<void> {
+    await this.adapter.deleteSettlement(settlementId)
+    const settlements = await this.adapter.getSettlements()
+    this.setState({ settlements })
+  }
+
+  async deleteExpenses(expenseIds: string[]): Promise<void> {
+    for (const id of expenseIds) {
+      const op = opSetTombstone({
+        opId: generateUlid(),
+        deviceId: this.state.deviceId,
+        atMicros: Date.now() * 1000,
+        expenseId: id,
+        tombstoned: true,
+      })
+      await this.adapter.tombstoneExpense(id, op)
+    }
+    const expenses = await this.adapter.getExpenses()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ expenses, pendingOpsCount: pending.length })
+  }
+
+  async deleteSettlements(settlementIds: string[]): Promise<void> {
+    for (const id of settlementIds) {
+      await this.adapter.deleteSettlement(id)
+    }
+    const settlements = await this.adapter.getSettlements()
+    this.setState({ settlements })
+  }
+
+  async clearExpensesAndSettlements(): Promise<void> {
+    const expenses = await this.adapter.getExpenses()
+    for (const exp of expenses) {
+      if (!exp.isTombstone) {
+        const op = opSetTombstone({
+          opId: generateUlid(),
+          deviceId: this.state.deviceId,
+          atMicros: Date.now() * 1000,
+          expenseId: exp.id,
+          tombstoned: true,
+        })
+        await this.adapter.tombstoneExpense(exp.id, op)
+      }
+    }
+    const settlements = await this.adapter.getSettlements()
+    for (const s of settlements) {
+      await this.adapter.deleteSettlement(s.id)
+    }
+    const updatedExpenses = await this.adapter.getExpenses()
+    const updatedSettlements = await this.adapter.getSettlements()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({
+      expenses: updatedExpenses,
+      settlements: updatedSettlements,
+      pendingOpsCount: pending.length,
+    })
+  }
+
+  async clearLedgerData(keepProfile: boolean = true): Promise<void> {
+    const currentMe = this.me
+    await this.adapter.clearLedgerData(keepProfile)
+    if (keepProfile && currentMe) {
+      const op = opAddPerson({
+        opId: generateUlid(),
+        deviceId: this.state.deviceId,
+        atMicros: Date.now() * 1000,
+        person: currentMe,
+      })
+      await this.adapter.addPerson(currentMe, op)
+      this.setState({
+        people: [currentMe],
+        groups: [],
+        expenses: [],
+        settlements: [],
+        pendingOpsCount: 1,
+      })
+    } else {
+      this.setState({
+        people: [],
+        groups: [],
+        expenses: [],
+        settlements: [],
+        pendingOpsCount: 0,
+        localPersonId: null,
+      })
+    }
+  }
+
+  async factoryReset(): Promise<void> {
+    await this.adapter.clearAll()
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear()
+    }
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.clear()
+    }
+    if (typeof window !== 'undefined') {
+      window.location.reload()
+    }
   }
 
   async applyRemoteOps(ops: SyncOp[]): Promise<void> {

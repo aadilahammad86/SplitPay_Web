@@ -207,4 +207,138 @@ describe('Local Storage - MemoryStorageAdapter', () => {
     const pending = await memAdapter.getPendingOps()
     expect(pending.length).toBe(3)
   })
+
+  it('removes friends and cleans up group membership', async () => {
+    const memAdapter = new MemoryStorageAdapter()
+    const store = new LedgerStore(memAdapter)
+    await store.init()
+
+    const friend = await store.addFriend('TestFriend')
+    const me = store.me!
+    await store.createGroup({
+      name: 'TestGroup',
+      kind: 'trip',
+      memberIds: [me.id, friend.id],
+      currency: Currencies.INR,
+    })
+
+    expect(store.getState().people.some((p) => p.id === friend.id)).toBe(true)
+    expect(store.getState().groups[0]?.memberIds).toContain(friend.id)
+
+    // Remove friend
+    await store.removeFriend(friend.id)
+    expect(store.getState().people.some((p) => p.id === friend.id)).toBe(false)
+    expect(store.getState().groups[0]?.memberIds).not.toContain(friend.id)
+  })
+
+  it('deletes groups and removes group members', async () => {
+    const memAdapter = new MemoryStorageAdapter()
+    const store = new LedgerStore(memAdapter)
+    await store.init()
+
+    const friend1 = await store.addFriend('Friend1')
+    const friend2 = await store.addFriend('Friend2')
+    const me = store.me!
+
+    const group = await store.createGroup({
+      name: 'ProjectGroup',
+      kind: 'event',
+      memberIds: [me.id, friend1.id, friend2.id],
+      currency: Currencies.INR,
+    })
+
+    expect(store.getState().groups.length).toBe(1)
+
+    // Remove member
+    await store.removeGroupMember(group.id, friend1.id)
+    expect(store.getState().groups[0]?.memberIds).not.toContain(friend1.id)
+    expect(store.getState().groups[0]?.memberIds).toContain(friend2.id)
+
+    // Delete group
+    await store.deleteGroup(group.id)
+    expect(store.getState().groups.length).toBe(0)
+  })
+
+  it('deletes settlements and bulk deletes expenses', async () => {
+    const memAdapter = new MemoryStorageAdapter()
+    const store = new LedgerStore(memAdapter)
+    await store.init()
+
+    const friend = await store.addFriend('SettlementFriend')
+    const me = store.me!
+
+    const exp1 = await store.addExpense({
+      description: 'Item 1',
+      totalMinor: 100,
+      currency: Currencies.INR,
+      paidBy: me.id,
+      groupId: null,
+      memberIds: [me.id, friend.id],
+      mode: 'equal',
+    })
+    const exp2 = await store.addExpense({
+      description: 'Item 2',
+      totalMinor: 200,
+      currency: Currencies.INR,
+      paidBy: me.id,
+      groupId: null,
+      memberIds: [me.id, friend.id],
+      mode: 'equal',
+    })
+
+    const settlement = await store.addSettlement({
+      from: friend.id,
+      to: me.id,
+      amountMinor: 150,
+      currency: Currencies.INR,
+      groupId: null,
+      note: 'Settling up',
+    })
+
+    expect(store.getState().expenses.filter((e) => !e.isTombstone).length).toBe(2)
+    expect(store.getState().settlements.length).toBe(1)
+
+    // Delete settlement
+    await store.deleteSettlement(settlement.id)
+    expect(store.getState().settlements.length).toBe(0)
+
+    // Bulk delete expenses
+    await store.deleteExpenses([exp1.id, exp2.id])
+    expect(store.getState().expenses.filter((e) => !e.isTombstone).length).toBe(0)
+  })
+
+  it('clears ledger data while preserving local profile and user ID', async () => {
+    const memAdapter = new MemoryStorageAdapter()
+    const store = new LedgerStore(memAdapter)
+    await store.init()
+
+    const me = store.me!
+    const friend = await store.addFriend('OldFriend')
+    await store.createGroup({
+      name: 'OldGroup',
+      kind: 'home',
+      memberIds: [me.id, friend.id],
+      currency: Currencies.INR,
+    })
+    await store.addExpense({
+      description: 'OldExpense',
+      totalMinor: 500,
+      currency: Currencies.INR,
+      paidBy: me.id,
+      groupId: null,
+      memberIds: [me.id, friend.id],
+      mode: 'equal',
+    })
+
+    // Clear ledger data
+    await store.clearLedgerData(true)
+
+    const state = store.getState()
+    expect(state.expenses.length).toBe(0)
+    expect(state.settlements.length).toBe(0)
+    expect(state.groups.length).toBe(0)
+    expect(state.people.length).toBe(1)
+    expect(state.people[0]?.id).toBe(me.id)
+    expect(store.me?.id).toBe(me.id)
+  })
 })

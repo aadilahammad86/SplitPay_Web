@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { useStore } from '../../ui/storeContext'
 import type { Person } from '../../domain/entities'
+import { Icon } from '../../ui/components/Icon'
 
 interface EditFriendModalProps {
   isOpen: boolean
@@ -35,6 +36,19 @@ const EditFriendForm: React.FC<{ friend: Person; onClose: () => void }> = ({ fri
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (confirm(`Are you sure you want to remove ${friend.name} from your friends list?`)) {
+      try {
+        setIsSaving(true)
+        await store.removeFriend(friend.id)
+        onClose()
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err))
+        setIsSaving(false)
+      }
     }
   }
 
@@ -86,21 +100,33 @@ const EditFriendForm: React.FC<{ friend: Person; onClose: () => void }> = ({ fri
         <code className="font-mono text-[var(--color-text)]">{friend.id.slice(0, 12)}...</code>
       </div>
 
-      <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-end gap-2">
+      <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
+          onClick={handleDelete}
           disabled={isSaving}
-          className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+          className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors inline-flex items-center gap-1.5 active:scale-95"
         >
-          {isSaving ? 'Saving...' : 'Save Changes'}
+          <Icon name="delete" size={14} />
+          <span>Remove Friend</span>
         </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </div>
     </form>
   )

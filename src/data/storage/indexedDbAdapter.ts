@@ -263,8 +263,38 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
     })
   }
 
+  async removePerson(personId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction('people', 'readwrite')
+      const store = tx.objectStore('people')
+      store.delete(personId)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
+  async removeGroup(groupId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction('groups', 'readwrite')
+      const store = tx.objectStore('groups')
+      store.delete(groupId)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
   async addSettlement(settlement: Settlement, op: SyncOp): Promise<void> {
     return this.atomicWrite('settlements', settlement, op)
+  }
+
+  async deleteSettlement(settlementId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction('settlements', 'readwrite')
+      const store = tx.objectStore('settlements')
+      store.delete(settlementId)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
   }
 
   async applyRemoteOps(ops: SyncOp[]): Promise<void> {
@@ -396,6 +426,48 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
       tx.objectStore('settlements').clear()
       tx.objectStore('ops').clear()
       tx.objectStore('meta').clear()
+
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
+  async clearLedgerData(keepLocalProfile: boolean = true): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction(
+        ['people', 'groups', 'expenses', 'settlements', 'ops', 'meta'],
+        'readwrite'
+      )
+      const peopleStore = tx.objectStore('people')
+      const groupsStore = tx.objectStore('groups')
+      const expensesStore = tx.objectStore('expenses')
+      const settlementsStore = tx.objectStore('settlements')
+      const opsStore = tx.objectStore('ops')
+      const metaStore = tx.objectStore('meta')
+
+      groupsStore.clear()
+      expensesStore.clear()
+      settlementsStore.clear()
+      opsStore.clear()
+
+      if (!keepLocalProfile) {
+        peopleStore.clear()
+        metaStore.clear()
+      } else {
+        const metaReq = metaStore.get('local_person_id')
+        metaReq.onsuccess = () => {
+          const localPersonId = (metaReq.result as StoredMeta | undefined)?.value
+          const peopleReq = peopleStore.getAll()
+          peopleReq.onsuccess = () => {
+            const people = peopleReq.result as Person[]
+            for (const p of people) {
+              if (p.id !== localPersonId) {
+                peopleStore.delete(p.id)
+              }
+            }
+          }
+        }
+      }
 
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)

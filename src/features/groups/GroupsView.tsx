@@ -34,6 +34,59 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
   const [showAddMember, setShowAddMember] = useState(false)
   const [memberToAdd, setMemberToAdd] = useState('')
 
+  const [isSelectMode, setIsSelectMode] = useState(false)
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedGroupIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (selectedGroupIds.size === ledgerState.groups.length) {
+      setSelectedGroupIds(new Set())
+    } else {
+      setSelectedGroupIds(new Set(ledgerState.groups.map((g) => g.id)))
+    }
+  }
+
+  const handleDeleteSingleGroup = async (group: Group) => {
+    if (confirm(`Are you sure you want to delete the group "${group.name}"?`)) {
+      await store.deleteGroup(group.id)
+      if (selectedGroup?.id === group.id) setSelectedGroup(null)
+      setSelectedGroupIds((prev) => {
+        const next = new Set(prev)
+        next.delete(group.id)
+        return next
+      })
+    }
+  }
+
+  const handleDeleteSelectedGroups = async () => {
+    if (selectedGroupIds.size === 0) return
+    if (confirm(`Are you sure you want to delete ${selectedGroupIds.size} selected group(s)?`)) {
+      await store.deleteGroups(Array.from(selectedGroupIds))
+      if (selectedGroup && selectedGroupIds.has(selectedGroup.id)) {
+        setSelectedGroup(null)
+      }
+      setSelectedGroupIds(new Set())
+      setIsSelectMode(false)
+    }
+  }
+
+  const handleRemoveMemberFromGroup = async (memberId: string) => {
+    if (!selectedGroup) return
+    const personName = memberId === meId ? 'yourself' : peopleMap.get(memberId)?.name || 'this member'
+    if (confirm(`Are you sure you want to remove ${personName} from "${selectedGroup.name}"?`)) {
+      await store.removeGroupMember(selectedGroup.id, memberId)
+      const updated = ledgerState.groups.find((g) => g.id === selectedGroup.id)
+      if (updated) setSelectedGroup(updated)
+    }
+  }
 
   const handleAddMemberToGroup = async () => {
     if (!selectedGroup || !memberToAdd) return
@@ -73,15 +126,64 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
             Trips, flatmates, and events with automatic debt simplification
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreateGroup(true)}
-          className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
-        >
-          <Icon name="plus" size={16} />
-          <span>Create Group</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {ledgerState.groups.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSelectMode(!isSelectMode)
+                setSelectedGroupIds(new Set())
+              }}
+              className={`px-3 py-2.5 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer ${
+                isSelectMode
+                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
+                  : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-border)]'
+              }`}
+            >
+              <Icon name="check" size={15} />
+              <span>{isSelectMode ? 'Done' : 'Select'}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCreateGroup(true)}
+            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
+          >
+            <Icon name="plus" size={16} />
+            <span>Create Group</span>
+          </button>
+        </div>
       </div>
+
+      {/* Batch Action Toolbar */}
+      {isSelectMode && (
+        <div className="p-3 bg-[var(--color-surface)] border-2 border-primary/40 rounded-2xl shadow-sm flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="text-xs font-bold text-primary hover:underline flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>{selectedGroupIds.size === ledgerState.groups.length && ledgerState.groups.length > 0 ? 'Deselect All' : 'Select All'}</span>
+            </button>
+            <span className="text-xs text-[var(--color-text-muted)] font-semibold">
+              {selectedGroupIds.size} of {ledgerState.groups.length} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={selectedGroupIds.size === 0}
+              onClick={handleDeleteSelectedGroups}
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 active:scale-95 cursor-pointer"
+            >
+              <Icon name="delete" size={14} />
+              <span>Delete Selected Groups ({selectedGroupIds.size})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Groups Grid */}
       {ledgerState.groups.length === 0 ? (
@@ -109,17 +211,39 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
             const totalGroupSpendMinor = ledgerState.expenses
               .filter((e) => !e.isTombstone && e.groupId === group.id)
               .reduce((acc, e) => acc + e.totalMinor, 0)
+            const isSelected = selectedGroupIds.has(group.id)
 
             return (
               <div
                 key={group.id}
-                onClick={() => setSelectedGroup(group)}
-                className="p-5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-primary/40 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-4 card-hover"
+                onClick={() => {
+                  if (isSelectMode) {
+                    handleToggleSelect(group.id)
+                  } else {
+                    setSelectedGroup(group)
+                  }
+                }}
+                className={`p-5 bg-[var(--color-surface)] border rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-4 card-hover ${
+                  isSelected
+                    ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                    : 'border-[var(--color-border)] hover:border-primary/40'
+                }`}
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary shadow-inner">
-                      <CategoryIcon category={kindInfo.emoji} size={24} />
+                    <div className="flex items-center gap-2.5">
+                      {isSelectMode && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelect(group.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary shrink-0 cursor-pointer"
+                        />
+                      )}
+                      <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary shadow-inner">
+                        <CategoryIcon category={kindInfo.emoji} size={24} />
+                      </div>
                     </div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-surface-subtle)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
                       {group.currency.code}
@@ -140,13 +264,26 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                   <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-text-muted)]">
                     Total Pool Spend
                   </span>
-                  <MoneyDisplay
-                    minor={totalGroupSpendMinor}
-                    currency={group.currency}
-                    size="md"
-                    showSign={false}
-                    showColor={false}
-                  />
+                  <div className="flex items-center gap-2">
+                    <MoneyDisplay
+                      minor={totalGroupSpendMinor}
+                      currency={group.currency}
+                      size="md"
+                      showSign={false}
+                      showColor={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteSingleGroup(group)
+                      }}
+                      className="p-1 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Group"
+                    >
+                      <Icon name="delete" size={13} />
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -217,6 +354,50 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                   <Icon name="chart" size={14} />
                   <span>Statement</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Group Members */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
+                  Group Members ({selectedGroup.memberIds.length})
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setShowAddMember(true)}
+                  className="text-xs text-primary font-bold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Icon name="plus" size={12} />
+                  <span>Add Member</span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {selectedGroup.memberIds.map((mId) => {
+                  const person = peopleMap.get(mId)
+                  const isMe = mId === meId
+                  return (
+                    <div
+                      key={mId}
+                      className="px-2.5 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span className="font-semibold text-[var(--color-text)]">
+                        {isMe ? 'You' : person?.name || 'Unknown'}
+                      </span>
+                      {selectedGroup.memberIds.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMemberFromGroup(mId)}
+                          className="w-4 h-4 rounded-full hover:bg-rose-100 dark:hover:bg-rose-950/60 text-rose-500 flex items-center justify-center transition-colors cursor-pointer"
+                          title={`Remove ${isMe ? 'yourself' : person?.name || 'member'} from group`}
+                        >
+                          <Icon name="close" size={10} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
@@ -324,6 +505,26 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Footer with Delete Group */}
+            <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => handleDeleteSingleGroup(selectedGroup)}
+                className="px-3.5 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors inline-flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              >
+                <Icon name="delete" size={14} />
+                <span>Delete Group</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedGroup(null)}
+                className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] transition-colors cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </Modal>

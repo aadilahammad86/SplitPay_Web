@@ -38,11 +38,14 @@ export interface StorageAdapter {
 
   // Atomic local mutations (Entity write + SyncOp outbox in one transaction)
   addPerson(person: Person, op: SyncOp): Promise<void>
+  removePerson(personId: string): Promise<void>
   addGroup(group: Group, op: SyncOp): Promise<void>
+  removeGroup(groupId: string): Promise<void>
   addExpense(expense: Expense, op: SyncOp): Promise<void>
   tombstoneExpense(expenseId: string, op: SyncOp): Promise<void>
   restoreExpense(expenseId: string, op: SyncOp): Promise<void>
   addSettlement(settlement: Settlement, op: SyncOp): Promise<void>
+  deleteSettlement(settlementId: string): Promise<void>
 
   // Remote ops integration
   applyRemoteOps(ops: SyncOp[]): Promise<void>
@@ -51,4 +54,5 @@ export interface StorageAdapter {
   exportAll(): Promise<LedgerBackup>
   importAll(backup: LedgerBackup): Promise<void>
   clearAll(): Promise<void>
+  clearLedgerData(keepLocalProfile?: boolean): Promise<void>
 }

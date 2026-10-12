@@ -82,9 +82,17 @@ export class MemoryStorageAdapter implements StorageAdapter {
     this.ops.set(op.opId, { ...op, synced: 0 })
   }
 
+  async removePerson(personId: string): Promise<void> {
+    this.people.delete(personId)
+  }
+
   async addGroup(group: Group, op: SyncOp): Promise<void> {
     this.groups.set(group.id, group)
     this.ops.set(op.opId, { ...op, synced: 0 })
+  }
+
+  async removeGroup(groupId: string): Promise<void> {
+    this.groups.delete(groupId)
   }
 
   async addExpense(expense: Expense, op: SyncOp): Promise<void> {
@@ -111,6 +119,10 @@ export class MemoryStorageAdapter implements StorageAdapter {
   async addSettlement(settlement: Settlement, op: SyncOp): Promise<void> {
     this.settlements.set(settlement.id, settlement)
     this.ops.set(op.opId, { ...op, synced: 0 })
+  }
+
+  async deleteSettlement(settlementId: string): Promise<void> {
+    this.settlements.delete(settlementId)
   }
 
   async applyRemoteOps(ops: SyncOp[]): Promise<void> {
@@ -188,5 +200,23 @@ export class MemoryStorageAdapter implements StorageAdapter {
     this.settlements.clear()
     this.ops.clear()
     this.meta.clear()
+  }
+
+  async clearLedgerData(keepLocalProfile: boolean = true): Promise<void> {
+    this.groups.clear()
+    this.expenses.clear()
+    this.settlements.clear()
+    this.ops.clear()
+    if (!keepLocalProfile) {
+      this.people.clear()
+      this.meta.clear()
+    } else {
+      const localPersonId = this.meta.get('local_person_id')
+      for (const [id] of this.people) {
+        if (id !== localPersonId) {
+          this.people.delete(id)
+        }
+      }
+    }
   }
 }

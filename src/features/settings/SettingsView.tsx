@@ -58,6 +58,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
   // Backup & Restore
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
 
+  // Danger Zone / Data Clearing
+  const [dataActionMsg, setDataActionMsg] = useState<string | null>(null)
+
+  const handleClearTransactions = async () => {
+    if (confirm('Are you sure you want to clear all expenses and settlements? Your balance sheet will reset to zero, while groups and friends will remain.')) {
+      await store.clearExpensesAndSettlements()
+      setDataActionMsg('✓ All expenses and settlements cleared.')
+      setTimeout(() => setDataActionMsg(null), 3000)
+    }
+  }
+
+  const handleClearAllLedgerData = async () => {
+    if (confirm('Are you sure you want to clear ALL ledger data (expenses, settlements, groups, and friends)? Your personal account profile will be preserved.')) {
+      await store.clearLedgerData(true)
+      setDataActionMsg('✓ All ledger data, groups, and friends cleared.')
+      setTimeout(() => setDataActionMsg(null), 3000)
+    }
+  }
+
+  const handleFactoryReset = async () => {
+    if (confirm('DANGER: Are you sure you want to perform a factory reset? This will erase all local databases, saved accounts, offline caches, and log you out. This action cannot be undone.')) {
+      await store.factoryReset()
+    }
+  }
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!profileName.trim()) return
@@ -606,6 +631,78 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
               className="hidden"
             />
           </label>
+        </div>
+      </div>
+
+      {/* Danger Zone: Data Clearing & Reset */}
+      <div className="p-6 bg-[var(--color-surface)] border border-rose-200 dark:border-rose-900/60 rounded-3xl shadow-sm space-y-4">
+        <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
+          <Icon name="alert" size={20} />
+          <h3 className="font-extrabold text-sm tracking-tight text-[var(--color-text)]">
+            Danger Zone & Data Management
+          </h3>
+        </div>
+        <p className="text-xs text-[var(--color-text-muted)] -mt-2">
+          Reset specific subsets of your ledger or perform a full factory reset.
+        </p>
+
+        {dataActionMsg && (
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-semibold animate-fade-in">
+            {dataActionMsg}
+          </div>
+        )}
+
+        <div className="space-y-3 pt-1">
+          {/* Action 1: Clear Transactions */}
+          <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="font-bold text-xs text-[var(--color-text)]">Clear All Expenses & Balances</h4>
+              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                Deletes all recorded expenses and settlements. Resets balances to zero, keeping your groups and friends list.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClearTransactions}
+              className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-all shrink-0 active:scale-95 cursor-pointer"
+            >
+              Clear Transactions
+            </button>
+          </div>
+
+          {/* Action 2: Clear Ledger Data */}
+          <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="font-bold text-xs text-[var(--color-text)]">Clear All Ledger Data</h4>
+              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                Wipes expenses, settlements, groups, and friends. Keeps your personal account and password profile intact.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClearAllLedgerData}
+              className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-all shrink-0 active:scale-95 cursor-pointer"
+            >
+              Clear Ledger Data
+            </button>
+          </div>
+
+          {/* Action 3: Factory Reset */}
+          <div className="p-4 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="font-bold text-xs text-rose-700 dark:text-rose-400">Factory Reset & Wipe All Data</h4>
+              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                Completely deletes the offline IndexedDB database, clears stored credentials and cache, and restarts the app.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleFactoryReset}
+              className="px-4 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition-all shrink-0 active:scale-95 cursor-pointer"
+            >
+              Factory Reset
+            </button>
+          </div>
         </div>
       </div>
 

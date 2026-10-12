@@ -30,11 +30,51 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState(0)
 
+  const [isSelectMode, setIsSelectMode] = useState(false)
+  const [selectedFriendIds, setSelectedFriendIds] = useState<Set<string>>(new Set())
+
   const friends = ledgerState.people.filter((p) => p.id !== meId)
   const filtered = friends.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()) ||
     (f.handle && f.handle.toLowerCase().includes(search.toLowerCase()))
   )
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedFriendIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (selectedFriendIds.size === filtered.length) {
+      setSelectedFriendIds(new Set())
+    } else {
+      setSelectedFriendIds(new Set(filtered.map((f) => f.id)))
+    }
+  }
+
+  const handleRemoveSingleFriend = async (friend: Person) => {
+    if (confirm(`Are you sure you want to remove "${friend.name}" from your friends list?`)) {
+      await store.removeFriend(friend.id)
+      setSelectedFriendIds((prev) => {
+        const next = new Set(prev)
+        next.delete(friend.id)
+        return next
+      })
+    }
+  }
+
+  const handleRemoveSelectedFriends = async () => {
+    if (selectedFriendIds.size === 0) return
+    if (confirm(`Are you sure you want to remove ${selectedFriendIds.size} selected friend(s)?`)) {
+      await store.removeFriends(Array.from(selectedFriendIds))
+      setSelectedFriendIds(new Set())
+      setIsSelectMode(false)
+    }
+  }
 
   const handleAddFriend = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -142,6 +182,23 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
             <Icon name="users" size={15} />
             <span className="hidden sm:inline">Sync Contacts</span>
           </button>
+          {friends.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSelectMode(!isSelectMode)
+                setSelectedFriendIds(new Set())
+              }}
+              className={`px-3 py-2.5 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 ${
+                isSelectMode
+                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
+                  : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-border)]'
+              }`}
+            >
+              <Icon name="check" size={15} />
+              <span>{isSelectMode ? 'Done' : 'Select'}</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
@@ -152,6 +209,36 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
           </button>
         </div>
       </div>
+
+      {/* Batch Action Toolbar */}
+      {isSelectMode && (
+        <div className="p-3 bg-[var(--color-surface)] border-2 border-primary/40 rounded-2xl shadow-sm flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="text-xs font-bold text-primary hover:underline flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>{selectedFriendIds.size === filtered.length && filtered.length > 0 ? 'Deselect All' : 'Select All'}</span>
+            </button>
+            <span className="text-xs text-[var(--color-text-muted)] font-semibold">
+              {selectedFriendIds.size} of {filtered.length} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={selectedFriendIds.size === 0}
+              onClick={handleRemoveSelectedFriends}
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 active:scale-95 cursor-pointer"
+            >
+              <Icon name="delete" size={14} />
+              <span>Remove Selected ({selectedFriendIds.size})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Friends Responsive Grid */}
       {filtered.length === 0 ? (
@@ -187,16 +274,36 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               expenses: ledgerState.expenses,
               settlements: ledgerState.settlements,
             })
+            const isSelected = selectedFriendIds.has(friend.id)
 
             return (
               <div
                 key={friend.id}
-                onClick={() => setSelectedFriend(friend)}
-                className="p-5 bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-primary/40 rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-3 card-hover"
+                onClick={() => {
+                  if (isSelectMode) {
+                    handleToggleSelect(friend.id)
+                  } else {
+                    setSelectedFriend(friend)
+                  }
+                }}
+                className={`p-5 bg-[var(--color-surface)] border rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-3 card-hover ${
+                  isSelected
+                    ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                    : 'border-[var(--color-border)] hover:border-primary/40'
+                }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3 overflow-hidden">
+                      {isSelectMode && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelect(friend.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary shrink-0 cursor-pointer"
+                        />
+                      )}
                       <div className="w-12 h-12 rounded-2xl hero-gradient text-white font-extrabold flex items-center justify-center text-sm shadow-sm shrink-0">
                         {personInitials(friend.name)}
                       </div>
@@ -275,6 +382,14 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     >
                       <Icon name="chart" size={13} />
                       <span>Statement</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSingleFriend(friend)}
+                      className="px-2 py-1 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 font-semibold text-xs rounded-xl border border-rose-200 dark:border-rose-800 transition-colors inline-flex items-center gap-1"
+                      title="Remove Friend"
+                    >
+                      <Icon name="delete" size={13} />
                     </button>
                   </div>
                 </div>
@@ -366,10 +481,22 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     setSelectedFriend(null)
                     setEditingFriend(toEdit)
                   }}
-                  className="px-3.5 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all inline-flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Icon name="edit" size={14} />
                   <span>Edit Profile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const toRemove = selectedFriend
+                    setSelectedFriend(null)
+                    handleRemoveSingleFriend(toRemove)
+                  }}
+                  className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 font-semibold text-xs rounded-xl border border-rose-200 dark:border-rose-800 transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Icon name="delete" size={14} />
+                  <span>Remove</span>
                 </button>
                 {selectedFriendBreakdown.netMinor !== 0 && (
                   <button
