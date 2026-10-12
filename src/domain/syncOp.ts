@@ -88,13 +88,22 @@ export function encodeShare(s: ExpenseShare): Record<string, unknown> {
   }
 }
 
+function parseIntegerMinor(val: unknown, fallback = 0): number {
+  if (typeof val === 'number' && Number.isInteger(val)) return val
+  if (typeof val === 'string') {
+    const parsed = parseInt(val, 10)
+    if (Number.isInteger(parsed)) return parsed
+  }
+  return fallback
+}
+
 export function decodeShare(m: Record<string, unknown>): ExpenseShare {
   return {
-    id: String(m.id),
-    expenseId: String(m.expenseId),
-    owedBy: String(m.owedBy),
-    owedTo: String(m.owedTo),
-    amountMinor: Number(m.amountMinor),
+    id: String(m.id ?? ''),
+    expenseId: String(m.expenseId ?? ''),
+    owedBy: String(m.owedBy ?? ''),
+    owedTo: String(m.owedTo ?? ''),
+    amountMinor: parseIntegerMinor(m.amountMinor),
     groupId: m.groupId ? String(m.groupId) : null,
   }
 }
@@ -117,15 +126,16 @@ export function encodeExpense(e: Expense): Record<string, unknown> {
 
 export function decodeExpense(m: Record<string, unknown>): Expense {
   const sharesRaw = Array.isArray(m.shares) ? m.shares : []
+  const rawMinor = m.totalMinor ?? m.amountMinor
   return {
-    id: String(m.id),
-    description: String(m.description),
-    totalMinor: Number(m.totalMinor),
-    currency: currencyFromCode(String(m.currency)),
-    paidBy: String(m.paidBy),
+    id: String(m.id ?? ''),
+    description: String(m.description ?? ''),
+    totalMinor: parseIntegerMinor(rawMinor),
+    currency: currencyFromCode(String(m.currency ?? '')),
+    paidBy: String(m.paidBy ?? ''),
     groupId: m.groupId ? String(m.groupId) : null,
     mode: (m.mode as SplitMode) ?? 'equal',
-    createdAtMicros: Number(m.createdAtMicros),
+    createdAtMicros: parseIntegerMinor(m.createdAtMicros),
     categoryEmoji: String(m.categoryEmoji ?? '🧾'),
     isTombstone: Boolean(m.isTombstone),
     shares: sharesRaw.map((s) => decodeShare(s as Record<string, unknown>)),
@@ -146,15 +156,16 @@ export function encodeSettlement(s: Settlement): Record<string, unknown> {
 }
 
 export function decodeSettlement(m: Record<string, unknown>): Settlement {
+  const rawMinor = m.amountMinor ?? m.totalMinor
   return {
-    id: String(m.id),
-    from: String(m.from),
-    to: String(m.to),
-    amountMinor: Number(m.amountMinor),
-    currency: currencyFromCode(String(m.currency)),
+    id: String(m.id ?? ''),
+    from: String(m.from ?? ''),
+    to: String(m.to ?? ''),
+    amountMinor: parseIntegerMinor(rawMinor),
+    currency: currencyFromCode(String(m.currency ?? '')),
     groupId: m.groupId ? String(m.groupId) : null,
     note: String(m.note ?? ''),
-    createdAtMicros: Number(m.createdAtMicros),
+    createdAtMicros: parseIntegerMinor(m.createdAtMicros),
   }
 }
 

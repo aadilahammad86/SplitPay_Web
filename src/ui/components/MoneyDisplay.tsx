@@ -1,5 +1,5 @@
 import React from 'react'
-import { Money, type CurrencyCode } from '../../domain/money'
+import { Money, Currencies, type CurrencyCode } from '../../domain/money'
 
 interface MoneyDisplayProps {
   minor: number
@@ -18,9 +18,11 @@ export const MoneyDisplay: React.FC<MoneyDisplayProps> = ({
   className = '',
   size = 'md',
 }) => {
-  const money = new Money(Math.abs(minor), currency)
-  const isPositive = minor > 0
-  const isNegative = minor < 0
+  const safeMinor = typeof minor === 'number' && Number.isInteger(minor) ? minor : 0
+  const safeCurrency = currency || Currencies.INR
+  const money = new Money(Math.abs(safeMinor), safeCurrency)
+  const isPositive = safeMinor > 0
+  const isNegative = safeMinor < 0
 
   let colorClass = ''
   if (showColor) {
@@ -48,7 +50,7 @@ export const MoneyDisplay: React.FC<MoneyDisplayProps> = ({
       aria-label={`${isPositive ? 'positive' : isNegative ? 'negative' : ''} ${money.spoken()}`}
     >
       {signStr && <span className="font-bold">{signStr}</span>}
-      <span>{currency.symbol}</span>
+      <span>{safeCurrency.symbol}</span>
       <span>{money.plain()}</span>
     </span>
   )
