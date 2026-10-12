@@ -229,43 +229,63 @@ export class AuthService {
     try {
       const supabase = getSupabaseClient()
       if (supabase) {
-        const { data, error } = await supabase
+        const { data: rows, error } = await supabase
           .from('profiles')
           .select('*')
           .ilike('handle', cleanUsername)
-          .maybeSingle()
+          .order('updated_at', { ascending: false })
 
-        if (!error && data && data.avatar_url && data.avatar_url.startsWith('auth:sha256:')) {
-          const expectedHash = data.avatar_url.replace('auth:sha256:', '')
-          const computedHash = await hashPassword(password, cleanUsername)
-          if (computedHash === expectedHash) {
-            const account: UserAccount = {
-              id: data.id,
-              name: data.name,
-              username: data.handle,
-              email: data.email || undefined,
-              phone: data.phone || undefined,
-              isGuest: false,
-              avatarUrl: data.avatar_url,
+        if (!error && Array.isArray(rows) && rows.length > 0) {
+          // Find any profile with registered password credentials
+          const authedProfile = rows.find(
+            (r) => r.avatar_url && typeof r.avatar_url === 'string' && r.avatar_url.startsWith('auth:sha256:')
+          )
+
+          if (authedProfile && authedProfile.avatar_url) {
+            const expectedHash = authedProfile.avatar_url.replace('auth:sha256:', '')
+            const computedHash = await hashPassword(password, cleanUsername)
+            if (computedHash === expectedHash) {
+              const profileWithEmail = rows.find((r) => r.email)
+              const profileWithPhone = rows.find((r) => r.phone)
+
+              const account: UserAccount = {
+                id: authedProfile.id,
+                name: authedProfile.name,
+                username: authedProfile.handle || cleanUsername,
+                email: authedProfile.email || profileWithEmail?.email || undefined,
+                phone: authedProfile.phone || profileWithPhone?.phone || undefined,
+                isGuest: false,
+                avatarUrl: authedProfile.avatar_url,
+              }
+
+              // Cache credentials locally for offline use
+              accounts[cleanUsername] = {
+                id: account.id,
+                name: account.name,
+                username: cleanUsername,
+                email: account.email,
+                passwordHash: expectedHash,
+                salt: cleanUsername,
+                isGuest: false,
+                createdAt: authedProfile.created_at || new Date().toISOString(),
+              }
+              this.saveStoredAccounts(accounts)
+
+              // Ensure sibling profiles with null avatar_url get synced with credentials
+              Promise.resolve(
+                supabase
+                  .from('profiles')
+                  .update({ avatar_url: authedProfile.avatar_url })
+                  .ilike('handle', cleanUsername)
+                  .is('avatar_url', null)
+              ).catch(() => {})
+
+              this.saveSession(account)
+              return { success: true, account }
             }
-
-            // Cache credentials locally for offline use
-            accounts[cleanUsername] = {
-              id: account.id,
-              name: account.name,
-              username: cleanUsername,
-              email: account.email,
-              passwordHash: expectedHash,
-              salt: cleanUsername,
-              isGuest: false,
-              createdAt: data.created_at || new Date().toISOString(),
-            }
-            this.saveStoredAccounts(accounts)
-
-            this.saveSession(account)
-            return { success: true, account }
+            return { success: false, error: 'Incorrect password. Please try again.' }
           }
-          return { success: false, error: 'Incorrect password for this cloud account.' }
+          return { success: false, error: 'This username exists as a contact without a password. Please sign up to create your account.' }
         }
       }
     } catch {
