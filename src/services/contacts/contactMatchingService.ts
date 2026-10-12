@@ -165,25 +165,32 @@ export async function lookupPersonByPhone(params: {
   } = params
 
   const norm = normalizeToE164(phoneInput, defaultCountryPrefix)
-  if (!norm.valid) {
+  const digitsOnly = phoneInput.replace(/\D/g, '')
+  const last9 = digitsOnly.length >= 7 ? digitsOnly.slice(-9) : ''
+
+  if (!norm.valid && !last9) {
     return { valid: false, error: norm.error || 'Please enter a valid phone number.' }
   }
 
-  const e164 = norm.e164
+  const e164 = norm.valid ? norm.e164 : `+${digitsOnly}`
 
   // 1. Check local directory
-  const localMatch = localDirectory.find(
-    (p) => p.id !== meId && p.phone === e164 && p.discoverableByPhone !== false
-  )
+  const localMatch = localDirectory.find((p) => {
+    if (p.id === meId || p.discoverableByPhone === false || !p.phone) return false
+    if (norm.valid && p.phone === e164) return true
+    if (last9 && p.phone.replace(/\D/g, '').endsWith(last9)) return true
+    return false
+  })
+
   if (localMatch) {
     return {
       valid: true,
-      e164,
+      e164: localMatch.phone || e164,
       match: {
         id: localMatch.id,
         name: localMatch.name,
         handle: localMatch.handle,
-        phoneDisplay: formatE164Display(e164),
+        phoneDisplay: formatE164Display(localMatch.phone || e164),
         alreadyFriend: existingFriendIds.includes(localMatch.id),
       },
     }
@@ -193,27 +200,45 @@ export async function lookupPersonByPhone(params: {
   try {
     const supabase = getSupabaseClient()
     if (supabase) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, name, handle, phone')
-        .eq('phone', e164)
-        .eq('discoverable_by_phone', true)
-        .limit(1)
+      // First attempt exact E.164 match
+      let remoteUser: { id: string; name: string; handle?: string; phone: string } | null = null
 
-      if (!error && data && data.length > 0) {
-        const remoteUser = data[0]
-        if (remoteUser.id !== meId) {
-          return {
-            valid: true,
-            e164,
-            match: {
-              id: remoteUser.id,
-              name: remoteUser.name,
-              handle: remoteUser.handle,
-              phoneDisplay: formatE164Display(e164),
-              alreadyFriend: existingFriendIds.includes(remoteUser.id),
-            },
-          }
+      if (norm.valid) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, name, handle, phone')
+          .eq('phone', e164)
+          .limit(1)
+
+        if (!error && data && data.length > 0) {
+          remoteUser = data[0]
+        }
+      }
+
+      // If not found, attempt flexible suffix matching on subscriber digits
+      if (!remoteUser && last9) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, name, handle, phone')
+          .ilike('phone', `%${last9}%`)
+          .limit(1)
+
+        if (!error && data && data.length > 0) {
+          remoteUser = data[0]
+        }
+      }
+
+      if (remoteUser && remoteUser.id !== meId) {
+        return {
+          valid: true,
+          e164: remoteUser.phone || e164,
+          match: {
+            id: remoteUser.id,
+            name: remoteUser.name,
+            handle: remoteUser.handle,
+            phoneDisplay: formatE164Display(remoteUser.phone || e164),
+            alreadyFriend: existingFriendIds.includes(remoteUser.id),
+          },
         }
       }
     }
@@ -222,6 +247,10 @@ export async function lookupPersonByPhone(params: {
   }
 
   // 3. Unmatched: prepare WhatsApp invite link
+  if (!norm.valid) {
+    return { valid: false, error: norm.error || 'Please enter a valid phone number with country code.' }
+  }
+
   const digits = getE164DigitsOnly(e164)
   const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://splitpay.app'
   const inviteLink = `${appUrl}?invite=${encodeURIComponent(inviteCode)}`

@@ -74,11 +74,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Check if Supabase client is configured
       try {
         const client = getSupabaseClient()
-        if (client && sharedLedgerId) {
-          const transport = new SupabaseSyncTransport(client)
-          engineInstance = new SyncEngine({ store, transport })
-          await engineInstance.start(sharedLedgerId)
-          if (active) setSyncEngine(engineInstance)
+        if (client) {
+          store.syncMyProfileToCloud().catch(() => {})
+          if (sharedLedgerId) {
+            const transport = new SupabaseSyncTransport(client)
+            engineInstance = new SyncEngine({ store, transport })
+            await engineInstance.start(sharedLedgerId)
+            if (active) setSyncEngine(engineInstance)
+          }
         }
       } catch (syncErr) {
         console.warn('Sync engine initialization failed, operating offline:', syncErr)
@@ -87,9 +90,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     init()
 
+    const handleOnline = () => {
+      store.syncMyProfileToCloud().catch(() => {})
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnline)
+    }
+
     return () => {
       active = false
       if (engineInstance) engineInstance.stop()
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnline)
+      }
     }
   }, [store, sharedLedgerId])
 
@@ -134,6 +147,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await engine.start(sharedLedgerId)
     }
     setSyncEngine(engine)
+    store.syncMyProfileToCloud().catch(() => {})
   }
 
   const disconnectSupabase = () => {

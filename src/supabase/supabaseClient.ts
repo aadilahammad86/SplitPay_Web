@@ -88,6 +88,27 @@ export function getSupabaseClient(config?: SupabaseConfig): SupabaseClient | nul
     }
   }
 
+  // Fallback to default SplitPay cloud backend in browser/production
+  const isTest = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.MODE === 'test'
+  if (!isTest) {
+    const defaultUrl = 'https://uomijchozppmtcmjychc.supabase.co'
+    const defaultKey = 'sb_publishable_KPTpCoULsCu_CwcbL0fwXg_dafVaZ5g'
+    try {
+      validatePublishableKey(defaultKey)
+      currentConfig = { url: defaultUrl, anonKey: defaultKey }
+      clientInstance = createClient(defaultUrl, defaultKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
+      return clientInstance
+    } catch {
+      // ignore initialization fallback errors
+    }
+  }
+
   return null
 }
 

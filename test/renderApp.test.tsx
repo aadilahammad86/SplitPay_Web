@@ -20,6 +20,7 @@ import { ExpenseEditorModal } from '../src/features/expense/ExpenseEditorModal'
 import { SettleUpModal } from '../src/features/settle/SettleUpModal'
 import { CreateGroupModal } from '../src/features/groups/CreateGroupModal'
 import { InstallModal } from '../src/pwa/InstallModal'
+import { AcceptInviteModal } from '../src/features/invite/AcceptInviteModal'
 
 describe('Application & Views Render Tests', () => {
   const wrap = (node: React.ReactNode) => (
@@ -142,6 +143,11 @@ describe('Modal Render Tests', () => {
 
   it('renders InstallModal open', () => {
     const html = renderToString(wrap(<InstallModal isOpen={true} onClose={() => {}} />))
+    expect(html).toBeDefined()
+  })
+
+  it('renders AcceptInviteModal', () => {
+    const html = renderToString(wrap(<AcceptInviteModal />))
     expect(html).toBeDefined()
   })
 })

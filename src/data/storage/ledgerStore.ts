@@ -103,7 +103,11 @@ export class LedgerStore {
     if (!localPersonId) {
       // Create initial local profile
       const myId = generateUlid()
-      const me: Person = { id: myId, name: 'You' }
+      const me: Person = {
+        id: myId,
+        name: 'You',
+        inviteCode: `sp_${myId.slice(-6).toLowerCase()}`,
+      }
       const op = opAddPerson({
         opId: generateUlid(),
         deviceId,
@@ -131,6 +135,23 @@ export class LedgerStore {
       initialized: true,
       pendingOpsCount: pendingOps.length,
     })
+
+    // Ensure current profile has an inviteCode
+    const currentMe = this.me
+    if (currentMe && !currentMe.inviteCode) {
+      const code = `sp_${localPersonId.slice(-6).toLowerCase()}`
+      currentMe.inviteCode = code
+      const op = opAddPerson({
+        opId: generateUlid(),
+        deviceId,
+        atMicros: Date.now() * 1000,
+        person: currentMe,
+      })
+      await this.adapter.addPerson(currentMe, op)
+    }
+
+    // Auto-sync profile to Supabase on startup
+    this.syncMyProfileToCloud().catch(() => {})
   }
 
   get me(): Person | null {
@@ -140,6 +161,62 @@ export class LedgerStore {
 
   async createLocalProfile(name: string): Promise<Person> {
     return this.updateLocalProfile({ name })
+  }
+
+  async syncMyProfileToCloud(): Promise<boolean> {
+    const me = this.me
+    if (!me || !this.state.localPersonId) return false
+
+    const supabase = getSupabaseClient()
+    if (!supabase) return false
+
+    const inviteCode = me.inviteCode || `sp_${me.id.slice(-6).toLowerCase()}`
+
+    try {
+      // If phone is present, prevent idx_unique_phone constraint collisions by removing stale profiles
+      if (me.phone) {
+        const { data: existingProfiles } = await supabase
+          .from('profiles')
+          .select('id, phone')
+          .eq('phone', me.phone)
+          .limit(1)
+
+        if (existingProfiles && existingProfiles.length > 0) {
+          const existing = existingProfiles[0]
+          if (existing.id !== me.id) {
+            await supabase.from('profiles').delete().eq('id', existing.id)
+          }
+        }
+      }
+
+      const { error: upsertErr } = await supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: me.id,
+            name: me.name || 'Anonymous',
+            handle: me.handle || null,
+            email: me.email || null,
+            email_verified: !!me.emailVerified,
+            phone: me.phone || null,
+            phone_verified: !!me.phoneVerified,
+            discoverable_by_phone: me.discoverableByPhone !== false,
+            invite_code: inviteCode,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        )
+
+      if (upsertErr) {
+        console.warn('[LedgerStore] Supabase profile sync error:', upsertErr)
+        return false
+      }
+
+      return true
+    } catch (err) {
+      console.warn('[LedgerStore] Unexpected profile sync failure:', err)
+      return false
+    }
   }
 
   async updateLocalProfile(updates: {
@@ -188,32 +265,9 @@ export class LedgerStore {
     })
 
     // Sync profile to live database if Supabase client is connected
-    try {
-      const supabase = getSupabaseClient()
-      if (supabase) {
-        supabase
-          .from('profiles')
-          .upsert(
-            {
-              id: myId,
-              name: trimmedName,
-              handle: trimmedHandle,
-              email: updated.email,
-              phone: updated.phone,
-              discoverable_by_phone: updated.discoverableByPhone !== false,
-              invite_code: updated.inviteCode,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          )
-          .then(
-            () => {},
-            (err: unknown) => console.warn('Supabase profile sync warning:', err)
-          )
-      }
-    } catch {
-      // Ignore background sync errors
-    }
+    this.syncMyProfileToCloud().catch((err) => {
+      console.warn('Background profile cloud sync error:', err)
+    })
 
     return updated
   }
@@ -244,11 +298,34 @@ export class LedgerStore {
   async addFriend(
     name: string,
     handle?: string,
-    extra?: { id?: string; phone?: string; phoneVerified?: boolean }
+    extra?: { id?: string; phone?: string; phoneVerified?: boolean; inviteCode?: string }
   ): Promise<Person> {
     const friendId = extra?.id || generateUlid()
-    const existing = this.state.people.find((p) => p.id === friendId)
-    if (existing) return existing
+    const existing = this.state.people.find(
+      (p) => p.id === friendId || (extra?.phone && p.phone === extra.phone)
+    )
+    if (existing) {
+      if ((extra?.phone && !existing.phone) || (extra?.inviteCode && !existing.inviteCode) || (handle && !existing.handle)) {
+        const updated: Person = {
+          ...existing,
+          handle: existing.handle || handle?.trim() || undefined,
+          phone: existing.phone || extra?.phone,
+          phoneVerified: existing.phoneVerified ?? extra?.phoneVerified,
+          inviteCode: existing.inviteCode || extra?.inviteCode,
+        }
+        const op = opAddPerson({
+          opId: generateUlid(),
+          deviceId: this.state.deviceId,
+          atMicros: Date.now() * 1000,
+          person: updated,
+        })
+        await this.adapter.addPerson(updated, op)
+        const people = await this.adapter.getPeople()
+        this.setState({ people })
+        return updated
+      }
+      return existing
+    }
 
     const person: Person = {
       id: friendId,
@@ -256,6 +333,7 @@ export class LedgerStore {
       handle: handle?.trim() || undefined,
       phone: extra?.phone,
       phoneVerified: extra?.phoneVerified,
+      inviteCode: extra?.inviteCode,
     }
     const op = opAddPerson({
       opId: generateUlid(),

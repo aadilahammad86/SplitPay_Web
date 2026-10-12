@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { Icon } from '../../ui/components/Icon'
+import { Select } from '../../ui/components/Select'
 import {
   isContactPickerSupported,
   matchContactsAgainstDirectory,
@@ -16,6 +17,16 @@ interface ContactSyncModalProps {
   isOpen: boolean
   onClose: () => void
 }
+
+const COUNTRY_CODES = [
+  { code: '+91', label: 'India (+91)' },
+  { code: '+1', label: 'United States (+1)' },
+  { code: '+44', label: 'United Kingdom (+44)' },
+  { code: '+971', label: 'UAE (+971)' },
+  { code: '+65', label: 'Singapore (+65)' },
+  { code: '+61', label: 'Australia (+61)' },
+  { code: '+49', label: 'Germany (+49)' },
+]
 
 export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
   isOpen,
@@ -33,6 +44,17 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [copiedLink, setCopiedLink] = useState(false)
 
+  const myPhone = me?.phone
+  const initialCountryPrefix = React.useMemo(() => {
+    if (myPhone) {
+      const match = COUNTRY_CODES.find((c) => myPhone.startsWith(c.code))
+      if (match) return match.code
+    }
+    return '+91'
+  }, [myPhone])
+
+  const [countryPrefix, setCountryPrefix] = useState(initialCountryPrefix)
+
   // Phone search state
   const [phoneSearchQuery, setPhoneSearchQuery] = useState('')
   const [searchingPhone, setSearchingPhone] = useState(false)
@@ -46,7 +68,7 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
 
   const inviteCode = me?.inviteCode || `sp_${meId.slice(-6).toLowerCase()}`
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://splitpay.app'
-  const shareableInviteUrl = `${appOrigin}?invite=${encodeURIComponent(inviteCode)}`
+  const shareableInviteUrl = `${appOrigin}?invite=${encodeURIComponent(inviteCode)}&name=${encodeURIComponent(me?.name || 'Friend')}&uid=${encodeURIComponent(meId)}`
 
   const handleCopyInviteLink = () => {
     if (navigator.clipboard) {
@@ -86,6 +108,7 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
       localDirectory: [...ledgerState.people],
       meId,
       existingFriendIds,
+      defaultCountryPrefix: countryPrefix,
       inviteCode,
     })
 
@@ -129,6 +152,7 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
         directory: [...ledgerState.people],
         meId,
         existingFriendIds,
+        defaultCountryPrefix: countryPrefix,
         inviteCode,
       })
 
@@ -173,14 +197,25 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
             </p>
           </div>
 
-          <form onSubmit={handleSearchPhone} className="flex gap-2">
+          <form onSubmit={handleSearchPhone} className="flex flex-col sm:flex-row gap-2">
+            <div className="w-full sm:w-40 shrink-0">
+              <Select
+                value={countryPrefix}
+                onChange={(val) => setCountryPrefix(val)}
+                options={COUNTRY_CODES.map((c) => ({
+                  value: c.code,
+                  label: c.label,
+                }))}
+                ariaLabel="Country code for phone search"
+              />
+            </div>
             <div className="relative flex-1">
               <span className="absolute left-3 top-2.5 text-[var(--color-text-muted)]">
                 <Icon name="phone" size={14} />
               </span>
               <input
                 type="tel"
-                placeholder="e.g. 9876543210 or +91..."
+                placeholder="Mobile number (e.g. 501234567)..."
                 value={phoneSearchQuery}
                 onChange={(e) => setPhoneSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-mono text-[var(--color-text)] focus:outline-none"
@@ -189,7 +224,7 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
             <button
               type="submit"
               disabled={searchingPhone || !phoneSearchQuery.trim()}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 shrink-0 inline-flex items-center gap-1.5"
+              className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 shrink-0 inline-flex items-center justify-center gap-1.5"
             >
               {searchingPhone ? <Icon name="reload" size={13} className="animate-spin" /> : <Icon name="users" size={13} />}
               <span>Search</span>

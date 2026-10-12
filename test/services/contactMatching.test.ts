@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   isContactPickerSupported,
   matchContactsAgainstDirectory,
+  lookupPersonByPhone,
   MAX_CONTACT_BATCH_SIZE,
   type ContactCandidate,
 } from '../../src/services/contacts/contactMatchingService'
@@ -180,6 +181,83 @@ describe('Services - Contact Matching & Privacy Rules', () => {
 
       expect(result.totalProcessed).toBe(MAX_CONTACT_BATCH_SIZE)
       expect(result.matches.length + result.unmatched.length).toBe(MAX_CONTACT_BATCH_SIZE)
+    })
+  })
+
+  describe('lookupPersonByPhone', () => {
+    const mockDirectory: Person[] = [
+      {
+        id: 'me-1',
+        name: 'Myself',
+        phone: '+971501111111',
+        discoverableByPhone: true,
+      },
+      {
+        id: 'friend-uae',
+        name: 'Ahmed UAE',
+        handle: 'ahmed',
+        phone: '+971502222222',
+        discoverableByPhone: true,
+      },
+      {
+        id: 'friend-private',
+        name: 'Private Bob',
+        phone: '+971503333333',
+        discoverableByPhone: false,
+      },
+    ]
+
+    it('matches friend by exact E.164 phone number', async () => {
+      const result = await lookupPersonByPhone({
+        phoneInput: '+971502222222',
+        localDirectory: mockDirectory,
+        meId: 'me-1',
+        existingFriendIds: [],
+      })
+
+      expect(result.valid).toBe(true)
+      expect(result.match).toBeDefined()
+      expect(result.match?.id).toBe('friend-uae')
+      expect(result.match?.name).toBe('Ahmed UAE')
+    })
+
+    it('matches friend by subscriber digits even when typed without country prefix', async () => {
+      const result = await lookupPersonByPhone({
+        phoneInput: '0502222222', // Local dial format with leading zero
+        localDirectory: mockDirectory,
+        meId: 'me-1',
+        existingFriendIds: [],
+        defaultCountryPrefix: '+971',
+      })
+
+      expect(result.valid).toBe(true)
+      expect(result.match).toBeDefined()
+      expect(result.match?.id).toBe('friend-uae')
+    })
+
+    it('does not match private profiles where discoverableByPhone is false', async () => {
+      const result = await lookupPersonByPhone({
+        phoneInput: '+971503333333',
+        localDirectory: mockDirectory,
+        meId: 'me-1',
+        existingFriendIds: [],
+      })
+
+      expect(result.valid).toBe(true)
+      expect(result.match).toBeUndefined()
+      expect(result.whatsappInviteUrl).toBeDefined()
+    })
+
+    it('does not match the requester themselves', async () => {
+      const result = await lookupPersonByPhone({
+        phoneInput: '+971501111111',
+        localDirectory: mockDirectory,
+        meId: 'me-1',
+        existingFriendIds: [],
+      })
+
+      expect(result.valid).toBe(true)
+      expect(result.match).toBeUndefined()
     })
   })
 })

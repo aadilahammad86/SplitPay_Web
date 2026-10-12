@@ -14,6 +14,7 @@ import { ExpenseEditorModal } from './features/expense/ExpenseEditorModal'
 import { InstallModal } from './pwa/InstallModal'
 import { OnboardingModal } from './features/onboarding/OnboardingModal'
 import { SuperAdminView } from './features/admin/SuperAdminView'
+import { AcceptInviteModal } from './features/invite/AcceptInviteModal'
 import { Icon } from './ui/components/Icon'
 
 const AppContent: React.FC = () => {
@@ -246,6 +247,9 @@ const AppContent: React.FC = () => {
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
       />
+
+      {/* Invite Link Accept Modal */}
+      <AcceptInviteModal onNavigate={setCurrentTab} />
     </div>
   )
 }
