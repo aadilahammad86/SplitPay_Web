@@ -3,6 +3,7 @@ import { useStore } from '../storeContext'
 import { useTheme } from '../themeContext'
 import { Icon, type IconName } from './Icon'
 import { SyncStatusModal } from '../../features/sync/SyncStatusModal'
+import { defaultAuthService } from '../../services/auth/authService'
 
 interface SidebarProps {
   currentTab: string
@@ -108,14 +109,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => onNavigate('settings')}
-            className="p-1.5 rounded-lg hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] text-xs transition-colors"
-            title="Edit profile & username"
-          >
-            <Icon name="edit" size={15} />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => onNavigate('settings')}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] text-xs transition-colors"
+              title="Edit profile & username"
+            >
+              <Icon name="edit" size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Are you sure you want to log out of SplitPay?')) {
+                  defaultAuthService.logout()
+                }
+              }}
+              className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[var(--color-text-muted)] hover:text-rose-600 text-xs transition-colors"
+              title="Log Out"
+              aria-label="Log Out"
+            >
+              <Icon name="logout" size={15} />
+            </button>
+          </div>
         </div>
 
         {/* Primary Action Button */}

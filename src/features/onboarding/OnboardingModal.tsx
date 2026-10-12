@@ -7,6 +7,7 @@ import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
 import { Icon } from '../../ui/components/Icon'
 import { normalizeToE164 } from '../../domain/phone'
+import { defaultAuthService } from '../../services/auth/authService'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -20,6 +21,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
   const [step, setStep] = useState<number>(0)
   const [displayName, setDisplayName] = useState(store.me?.name === 'You' ? '' : store.me?.name || '')
   const [username, setUsername] = useState(store.me?.handle || '')
+  const [password, setPassword] = useState('')
+  const [isGuestMode, setIsGuestMode] = useState(false)
   const [email, setEmail] = useState(store.me?.email || '')
   const [phone, setPhone] = useState(store.me?.phone || '')
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(SupportedCurrencies[0])
@@ -33,9 +36,22 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
         if (norm.valid) normalizedPhone = norm.e164
       }
 
+      if (isGuestMode) {
+        await defaultAuthService.loginAsGuest(displayName.trim() || 'Guest')
+      } else if (password.trim() && username.trim()) {
+        await defaultAuthService.register({
+          name: displayName.trim() || 'You',
+          username: username.trim(),
+          password: password.trim(),
+          email: email.trim() || undefined,
+          phone: normalizedPhone,
+          isGuest: false,
+        })
+      }
+
       await store.updateLocalProfile({
-        name: displayName.trim() || 'You',
-        handle: username.trim() ? username.trim().replace(/^@/, '') : undefined,
+        name: displayName.trim() || (isGuestMode ? 'Guest' : 'You'),
+        handle: isGuestMode ? undefined : (username.trim() ? username.trim().replace(/^@/, '') : undefined),
         email: email.trim() || undefined,
         phone: normalizedPhone,
         phoneVerified: !!normalizedPhone,
@@ -204,6 +220,41 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                     className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Account Security / Password / Guest Mode Toggle */}
+              <div className="p-3 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[var(--color-text)]">Account Security</span>
+                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isGuestMode}
+                      onChange={(e) => setIsGuestMode(e.target.checked)}
+                      className="rounded accent-primary"
+                    />
+                    <span>Continue as Guest</span>
+                  </label>
+                </div>
+
+                {!isGuestMode ? (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[var(--color-text-muted)] mb-1">
+                      Account Password
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="Enter password (min 4 characters)"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs text-[var(--color-text)] focus:outline-none"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    Guest mode active. No password required — data is saved to offline local storage.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

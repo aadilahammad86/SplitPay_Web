@@ -5,6 +5,7 @@ import { InstallModal } from '../../pwa/InstallModal'
 import { SyncStatusModal } from '../../features/sync/SyncStatusModal'
 import { isStandalone } from '../../pwa/pwaManager'
 import { Icon, type IconName } from './Icon'
+import { defaultAuthService } from '../../services/auth/authService'
 
 interface NavbarProps {
   currentTab: string
@@ -126,6 +127,21 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
             aria-label="Settings"
           >
             <Icon name="settings" size={16} />
+          </button>
+
+          {/* Logout button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Are you sure you want to log out of SplitPay?')) {
+                defaultAuthService.logout()
+              }
+            }}
+            className="p-1.5 rounded-xl border border-[var(--color-border)] hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[var(--color-text-muted)] hover:text-rose-600 transition-colors text-sm"
+            title="Log Out"
+            aria-label="Log Out"
+          >
+            <Icon name="logout" size={16} />
           </button>
         </div>
       </div>

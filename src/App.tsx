@@ -15,10 +15,19 @@ import { InstallModal } from './pwa/InstallModal'
 import { OnboardingModal } from './features/onboarding/OnboardingModal'
 import { SuperAdminView } from './features/admin/SuperAdminView'
 import { AcceptInviteModal } from './features/invite/AcceptInviteModal'
+import { AuthScreen } from './features/auth/AuthScreen'
+import { defaultAuthService, type UserAccount } from './services/auth/authService'
 import { Icon } from './ui/components/Icon'
 
 const AppContent: React.FC = () => {
-  const { ledgerState } = useStore()
+  const { store, ledgerState } = useStore()
+  const [session, setSession] = useState<UserAccount | null>(() => defaultAuthService.getCurrentSession())
+
+  React.useEffect(() => {
+    return defaultAuthService.subscribe((s) => {
+      setSession(s)
+    })
+  }, [])
   const [currentTab, setCurrentTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       if (window.location.hash === '#admin' || window.location.search.includes('admin=1')) {
@@ -111,6 +120,23 @@ const AppContent: React.FC = () => {
           </div>
         )}
       </div>
+    )
+  }
+
+  // Authentication Screen (Login / Sign Up / Guest Mode)
+  if (!session && currentTab !== 'admin') {
+    return (
+      <AuthScreen
+        onAuthenticated={async (account) => {
+          setSession(account)
+          await store.updateLocalProfile({
+            name: account.name,
+            handle: account.isGuest ? undefined : account.username,
+            email: account.email,
+            phone: account.phone,
+          })
+        }}
+      />
     )
   }
 

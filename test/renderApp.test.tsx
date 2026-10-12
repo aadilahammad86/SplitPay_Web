@@ -22,6 +22,7 @@ import { CreateGroupModal } from '../src/features/groups/CreateGroupModal'
 import { InstallModal } from '../src/pwa/InstallModal'
 import { AcceptInviteModal } from '../src/features/invite/AcceptInviteModal'
 import { SyncStatusModal } from '../src/features/sync/SyncStatusModal'
+import { AuthScreen } from '../src/features/auth/AuthScreen'
 
 describe('Application & Views Render Tests', () => {
   const wrap = (node: React.ReactNode) => (
@@ -155,5 +156,13 @@ describe('Modal Render Tests', () => {
   it('renders SyncStatusModal', () => {
     const html = renderToString(wrap(<SyncStatusModal isOpen={true} onClose={() => {}} />))
     expect(html).toBeDefined()
+  })
+
+  it('renders AuthScreen for login, signup, and guest access', () => {
+    const html = renderToString(wrap(<AuthScreen onAuthenticated={() => {}} />))
+    expect(html).toContain('SplitPay')
+    expect(html).toContain('Log In')
+    expect(html).toContain('Sign Up')
+    expect(html).toContain('Guest Mode')
   })
 })

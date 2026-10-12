@@ -8,6 +8,7 @@ import { PhoneLinkingModal } from '../auth/PhoneLinkingModal'
 import { ContactSyncModal } from '../contacts/ContactSyncModal'
 import { formatE164Display } from '../../domain/phone'
 import { Icon, type IconName } from '../../ui/components/Icon'
+import { defaultAuthService } from '../../services/auth/authService'
 
 interface SettingsViewProps {
   onOpenAdmin?: () => void
@@ -21,6 +22,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
 
   const { mode, setMode, palette, setPalette, availablePalettes } = useTheme()
   const me = store.me
+  const currentSession = defaultAuthService.getCurrentSession()
+
+  const handleLogout = () => {
+    if (confirm('Are you sure you want to log out of SplitPay?')) {
+      defaultAuthService.logout()
+    }
+  }
 
   // Profile & Username
   const [profileName, setProfileName] = useState(me?.name || '')
@@ -154,6 +162,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
           <Icon name="star" size={14} className="text-amber-500" />
           <span>Replay Setup Wizard</span>
         </button>
+      </div>
+
+      {/* Account & Session Status Section */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-primary-subtle text-primary border border-primary-border flex items-center justify-center text-lg font-bold shadow-sm">
+              <Icon name="user" size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-sm text-[var(--color-text)]">
+                  {currentSession?.name || profileName || 'You'}
+                </h3>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  currentSession?.isGuest
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                }`}>
+                  {currentSession?.isGuest ? 'Guest Mode' : 'Secured Account'}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5 font-mono">
+                {currentSession?.username ? `@${currentSession.username}` : '@you'} · {currentSession?.isGuest ? 'Local Offline Storage' : 'Password & Cloud Synced'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-xl transition-all self-start sm:self-auto inline-flex items-center gap-1.5 shadow-sm active:scale-95"
+          >
+            <Icon name="logout" size={14} />
+            <span>Log Out</span>
+          </button>
+        </div>
       </div>
 
       {/* Profile & Username Section */}
