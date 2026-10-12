@@ -21,6 +21,7 @@ import { SettleUpModal } from '../src/features/settle/SettleUpModal'
 import { CreateGroupModal } from '../src/features/groups/CreateGroupModal'
 import { InstallModal } from '../src/pwa/InstallModal'
 import { AcceptInviteModal } from '../src/features/invite/AcceptInviteModal'
+import { SyncStatusModal } from '../src/features/sync/SyncStatusModal'
 
 describe('Application & Views Render Tests', () => {
   const wrap = (node: React.ReactNode) => (
@@ -148,6 +149,11 @@ describe('Modal Render Tests', () => {
 
   it('renders AcceptInviteModal', () => {
     const html = renderToString(wrap(<AcceptInviteModal />))
+    expect(html).toBeDefined()
+  })
+
+  it('renders SyncStatusModal', () => {
+    const html = renderToString(wrap(<SyncStatusModal isOpen={true} onClose={() => {}} />))
     expect(html).toBeDefined()
   })
 })

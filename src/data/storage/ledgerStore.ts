@@ -519,6 +519,14 @@ export class LedgerStore {
     return pending.length
   }
 
+  async forceClearOutbox(): Promise<void> {
+    const pending = await this.adapter.getPendingOps()
+    if (pending.length > 0) {
+      await this.adapter.markOpsSynced(pending.map((o) => o.opId))
+      await this.refreshPendingOpsCount()
+    }
+  }
+
   async exportBackup(): Promise<string> {
     const data = await this.adapter.exportAll()
     return JSON.stringify(data, null, 2)

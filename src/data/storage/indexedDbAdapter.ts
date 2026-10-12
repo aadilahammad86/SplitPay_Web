@@ -144,17 +144,22 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
 
   async markOpsSynced(opIds: string[]): Promise<void> {
     if (opIds.length === 0) return
+    const idSet = new Set(opIds)
     return new Promise((resolve, reject) => {
       const tx = this.getDatabase().transaction('ops', 'readwrite')
       const store = tx.objectStore('ops')
+      const index = store.index('synced')
+      const keyRange = typeof IDBKeyRange !== 'undefined' ? IDBKeyRange.only(0) : undefined
+      const cursorReq = index.openCursor(keyRange)
 
-      for (const opId of opIds) {
-        const getReq = store.get(opId)
-        getReq.onsuccess = () => {
-          if (getReq.result) {
-            const updated: StoredOp = { ...(getReq.result as StoredOp), synced: 1 }
-            store.put(updated)
+      cursorReq.onsuccess = (e) => {
+        const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result
+        if (cursor) {
+          const row = cursor.value as StoredOp
+          if (idSet.has(row.opId)) {
+            cursor.update({ ...row, synced: 1 })
           }
+          cursor.continue()
         }
       }
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useTheme } from '../themeContext'
 import { useStore } from '../storeContext'
 import { InstallModal } from '../../pwa/InstallModal'
+import { SyncStatusModal } from '../../features/sync/SyncStatusModal'
 import { isStandalone } from '../../pwa/pwaManager'
 import { Icon, type IconName } from './Icon'
 
@@ -12,14 +13,13 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
   const { mode, setMode } = useTheme()
-  const { syncEngine, syncState, ledgerState } = useStore()
+  const { syncState, ledgerState } = useStore()
   const [showInstall, setShowInstall] = useState(false)
+  const [showSyncModal, setShowSyncModal] = useState(false)
   const standalone = isStandalone()
 
-  const handleSyncClick = async () => {
-    if (syncEngine) {
-      await syncEngine.syncNow()
-    }
+  const handleSyncClick = () => {
+    setShowSyncModal(true)
   }
 
   const cycleTheme = () => {
@@ -131,6 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
       </div>
 
       <InstallModal isOpen={showInstall} onClose={() => setShowInstall(false)} />
+      <SyncStatusModal isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
     </header>
   )
 }

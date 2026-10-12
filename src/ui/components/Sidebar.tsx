@@ -2,6 +2,7 @@ import React from 'react'
 import { useStore } from '../storeContext'
 import { useTheme } from '../themeContext'
 import { Icon, type IconName } from './Icon'
+import { SyncStatusModal } from '../../features/sync/SyncStatusModal'
 
 interface SidebarProps {
   currentTab: string
@@ -16,7 +17,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAddExpense,
   onOpenInstall,
 }) => {
-  const { store, ledgerState, syncState, syncEngine, sharedLedgerId } = useStore()
+  const { store, ledgerState, syncState, sharedLedgerId } = useStore()
   const { mode, setMode, palette, setPalette, availablePalettes } = useTheme()
   const me = store.me
 
@@ -29,14 +30,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'settings', label: 'Settings', icon: 'settings', count: null },
   ]
 
+  const [showSyncModal, setShowSyncModal] = React.useState(false)
+
   const isSyncing = syncState?.status === 'syncing'
   const isOffline = syncState?.status === 'offline' || !syncState?.isOnline
   const isError = syncState?.status === 'error'
 
-  const handleSyncClick = async () => {
-    if (syncEngine) {
-      await syncEngine.syncNow()
-    }
+  const handleSyncClick = () => {
+    setShowSyncModal(true)
   }
 
   const cycleTheme = () => {
@@ -231,6 +232,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
       </div>
+
+      <SyncStatusModal isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
     </aside>
   )
 }
