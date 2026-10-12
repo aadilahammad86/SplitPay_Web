@@ -526,6 +526,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = ({ onBackToApp }) =
                 ? '0 pending outbox operations · Local and remote are synchronized'
                 : `${ledgerState.pendingOpsCount} outbox operation(s) awaiting server confirmation`}
             </p>
+            {syncState?.error && (
+              <p className="text-[11px] text-rose-500 font-mono mt-1 bg-rose-500/10 p-2 rounded-xl border border-rose-500/20">
+                Error: {syncState.error}
+              </p>
+            )}
           </div>
 
           <button

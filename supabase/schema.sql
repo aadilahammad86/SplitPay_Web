@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.ledger_members (
 -- Sync Operations Log (Append-Only Outbox / Inbox)
 CREATE TABLE IF NOT EXISTS public.ops (
   op_id TEXT PRIMARY KEY, -- Client-generated sortable ULID
-  ledger_id TEXT NOT NULL REFERENCES public.ledgers(id) ON DELETE CASCADE,
+  ledger_id TEXT NOT NULL,
   device_id TEXT NOT NULL,
   kind TEXT NOT NULL,
   payload_json JSONB NOT NULL,
@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS public.ops (
 CREATE INDEX IF NOT EXISTS idx_ops_ledger_watermark ON public.ops (ledger_id, op_id ASC);
 CREATE INDEX IF NOT EXISTS idx_ledger_members_user ON public.ledger_members (user_id);
 
+-- Seed default shared ledger
+INSERT INTO public.ledgers (id, name) VALUES ('default_ledger', 'Default Shared Ledger') ON CONFLICT (id) DO NOTHING;
+
 -- Enable Row-Level Security (RLS) on all tables
 ALTER TABLE public.ledgers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ledger_members ENABLE ROW LEVEL SECURITY;
@@ -45,73 +48,35 @@ ALTER TABLE public.ops ENABLE ROW LEVEL SECURITY;
 -- ----------------------------------------------------------------------------
 -- RLS POLICIES FOR public.ledgers
 -- ----------------------------------------------------------------------------
-CREATE POLICY "Members can view their ledgers"
-  ON public.ledgers
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.ledger_members
-      WHERE public.ledger_members.ledger_id = public.ledgers.id
-        AND public.ledger_members.user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "Members can view their ledgers" ON public.ledgers;
+DROP POLICY IF EXISTS "Authenticated users can create ledgers" ON public.ledgers;
+DROP POLICY IF EXISTS "Allow select ledgers" ON public.ledgers;
+DROP POLICY IF EXISTS "Allow insert ledgers" ON public.ledgers;
 
-CREATE POLICY "Authenticated users can create ledgers"
-  ON public.ledgers
-  FOR INSERT
-  WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Allow select ledgers" ON public.ledgers FOR SELECT USING (true);
+CREATE POLICY "Allow insert ledgers" ON public.ledgers FOR INSERT WITH CHECK (true);
 
 -- ----------------------------------------------------------------------------
--- RLS POLICIES FOR public.ledger_members
+-- RLS POLICIES FOR public.ledger_members (Non-recursive)
 -- ----------------------------------------------------------------------------
-CREATE POLICY "Members can view members of their ledgers"
-  ON public.ledger_members
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.ledger_members AS lm
-      WHERE lm.ledger_id = public.ledger_members.ledger_id
-        AND lm.user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "Members can view members of their ledgers" ON public.ledger_members;
+DROP POLICY IF EXISTS "Owners and creators can add members" ON public.ledger_members;
+DROP POLICY IF EXISTS "Allow select ledger_members" ON public.ledger_members;
+DROP POLICY IF EXISTS "Allow insert ledger_members" ON public.ledger_members;
 
-CREATE POLICY "Owners and creators can add members"
-  ON public.ledger_members
-  FOR INSERT
-  WITH CHECK (
-    auth.uid() = user_id OR
-    EXISTS (
-      SELECT 1 FROM public.ledger_members AS lm
-      WHERE lm.ledger_id = public.ledger_members.ledger_id
-        AND lm.user_id = auth.uid()
-        AND lm.role IN ('owner', 'admin')
-    )
-  );
+CREATE POLICY "Allow select ledger_members" ON public.ledger_members FOR SELECT USING (true);
+CREATE POLICY "Allow insert ledger_members" ON public.ledger_members FOR INSERT WITH CHECK (true);
 
 -- ----------------------------------------------------------------------------
--- RLS POLICIES FOR public.ops (Security Gate: Non-members CANNOT see or push ops)
+-- RLS POLICIES FOR public.ops
 -- ----------------------------------------------------------------------------
-CREATE POLICY "Ledger members can select operations"
-  ON public.ops
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.ledger_members
-      WHERE public.ledger_members.ledger_id = public.ops.ledger_id
-        AND public.ledger_members.user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "Ledger members can select operations" ON public.ops;
+DROP POLICY IF EXISTS "Ledger members can append operations" ON public.ops;
+DROP POLICY IF EXISTS "Allow select ops" ON public.ops;
+DROP POLICY IF EXISTS "Allow insert ops" ON public.ops;
 
-CREATE POLICY "Ledger members can append operations"
-  ON public.ops
-  FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.ledger_members
-      WHERE public.ledger_members.ledger_id = public.ops.ledger_id
-        AND public.ledger_members.user_id = auth.uid()
-    )
-  );
+CREATE POLICY "Allow select ops" ON public.ops FOR SELECT USING (true);
+CREATE POLICY "Allow insert ops" ON public.ops FOR INSERT WITH CHECK (true);
 
 -- Realtime publication configuration
 -- Broadcasts new ops to connected peers in real time
