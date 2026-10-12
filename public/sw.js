@@ -1,5 +1,5 @@
-const CACHE_NAME = 'splitpay-v1'
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'splitpay-v2'
+const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE)
+      return cache.addAll(STATIC_ASSETS)
     })
   )
   self.skipWaiting()
@@ -32,35 +32,54 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  // Only cache GET requests
+  // Only handle GET requests
   if (event.request.method !== 'GET') return
 
   const url = new URL(event.request.url)
 
-  // Bypass API / Supabase requests from service worker caching
-  if (url.hostname.includes('supabase.co') || url.pathname.startsWith('/rest/')) {
+  // Bypass API and Supabase requests entirely
+  if (
+    url.hostname.includes('supabase.co') ||
+    url.pathname.startsWith('/rest/') ||
+    url.pathname.startsWith('/api/')
+  ) {
     return
   }
 
+  // Network-First strategy for HTML navigation requests to prevent stale chunk 404 white screens
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
+          }
+          return networkResponse
+        })
+        .catch(() => {
+          return caches.match('/index.html').then((cached) => {
+            return cached || caches.match('/')
+          })
+        })
+    )
+    return
+  }
+
+  // Cache-First with Network fallback for static assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Return cached, and opportunistically fetch updated version in background
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse)
-              })
-            }
-          })
-          .catch(() => {})
         return cachedResponse
       }
 
       return fetch(event.request)
         .then((networkResponse) => {
-          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+          if (
+            !networkResponse ||
+            networkResponse.status !== 200 ||
+            networkResponse.type !== 'basic'
+          ) {
             return networkResponse
           }
 
@@ -72,10 +91,8 @@ self.addEventListener('fetch', (event) => {
           return networkResponse
         })
         .catch(() => {
-          // Fallback to root index.html for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/') || caches.match('/index.html')
-          }
+          // If offline and request is an image or icon, fail gracefully
+          return cachedResponse
         })
     })
   )

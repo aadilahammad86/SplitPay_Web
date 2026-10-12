@@ -20,6 +20,7 @@ import {
 import { generateUlid } from '../../domain/ulid'
 import { getSupabaseClient } from '../../supabase/supabaseClient'
 import type { LedgerBackup, StorageAdapter } from './storageAdapter'
+import { MemoryStorageAdapter } from './memoryStorageAdapter'
 
 export interface LedgerState {
   readonly people: readonly Person[]
@@ -33,7 +34,7 @@ export interface LedgerState {
 }
 
 export class LedgerStore {
-  private readonly adapter: StorageAdapter
+  private adapter: StorageAdapter
   private state: LedgerState
   private listeners = new Set<() => void>()
 
@@ -80,7 +81,13 @@ export class LedgerStore {
   async init(): Promise<void> {
     if (this.state.initialized) return
 
-    await this.adapter.init()
+    try {
+      await this.adapter.init()
+    } catch (adapterErr) {
+      console.warn('StorageAdapter failed to initialize, falling back to MemoryStorageAdapter:', adapterErr)
+      this.adapter = new MemoryStorageAdapter()
+      await this.adapter.init()
+    }
 
     // Ensure deviceId exists
     let deviceId = await this.adapter.getMeta('device_id')

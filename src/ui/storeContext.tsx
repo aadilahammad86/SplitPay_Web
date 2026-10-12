@@ -55,7 +55,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let engineInstance: SyncEngine | null = null
 
     async function init() {
-      await store.init()
+      try {
+        await store.init()
+      } catch (err) {
+        console.error('Ledger store initialization error:', err)
+      }
       if (!active) return
 
       // Request persistent browser storage where supported (ADR 0002)
@@ -68,12 +72,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // Check if Supabase client is configured
-      const client = getSupabaseClient()
-      if (client && sharedLedgerId) {
-        const transport = new SupabaseSyncTransport(client)
-        engineInstance = new SyncEngine({ store, transport })
-        await engineInstance.start(sharedLedgerId)
-        if (active) setSyncEngine(engineInstance)
+      try {
+        const client = getSupabaseClient()
+        if (client && sharedLedgerId) {
+          const transport = new SupabaseSyncTransport(client)
+          engineInstance = new SyncEngine({ store, transport })
+          await engineInstance.start(sharedLedgerId)
+          if (active) setSyncEngine(engineInstance)
+        }
+      } catch (syncErr) {
+        console.warn('Sync engine initialization failed, operating offline:', syncErr)
       }
     }
 

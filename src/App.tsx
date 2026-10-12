@@ -60,6 +60,14 @@ const AppContent: React.FC = () => {
     }
   }
 
+  const [initSlow, setInitSlow] = useState(false)
+  React.useEffect(() => {
+    if (!ledgerState.initialized) {
+      const timer = setTimeout(() => setInitSlow(true), 3500)
+      return () => clearTimeout(timer)
+    }
+  }, [ledgerState.initialized])
+
   if (!ledgerState.initialized) {
     return (
       <div className="flex-1 min-h-screen flex flex-col items-center justify-center p-6 text-center bg-[var(--color-bg)]">
@@ -70,6 +78,37 @@ const AppContent: React.FC = () => {
         <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
           Initializing local IndexedDB ledger...
         </p>
+
+        {initSlow && (
+          <div className="mt-6 max-w-xs space-y-3 p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl animate-fade-in shadow-md">
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Initialization is taking longer than usual. If your browser is restricting storage or tab locks:
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="flex-1 py-2 px-3 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl"
+              >
+                Reload
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.clear()
+                    if ('indexedDB' in window) window.indexedDB.deleteDatabase('splitpay_db')
+                  } finally {
+                    window.location.reload()
+                  }
+                }}
+                className="flex-1 py-2 px-3 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl"
+              >
+                Reset DB
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
