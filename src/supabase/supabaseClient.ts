@@ -92,6 +92,16 @@ export function getSupabaseClient(config?: SupabaseConfig): SupabaseClient | nul
 }
 
 export function resetSupabaseClient(): void {
+  if (clientInstance) {
+    try {
+      const channels = clientInstance.getChannels()
+      for (const ch of channels) {
+        clientInstance.removeChannel(ch)
+      }
+    } catch {
+      // ignore cleanup errors
+    }
+  }
   clientInstance = null
   currentConfig = null
 }

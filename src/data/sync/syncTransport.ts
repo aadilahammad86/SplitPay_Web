@@ -68,25 +68,47 @@ export class SupabaseSyncTransport implements SyncTransport {
   }
 
   subscribe(ledgerId: string, onNotification: () => void): () => void {
-    const channelName = `realtime:ops:${ledgerId}`
-    const channel = this.supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'ops',
-          filter: `ledger_id=eq.${ledgerId}`,
-        },
-        () => {
-          onNotification()
-        }
-      )
-      .subscribe()
+    const channelTopic = `ops_${ledgerId}`
 
-    return () => {
-      this.supabase.removeChannel(channel)
+    // Remove existing channel for this topic if one was previously registered
+    try {
+      const existingChannels = this.supabase.getChannels()
+      for (const ch of existingChannels) {
+        if (ch.topic === channelTopic || ch.topic === `realtime:${channelTopic}`) {
+          this.supabase.removeChannel(ch)
+        }
+      }
+    } catch (cleanErr) {
+      console.warn('Error cleaning up existing realtime channel:', cleanErr)
+    }
+
+    try {
+      const channel = this.supabase
+        .channel(channelTopic)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'ops',
+            filter: `ledger_id=eq.${ledgerId}`,
+          },
+          () => {
+            onNotification()
+          }
+        )
+        .subscribe()
+
+      return () => {
+        try {
+          this.supabase.removeChannel(channel)
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    } catch (subErr) {
+      console.warn('Realtime subscription failed, continuing without push listener:', subErr)
+      return () => {}
     }
   }
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { MemoryStorageAdapter } from '../../src/data/storage/memoryStorageAdapter'
 import { LedgerStore } from '../../src/data/storage/ledgerStore'
-import { SimulatedNetworkTransport } from '../../src/data/sync/syncTransport'
+import { SimulatedNetworkTransport, SupabaseSyncTransport } from '../../src/data/sync/syncTransport'
 import { SyncEngine } from '../../src/data/sync/syncEngine'
 import { Currencies } from '../../src/domain/money'
 import { validatePublishableKey } from '../../src/supabase/supabaseClient'
@@ -302,5 +302,27 @@ describe('Security & Secrets (INV RLS, Zero Service-Role)', () => {
 
     // Non-member attacker device tries to pull
     await expect(secureTransport.pullOps(secureLedgerId, null, 100, 'malicious_device_id')).rejects.toThrow(/403 Forbidden/)
+  })
+
+  it('SupabaseSyncTransport safely cleans existing channel and never throws after subscribe', () => {
+    const removed: string[] = []
+    const mockChannel = {
+      topic: 'ops_ledger_1',
+      on: () => mockChannel,
+      subscribe: () => mockChannel,
+    }
+    const mockClient = {
+      getChannels: () => [mockChannel],
+      removeChannel: (ch: { topic: string }) => {
+        removed.push(ch.topic)
+      },
+      channel: () => mockChannel,
+    }
+
+    const transport = new SupabaseSyncTransport(mockClient as any)
+    const unsub = transport.subscribe('ledger_1', () => {})
+    expect(removed).toContain('ops_ledger_1')
+    expect(typeof unsub).toBe('function')
+    unsub()
   })
 })

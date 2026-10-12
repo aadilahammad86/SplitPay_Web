@@ -3,7 +3,7 @@ import { IndexedDbStorageAdapter } from '../data/storage/indexedDbAdapter'
 import { LedgerStore, type LedgerState } from '../data/storage/ledgerStore'
 import { SyncEngine, type SyncEngineState } from '../data/sync/syncEngine'
 import { SupabaseSyncTransport } from '../data/sync/syncTransport'
-import { getSupabaseClient, type SupabaseConfig } from '../supabase/supabaseClient'
+import { getSupabaseClient, resetSupabaseClient, type SupabaseConfig } from '../supabase/supabaseClient'
 
 interface StoreContextType {
   store: LedgerStore
@@ -105,8 +105,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }
 
   const connectSupabase = async (config: SupabaseConfig) => {
+    if (syncEngine) {
+      syncEngine.stop()
+      setSyncEngine(null)
+    }
+
     const client = getSupabaseClient(config)
     if (!client) return
+
+    // Clean up any existing channels from client to avoid duplicate callback collisions
+    try {
+      const channels = client.getChannels()
+      for (const ch of channels) {
+        client.removeChannel(ch)
+      }
+    } catch {
+      // ignore channel cleanup errors
+    }
 
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('splitpay_supabase_url', config.url)
@@ -126,6 +141,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       syncEngine.stop()
       setSyncEngine(null)
     }
+    resetSupabaseClient()
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('splitpay_supabase_url')
       localStorage.removeItem('splitpay_supabase_anon_key')
