@@ -147,12 +147,18 @@ export const AcceptInviteModal: React.FC<AcceptInviteModalProps> = ({ onNavigate
       }
 
       // Fallback: use query param metadata if profile wasn't found in DB
-      if (!resolved) {
+      if (!resolved && (nameParam || uidParam)) {
         resolved = {
           id: uidParam || `invited_${code}`,
-          name: nameParam ? decodeURIComponent(nameParam) : 'SplitPay Friend',
+          name: nameParam ? decodeURIComponent(nameParam) : 'Invited Friend',
           inviteCode: code,
         }
+      }
+
+      if (!resolved) {
+        setStatusMessage('Invite code could not be found or has expired.')
+        setLoading(false)
+        return
       }
 
       const isAlreadyFriend = ledgerState.people.some(
@@ -285,7 +291,26 @@ export const AcceptInviteModal: React.FC<AcceptInviteModalProps> = ({ onNavigate
               )}
             </div>
           </>
-        ) : null}
+        ) : (
+          <div className="py-6 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 border border-amber-200 dark:border-amber-800 flex items-center justify-center mx-auto">
+              <Icon name="close" size={20} />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-[var(--color-text)]">Invite Not Found</h4>
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                {statusMessage || 'This invite link is invalid or may have expired.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="py-2.5 px-6 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
       </div>
     </Modal>
   )

@@ -9,6 +9,7 @@ import { EditFriendModal } from './EditFriendModal'
 import { ContactSyncModal } from '../contacts/ContactSyncModal'
 import { BASE_CURRENCY, personInitials, type Person } from '../../domain/entities'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
+import { getSupabaseClient } from '../../supabase/supabaseClient'
 
 interface FriendsViewProps {
   onNavigateToStatement: (friendId: string) => void
@@ -33,7 +34,15 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedFriendIds, setSelectedFriendIds] = useState<Set<string>>(new Set())
 
-  const friends = ledgerState.people.filter((p) => p.id !== meId)
+  const friends = ledgerState.people.filter(
+    (p) =>
+      !store.isMe(p.id) &&
+      p.name !== 'You' &&
+      p.name !== 'SplitPay Friend' &&
+      p.name !== 'Guest User' &&
+      !p.id.startsWith('invited_') &&
+      p.name.trim() !== ''
+  )
   const filtered = friends.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()) ||
     (f.handle && f.handle.toLowerCase().includes(search.toLowerCase()))
@@ -79,7 +88,38 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const handleAddFriend = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!friendName.trim()) return
-    await store.addFriend(friendName.trim(), friendHandle.trim() || undefined)
+
+    const trimmedName = friendName.trim()
+    const cleanHandle = friendHandle.trim().replace(/^@/, '') || undefined
+
+    let resolvedId: string | undefined
+    let resolvedPhone: string | undefined
+    let resolvedName = trimmedName
+
+    // Lookup existing cloud profile by handle if Supabase is connected
+    try {
+      const supabase = getSupabaseClient()
+      if (supabase && cleanHandle) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, name, handle, phone')
+          .ilike('handle', cleanHandle)
+          .maybeSingle()
+        if (data) {
+          resolvedId = data.id
+          if (data.name) resolvedName = data.name
+          if (data.phone) resolvedPhone = data.phone
+        }
+      }
+    } catch {
+      // offline fallback
+    }
+
+    await store.addFriend(resolvedName, cleanHandle, {
+      id: resolvedId,
+      phone: resolvedPhone,
+      phoneVerified: !!resolvedPhone,
+    })
     setFriendName('')
     setFriendHandle('')
     setShowAddModal(false)
@@ -91,6 +131,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
         friend: selectedFriend.id,
         expenses: ledgerState.expenses,
         settlements: ledgerState.settlements,
+        isMe: (id) => store.isMe(id),
       })
     : null
 
@@ -102,41 +143,41 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
             !e.isTombstone &&
             e.shares.some(
               (s) =>
-                (s.owedBy === selectedFriend.id && s.owedTo === meId) ||
-                (s.owedBy === meId && s.owedTo === selectedFriend.id)
+                (s.owedBy === selectedFriend.id && store.isMe(s.owedTo)) ||
+                (store.isMe(s.owedBy) && s.owedTo === selectedFriend.id)
             )
           )
           .map((e) => {
-            const myShare = e.shares.find((s) => s.owedBy === meId)?.amountMinor ?? 0
+            const myShare = e.shares.find((s) => store.isMe(s.owedBy))?.amountMinor ?? 0
             const friendShare = e.shares.find((s) => s.owedBy === selectedFriend.id)?.amountMinor ?? 0
             return {
               id: e.id,
               title: e.description,
               totalMinor: e.totalMinor,
-              relevantMinor: e.paidBy === meId ? friendShare : myShare,
+              relevantMinor: store.isMe(e.paidBy) ? friendShare : myShare,
               currency: e.currency,
               createdAtMicros: e.createdAtMicros,
               emoji: e.categoryEmoji,
               isSettlement: false,
-              paidByMe: e.paidBy === meId,
+              paidByMe: store.isMe(e.paidBy),
             }
           }),
         ...ledgerState.settlements
           .filter(
             (s) =>
-              (s.from === meId && s.to === selectedFriend.id) ||
-              (s.from === selectedFriend.id && s.to === meId)
+              (store.isMe(s.from) && s.to === selectedFriend.id) ||
+              (s.from === selectedFriend.id && store.isMe(s.to))
           )
           .map((s) => ({
             id: s.id,
-            title: s.from === meId ? `Payment to ${selectedFriend.name}` : `Payment from ${selectedFriend.name}`,
+            title: store.isMe(s.from) ? `Payment to ${selectedFriend.name}` : `Payment from ${selectedFriend.name}`,
             totalMinor: s.amountMinor,
             relevantMinor: s.amountMinor,
             currency: s.currency,
             createdAtMicros: s.createdAtMicros,
             emoji: '🤝',
             isSettlement: true,
-            paidByMe: s.from === meId,
+            paidByMe: store.isMe(s.from),
           })),
       ].sort((a, b) => b.createdAtMicros - a.createdAtMicros)
     : []
@@ -273,6 +314,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               friend: friend.id,
               expenses: ledgerState.expenses,
               settlements: ledgerState.settlements,
+              isMe: (id) => store.isMe(id),
             })
             const isSelected = selectedFriendIds.has(friend.id)
 

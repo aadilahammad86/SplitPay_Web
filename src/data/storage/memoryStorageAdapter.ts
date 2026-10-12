@@ -135,9 +135,20 @@ export class MemoryStorageAdapter implements StorageAdapter {
 
     for (const op of sorted) {
       switch (op.kind) {
-        case 'addPerson':
-          this.people.set(op.payload.id as string, decodePerson(op.payload))
+        case 'addPerson': {
+          const person = decodePerson(op.payload)
+          if (
+            person.name === 'You' ||
+            person.name === 'SplitPay Friend' ||
+            person.name === 'Guest User' ||
+            person.id.startsWith('invited_') ||
+            !person.name.trim()
+          ) {
+            break
+          }
+          this.people.set(op.payload.id as string, person)
           break
+        }
         case 'addGroup':
           this.groups.set(op.payload.id as string, decodeGroup(op.payload))
           break

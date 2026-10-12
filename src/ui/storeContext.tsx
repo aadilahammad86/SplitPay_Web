@@ -86,12 +86,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch (syncErr) {
         console.warn('Sync engine initialization failed, operating offline:', syncErr)
       }
+
+      // Automatically sync on any local store mutation (adding expense, settle, friend, group)
+      store.setOnMutation(() => {
+        if (engineInstance && engineInstance.getState().isOnline) {
+          engineInstance.syncNow().catch(() => {})
+        }
+      })
     }
 
     init()
 
     const handleOnline = () => {
       store.syncMyProfileToCloud().catch(() => {})
+      if (engineInstance && engineInstance.getState().isOnline) {
+        engineInstance.syncNow().catch(() => {})
+      }
     }
     if (typeof window !== 'undefined') {
       window.addEventListener('online', handleOnline)
@@ -99,6 +109,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return () => {
       active = false
+      store.setOnMutation(() => {})
       if (engineInstance) engineInstance.stop()
       if (typeof window !== 'undefined') {
         window.removeEventListener('online', handleOnline)
@@ -146,6 +157,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (sharedLedgerId) {
       await engine.start(sharedLedgerId)
     }
+    store.setOnMutation(() => {
+      if (engine.getState().isOnline) {
+        engine.syncNow().catch(() => {})
+      }
+    })
     setSyncEngine(engine)
     store.syncMyProfileToCloud().catch(() => {})
   }

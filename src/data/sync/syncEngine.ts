@@ -21,7 +21,10 @@ export class SyncEngine {
   private listeners = new Set<() => void>()
   private unsubscribeTransport: (() => void) | null = null
   private retryTimeout: ReturnType<typeof setTimeout> | null = null
+  private pollInterval: ReturnType<typeof setInterval> | null = null
   private retryAttempt = 0
+  private currentSyncPromise: Promise<void> | null = null
+  private nextSyncQueued = false
 
   constructor(params: {
     store: LedgerStore
@@ -56,6 +59,9 @@ export class SyncEngine {
     if (!online && this.retryTimeout) {
       clearTimeout(this.retryTimeout)
       this.retryTimeout = null
+    }
+    if (online) {
+      this.syncNow().catch(() => {})
     }
   }
 
@@ -102,10 +108,16 @@ export class SyncEngine {
       }
     })
 
+    window.addEventListener('focus', () => {
+      if (this.state.isOnline && this.state.status !== 'syncing') {
+        this.syncNow().catch(() => {})
+      }
+    })
+
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && this.state.isOnline) {
-          this.syncNow()
+          this.syncNow().catch(() => {})
         }
       })
     }
@@ -127,9 +139,16 @@ export class SyncEngine {
     this.unsubscribeTransport = this.transport.subscribe(ledgerId, () => {
       // Notification received -> prompt cursor pull
       if (this.state.isOnline) {
-        this.syncNow()
+        this.syncNow().catch(() => {})
       }
     })
+
+    // Continuous realtime background polling interval (every 4s when connected)
+    this.pollInterval = setInterval(() => {
+      if (this.state.isOnline && this.state.status !== 'syncing' && this.state.ledgerId) {
+        this.syncNow().catch(() => {})
+      }
+    }, 4000)
 
     // Trigger initial sync
     if (this.state.isOnline) {
@@ -138,6 +157,10 @@ export class SyncEngine {
   }
 
   stop(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval)
+      this.pollInterval = null
+    }
     if (this.unsubscribeTransport) {
       this.unsubscribeTransport()
       this.unsubscribeTransport = null
@@ -146,6 +169,7 @@ export class SyncEngine {
       clearTimeout(this.retryTimeout)
       this.retryTimeout = null
     }
+    this.nextSyncQueued = false
     this.setState({ ledgerId: null })
   }
 
@@ -155,10 +179,31 @@ export class SyncEngine {
       this.setState({ status: 'offline' })
       return
     }
-    if (this.state.status === 'syncing') {
+
+    // If a sync is already actively executing, queue a follow-up pass and wait for in-flight passes to finish.
+    if (this.currentSyncPromise) {
+      this.nextSyncQueued = true
+      await this.currentSyncPromise
+      while (this.currentSyncPromise) {
+        await this.currentSyncPromise
+      }
       return
     }
 
+    this.currentSyncPromise = this.executeSync()
+    try {
+      await this.currentSyncPromise
+    } finally {
+      this.currentSyncPromise = null
+      if (this.nextSyncQueued && this.state.isOnline && this.state.ledgerId) {
+        this.nextSyncQueued = false
+        await this.syncNow()
+      }
+    }
+  }
+
+  private async executeSync(): Promise<void> {
+    if (!this.state.ledgerId || !this.state.isOnline) return
     this.setState({ status: 'syncing', error: null })
     const ledgerId = this.state.ledgerId
 

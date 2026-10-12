@@ -30,18 +30,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState<number>(0)
 
-  const friendIds = ledgerState.people.filter((p) => p.id !== meId).map((p) => p.id)
+  const validFriends = ledgerState.people.filter(
+    (p) =>
+      !store.isMe(p.id) &&
+      p.name !== 'You' &&
+      p.name !== 'SplitPay Friend' &&
+      p.name !== 'Guest User' &&
+      !p.id.startsWith('invited_') &&
+      p.name.trim() !== ''
+  )
+  const friendIds = validFriends.map((p) => p.id)
 
   const overall = calculateOverallBalance({
     me: meId,
     friendIds,
     expenses: ledgerState.expenses,
     settlements: ledgerState.settlements,
+    isMe: (id) => store.isMe(id),
   })
 
   // Calculate total spending this month
   const totalSpentMinor = ledgerState.expenses
-    .filter((e) => !e.isTombstone && e.paidBy === meId)
+    .filter((e) => !e.isTombstone && store.isMe(e.paidBy))
     .reduce((sum, e) => sum + e.totalMinor, 0)
 
   // Recent transactions (expenses + settlements combined, reverse chronological)
@@ -52,8 +62,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       totalMinor: e.totalMinor,
       currency: e.currency,
       paidBy: e.paidBy,
-      paidByName: ledgerState.people.find((p) => p.id === e.paidBy)?.name || 'Someone',
-      myShareMinor: e.shares.find((s) => s.owedBy === meId)?.amountMinor || 0,
+      paidByName: store.isMe(e.paidBy) ? 'You' : (ledgerState.people.find((p) => p.id === e.paidBy)?.name || 'Someone'),
+      myShareMinor: e.shares.find((s) => store.isMe(s.owedBy))?.amountMinor || 0,
       createdAtMicros: e.createdAtMicros,
       emoji: e.categoryEmoji || '🧾',
       isSettlement: false,
@@ -65,7 +75,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       totalMinor: s.amountMinor,
       currency: s.currency,
       paidBy: s.from,
-      paidByName: ledgerState.people.find((p) => p.id === s.from)?.name || 'Someone',
+      paidByName: store.isMe(s.from) ? 'You' : (ledgerState.people.find((p) => p.id === s.from)?.name || 'Someone'),
       myShareMinor: 0,
       createdAtMicros: s.createdAtMicros,
       emoji: '🤝',
@@ -75,14 +85,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   ].sort((a, b) => b.createdAtMicros - a.createdAtMicros).slice(0, 6)
 
   // Friends breakdown with non-zero balances
-  const friendsWithBalances = ledgerState.people
-    .filter((p) => p.id !== meId)
+  const friendsWithBalances = validFriends
     .map((friend) => {
       const breakdown = breakdownFor({
         me: meId,
         friend: friend.id,
         expenses: ledgerState.expenses,
         settlements: ledgerState.settlements,
+        isMe: (id) => store.isMe(id),
       })
       return { friend, breakdown }
     })

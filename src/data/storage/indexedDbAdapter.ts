@@ -322,9 +322,21 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
 
       for (const op of sorted) {
         switch (op.kind) {
-          case 'addPerson':
-            peopleStore.put(decodePerson(op.payload))
+          case 'addPerson': {
+            const person = decodePerson(op.payload)
+            // Never persist anonymous dummy placeholders from other devices
+            if (
+              person.name === 'You' ||
+              person.name === 'SplitPay Friend' ||
+              person.name === 'Guest User' ||
+              person.id.startsWith('invited_') ||
+              !person.name.trim()
+            ) {
+              break
+            }
+            peopleStore.put(person)
             break
+          }
           case 'addGroup':
             groupsStore.put(decodeGroup(op.payload))
             break

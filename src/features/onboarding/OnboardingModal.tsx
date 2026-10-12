@@ -26,9 +26,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
   const [email, setEmail] = useState(store.me?.email || '')
   const [phone, setPhone] = useState(store.me?.phone || '')
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(SupportedCurrencies[0])
-  const [loadingSample, setLoadingSample] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleFinish = async (loadSample: boolean = false) => {
+  const handleFinish = async () => {
+    setSubmitting(true)
     try {
       let normalizedPhone: string | undefined
       if (phone.trim()) {
@@ -58,11 +59,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
         discoverableByPhone: true,
       })
 
-      if (loadSample) {
-        setLoadingSample(true)
-        await store.loadSampleDemoLedger(selectedCurrency)
-      }
-
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('splitpay_onboarding_completed', 'true')
       }
@@ -71,7 +67,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
       console.error('Failed to complete onboarding:', err)
       onClose()
     } finally {
-      setLoadingSample(false)
+      setSubmitting(false)
     }
   }
 
@@ -395,63 +391,35 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
           </div>
         )}
 
-        {/* STEP 3: Starter Option */}
+        {/* STEP 3: Ready to Start */}
         {step === 3 && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="text-center space-y-1">
-              <h3 className="text-lg font-extrabold text-[var(--color-text)] tracking-tight">
-                Ready to dive in!
+          <div className="space-y-4 animate-fade-in text-center py-2">
+            <div className="w-16 h-16 rounded-3xl bg-primary-subtle text-primary border border-primary-border flex items-center justify-center text-3xl mx-auto shadow-sm">
+              <Icon name="check" size={32} />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-extrabold text-[var(--color-text)] tracking-tight">
+                You're all set!
               </h3>
-              <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto">
-                How would you like to start your SplitPay ledger?
+              <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto leading-relaxed">
+                Your personal SplitPay ledger is ready with deterministic minor-unit math and real-time cloud sync. Start adding your real friends, roommates, and expenses.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              {/* Option A: Explore Demo */}
+            <div className="pt-2">
               <button
                 type="button"
-                onClick={() => handleFinish(true)}
-                disabled={loadingSample}
-                className="p-5 bg-primary-subtle border-2 border-primary hover:border-primary-hover rounded-3xl text-left space-y-2 card-hover transition-all cursor-pointer group disabled:opacity-50"
+                onClick={handleFinish}
+                disabled={submitting}
+                className="w-full py-3.5 px-6 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-extrabold text-sm rounded-2xl shadow-lg transition-all active:scale-95 inline-flex items-center justify-center gap-2 cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-2xl bg-primary text-white font-extrabold flex items-center justify-center text-xl shadow-sm">
-                  <Icon name="beach" size={22} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-[var(--color-text)] group-hover:text-primary transition-colors">
-                    Explore with Demo Ledger
-                  </h4>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                    Loads sample friends (Alex, Maya, Liam) and a beach trip with real expenses to test features immediately.
-                  </p>
-                </div>
-                <span className="inline-block text-xs font-bold text-primary pt-1">
-                  {loadingSample ? 'Loading Demo...' : 'Load & Explore →'}
-                </span>
-              </button>
-
-              {/* Option B: Clean Slate */}
-              <button
-                type="button"
-                onClick={() => handleFinish(false)}
-                disabled={loadingSample}
-                className="p-5 bg-[var(--color-surface-subtle)] border-2 border-[var(--color-border)] hover:border-primary/50 rounded-3xl text-left space-y-2 card-hover transition-all cursor-pointer group disabled:opacity-50"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] font-extrabold flex items-center justify-center text-primary shadow-sm">
-                  <Icon name="star" size={22} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-[var(--color-text)] group-hover:text-primary transition-colors">
-                    Start Clean Slate
-                  </h4>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                    Start with a fresh, empty ledger. Add your own real friends, roommates, and expenses from scratch.
-                  </p>
-                </div>
-                <span className="inline-block text-xs font-bold text-[var(--color-text-muted)] group-hover:text-primary pt-1 transition-colors">
-                  Start Fresh →
-                </span>
+                {submitting ? (
+                  <Icon name="reload" size={16} className="animate-spin" />
+                ) : (
+                  <Icon name="lightning" size={16} />
+                )}
+                <span>{submitting ? 'Setting up...' : 'Get Started →'}</span>
               </button>
             </div>
           </div>
@@ -479,11 +447,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
             >
               Next →
             </button>
-          ) : (
-            <span className="text-[11px] text-[var(--color-text-muted)]">
-              Choose an option above to enter
-            </span>
-          )}
+          ) : null}
         </div>
       </div>
     </Modal>

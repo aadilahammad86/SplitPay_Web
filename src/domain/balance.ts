@@ -27,17 +27,21 @@ export function breakdownFor(params: {
   friend: string
   expenses: readonly Expense[]
   settlements: readonly Settlement[]
+  isMe?: (id: string) => boolean
+  isFriend?: (id: string) => boolean
 }): BalanceBreakdown {
-  const { me, friend, expenses, settlements } = params
+  const { me, friend, expenses, settlements, isMe, isFriend } = params
+  const isMeFn = isMe ?? ((id: string) => id === me)
+  const isFriendFn = isFriend ?? ((id: string) => id === friend)
   const byGroup = new Map<string | null, number>()
 
   for (const e of expenses) {
     if (e.isTombstone) continue
     for (const s of e.shares) {
-      if (s.owedBy === friend && s.owedTo === me) {
+      if (isFriendFn(s.owedBy) && isMeFn(s.owedTo)) {
         const current = byGroup.get(s.groupId) ?? 0
         byGroup.set(s.groupId, current + s.amountMinor)
-      } else if (s.owedBy === me && s.owedTo === friend) {
+      } else if (isMeFn(s.owedBy) && isFriendFn(s.owedTo)) {
         const current = byGroup.get(s.groupId) ?? 0
         byGroup.set(s.groupId, current - s.amountMinor)
       }
@@ -45,10 +49,10 @@ export function breakdownFor(params: {
   }
 
   for (const st of settlements) {
-    if (st.from === friend && st.to === me) {
+    if (isFriendFn(st.from) && isMeFn(st.to)) {
       const current = byGroup.get(st.groupId) ?? 0
       byGroup.set(st.groupId, current - st.amountMinor)
-    } else if (st.from === me && st.to === friend) {
+    } else if (isMeFn(st.from) && isFriendFn(st.to)) {
       const current = byGroup.get(st.groupId) ?? 0
       byGroup.set(st.groupId, current + st.amountMinor)
     }
@@ -133,18 +137,19 @@ export function calculateOverallBalance(params: {
   friendIds: readonly string[]
   expenses: readonly Expense[]
   settlements: readonly Settlement[]
+  isMe?: (id: string) => boolean
 }): {
   totalOwedToYouMinor: number
   totalYouOweMinor: number
   netMinor: number
 } {
-  const { me, friendIds, expenses, settlements } = params
+  const { me, friendIds, expenses, settlements, isMe } = params
   let totalOwedToYouMinor = 0
   let totalYouOweMinor = 0
 
   for (const fId of friendIds) {
-    if (fId === me) continue
-    const breakdown = breakdownFor({ me, friend: fId, expenses, settlements })
+    if (fId === me || (isMe && isMe(fId))) continue
+    const breakdown = breakdownFor({ me, friend: fId, expenses, settlements, isMe })
     if (breakdown.netMinor > 0) {
       totalOwedToYouMinor += breakdown.netMinor
     } else if (breakdown.netMinor < 0) {

@@ -130,6 +130,7 @@ const AppContent: React.FC = () => {
         onAuthenticated={async (account) => {
           setSession(account)
           await store.updateLocalProfile({
+            id: account.id,
             name: account.name,
             handle: account.isGuest ? undefined : account.username,
             email: account.email,

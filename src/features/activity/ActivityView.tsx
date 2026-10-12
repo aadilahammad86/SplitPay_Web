@@ -6,8 +6,6 @@ import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 export const ActivityView: React.FC = () => {
   const { store, ledgerState } = useStore()
-  const me = store.me
-  const meId = me?.id || ''
 
   const [filter, setFilter] = useState<'all' | 'expenses' | 'settlements'>('all')
 
@@ -27,7 +25,7 @@ export const ActivityView: React.FC = () => {
         emoji: e.categoryEmoji,
         isSettlement: false,
         isTombstone: e.isTombstone,
-        paidByName: e.paidBy === meId ? 'You' : peopleMap.get(e.paidBy)?.name || 'Unknown',
+        paidByName: store.isMe(e.paidBy) ? 'You' : peopleMap.get(e.paidBy)?.name || 'Unknown',
         payerId: e.paidBy,
       })),
       ...ledgerState.settlements.map((s) => ({
@@ -39,11 +37,11 @@ export const ActivityView: React.FC = () => {
         emoji: '🤝',
         isSettlement: true,
         isTombstone: false,
-        paidByName: s.from === meId ? 'You' : peopleMap.get(s.from)?.name || 'Unknown',
+        paidByName: store.isMe(s.from) ? 'You' : peopleMap.get(s.from)?.name || 'Unknown',
         payerId: s.from,
       })),
     ].sort((a, b) => b.createdAtMicros - a.createdAtMicros)
-  }, [ledgerState.expenses, ledgerState.settlements, meId, peopleMap])
+  }, [ledgerState.expenses, ledgerState.settlements, peopleMap, store])
 
   const filteredItems = useMemo(() => {
     return allItems.filter((item) => {

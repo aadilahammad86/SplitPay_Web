@@ -88,7 +88,7 @@ export class SupabaseSyncTransport implements SyncTransport {
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
             table: 'ops',
             filter: `ledger_id=eq.${ledgerId}`,

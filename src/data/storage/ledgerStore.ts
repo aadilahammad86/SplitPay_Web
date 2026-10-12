@@ -19,6 +19,7 @@ import {
 } from '../../domain/syncOp'
 import { generateUlid } from '../../domain/ulid'
 import { getSupabaseClient } from '../../supabase/supabaseClient'
+import { normalizeToE164 } from '../../domain/phone'
 import type { LedgerBackup, StorageAdapter } from './storageAdapter'
 import { MemoryStorageAdapter } from './memoryStorageAdapter'
 
@@ -63,6 +64,22 @@ export class LedgerStore {
     }
   }
 
+  private onMutationCallback: (() => void) | null = null
+
+  setOnMutation(cb: () => void): void {
+    this.onMutationCallback = cb
+  }
+
+  notifyMutation(): void {
+    if (this.onMutationCallback) {
+      try {
+        this.onMutationCallback()
+      } catch (err) {
+        console.warn('Error in store onMutation callback:', err)
+      }
+    }
+  }
+
   private notify(): void {
     for (const listener of this.listeners) {
       try {
@@ -99,6 +116,25 @@ export class LedgerStore {
     // Ensure local person exists
     let localPersonId = await this.adapter.getMeta('local_person_id')
     let people = await this.adapter.getPeople()
+
+    // Sanitize any previously polluted dummy persons from people store
+    const sanitizedPeople: Person[] = []
+    for (const p of people) {
+      if (p.id === localPersonId) {
+        sanitizedPeople.push(p)
+      } else if (
+        p.name !== 'You' &&
+        p.name !== 'SplitPay Friend' &&
+        p.name !== 'Guest User' &&
+        !p.id.startsWith('invited_') &&
+        p.name.trim() !== ''
+      ) {
+        sanitizedPeople.push(p)
+      } else {
+        await this.adapter.removePerson(p.id).catch(() => {})
+      }
+    }
+    people = sanitizedPeople
 
     if (!localPersonId) {
       // Create initial local profile
@@ -157,6 +193,41 @@ export class LedgerStore {
   get me(): Person | null {
     if (!this.state.localPersonId) return null
     return this.state.people.find((p) => p.id === this.state.localPersonId) ?? null
+  }
+
+  isMe(personId: string): boolean {
+    if (!personId) return false
+    const myId = this.state.localPersonId
+    if (personId === myId) return true
+    const currentMe = this.me
+    if (!currentMe) return false
+    if (currentMe.id === personId) return true
+
+    const target = this.state.people.find((p) => p.id === personId)
+    if (!target) return false
+
+    // Check handle match (case-insensitive)
+    if (currentMe.handle && target.handle) {
+      const cleanMe = currentMe.handle.trim().toLowerCase().replace(/^@/, '')
+      const cleanTarget = target.handle.trim().toLowerCase().replace(/^@/, '')
+      if (cleanMe && cleanTarget && cleanMe === cleanTarget) return true
+    }
+
+    // Check phone match (normalized E.164)
+    if (currentMe.phone && target.phone) {
+      const normMe = normalizeToE164(currentMe.phone)
+      const normTarget = normalizeToE164(target.phone)
+      if (normMe.valid && normTarget.valid && normMe.e164 === normTarget.e164) return true
+    }
+
+    return false
+  }
+
+  resolvePersonId(personId: string): string {
+    if (this.isMe(personId)) {
+      return this.state.localPersonId || this.me?.id || personId
+    }
+    return personId
   }
 
   async createLocalProfile(name: string): Promise<Person> {
@@ -220,6 +291,7 @@ export class LedgerStore {
   }
 
   async updateLocalProfile(updates: {
+    id?: string
     name?: string
     handle?: string
     email?: string
@@ -230,7 +302,75 @@ export class LedgerStore {
     inviteCode?: string
   }): Promise<Person> {
     const currentMe = this.me
-    const myId = currentMe?.id || this.state.localPersonId || generateUlid()
+    const oldId = this.state.localPersonId
+    const myId = updates.id || currentMe?.id || oldId || generateUlid()
+
+    // If a new canonical account ID is provided and differs from old localPersonId, migrate records!
+    if (updates.id && oldId && updates.id !== oldId) {
+      await this.adapter.setMeta('local_person_id', myId)
+      await this.adapter.removePerson(oldId).catch(() => {})
+
+      const exps = await this.adapter.getExpenses()
+      for (const exp of exps) {
+        let changed = false
+        let paidBy = exp.paidBy
+        if (paidBy === oldId) {
+          paidBy = myId
+          changed = true
+        }
+        const shares = exp.shares.map((s) => {
+          let sChanged = false
+          let owedBy = s.owedBy
+          let owedTo = s.owedTo
+          if (owedBy === oldId) {
+            owedBy = myId
+            sChanged = true
+          }
+          if (owedTo === oldId) {
+            owedTo = myId
+            sChanged = true
+          }
+          if (sChanged) changed = true
+          return { ...s, owedBy, owedTo }
+        })
+        if (changed) {
+          const updated = { ...exp, paidBy, shares }
+          const op = opAddExpense({
+            opId: generateUlid(),
+            deviceId: this.state.deviceId,
+            atMicros: Date.now() * 1000,
+            expense: updated,
+          })
+          await this.adapter.addExpense(updated, op)
+        }
+      }
+
+      const sets = await this.adapter.getSettlements()
+      for (const st of sets) {
+        let changed = false
+        let from = st.from
+        let to = st.to
+        if (from === oldId) {
+          from = myId
+          changed = true
+        }
+        if (to === oldId) {
+          to = myId
+          changed = true
+        }
+        if (changed) {
+          const updated = { ...st, from, to }
+          const op = opAddSettlement({
+            opId: generateUlid(),
+            deviceId: this.state.deviceId,
+            atMicros: Date.now() * 1000,
+            settlement: updated,
+          })
+          await this.adapter.addSettlement(updated, op)
+        }
+      }
+    }
+
     const trimmedName = updates.name !== undefined ? (updates.name.trim() || 'You') : (currentMe?.name || 'You')
     const trimmedHandle = updates.handle !== undefined ? (updates.handle.trim() || undefined) : currentMe?.handle
 
@@ -253,13 +393,17 @@ export class LedgerStore {
       person: updated,
     })
     await this.adapter.addPerson(updated, op)
-    if (!this.state.localPersonId) {
+    if (!this.state.localPersonId || this.state.localPersonId !== myId) {
       await this.adapter.setMeta('local_person_id', myId)
     }
     const people = await this.adapter.getPeople()
+    const expenses = await this.adapter.getExpenses()
+    const settlements = await this.adapter.getSettlements()
     const pending = await this.adapter.getPendingOps()
     this.setState({
       people,
+      expenses,
+      settlements,
       localPersonId: myId,
       pendingOpsCount: pending.length,
     })
@@ -269,6 +413,7 @@ export class LedgerStore {
       console.warn('Background profile cloud sync error:', err)
     })
 
+    this.notifyMutation()
     return updated
   }
 
@@ -292,6 +437,7 @@ export class LedgerStore {
     const people = await this.adapter.getPeople()
     const pending = await this.adapter.getPendingOps()
     this.setState({ people, pendingOpsCount: pending.length })
+    this.notifyMutation()
     return updated
   }
 
@@ -322,6 +468,7 @@ export class LedgerStore {
         await this.adapter.addPerson(updated, op)
         const people = await this.adapter.getPeople()
         this.setState({ people })
+        this.notifyMutation()
         return updated
       }
       return existing
@@ -345,6 +492,7 @@ export class LedgerStore {
     const people = await this.adapter.getPeople()
     const pending = await this.adapter.getPendingOps()
     this.setState({ people, pendingOpsCount: pending.length })
+    this.notifyMutation()
     return person
   }
 
@@ -372,6 +520,7 @@ export class LedgerStore {
     const people = await this.adapter.getPeople()
     const groups = await this.adapter.getGroups()
     this.setState({ people, groups })
+    this.notifyMutation()
   }
 
   async removeFriends(friendIds: string[]): Promise<void> {
@@ -380,6 +529,7 @@ export class LedgerStore {
         await this.removeFriend(id)
       }
     }
+    this.notifyMutation()
   }
 
   async createGroup(params: {
@@ -411,6 +561,7 @@ export class LedgerStore {
     const groups = await this.adapter.getGroups()
     const pending = await this.adapter.getPendingOps()
     this.setState({ groups, pendingOpsCount: pending.length })
+    this.notifyMutation()
     return group
   }
 
@@ -432,12 +583,14 @@ export class LedgerStore {
     const groups = await this.adapter.getGroups()
     const pending = await this.adapter.getPendingOps()
     this.setState({ groups, pendingOpsCount: pending.length })
+    this.notifyMutation()
   }
 
   async deleteGroup(groupId: string): Promise<void> {
     await this.adapter.removeGroup(groupId)
     const groups = await this.adapter.getGroups()
     this.setState({ groups })
+    this.notifyMutation()
   }
 
   async deleteGroups(groupIds: string[]): Promise<void> {
@@ -446,6 +599,7 @@ export class LedgerStore {
     }
     const groups = await this.adapter.getGroups()
     this.setState({ groups })
+    this.notifyMutation()
   }
 
   async removeGroupMember(groupId: string, memberId: string): Promise<void> {
@@ -466,6 +620,7 @@ export class LedgerStore {
     const groups = await this.adapter.getGroups()
     const pending = await this.adapter.getPendingOps()
     this.setState({ groups, pendingOpsCount: pending.length })
+    this.notifyMutation()
   }
 
   async addExpense(params: {
@@ -500,6 +655,7 @@ export class LedgerStore {
     const expenses = await this.adapter.getExpenses()
     const pending = await this.adapter.getPendingOps()
     this.setState({ expenses, pendingOpsCount: pending.length })
+    this.notifyMutation()
     return expense
   }
 
@@ -515,6 +671,7 @@ export class LedgerStore {
     const expenses = await this.adapter.getExpenses()
     const pending = await this.adapter.getPendingOps()
     this.setState({ expenses, pendingOpsCount: pending.length })
+    this.notifyMutation()
   }
 
   async restoreExpense(expenseId: string): Promise<void> {
@@ -529,6 +686,7 @@ export class LedgerStore {
     const expenses = await this.adapter.getExpenses()
     const pending = await this.adapter.getPendingOps()
     this.setState({ expenses, pendingOpsCount: pending.length })
+    this.notifyMutation()
   }
 
   async addSettlement(params: {
@@ -561,6 +719,7 @@ export class LedgerStore {
     const settlements = await this.adapter.getSettlements()
     const pending = await this.adapter.getPendingOps()
     this.setState({ settlements, pendingOpsCount: pending.length })
+    this.notifyMutation()
     return settlement
   }
 
@@ -568,6 +727,7 @@ export class LedgerStore {
     await this.adapter.deleteSettlement(settlementId)
     const settlements = await this.adapter.getSettlements()
     this.setState({ settlements })
+    this.notifyMutation()
   }
 
   async deleteExpenses(expenseIds: string[]): Promise<void> {
@@ -584,6 +744,7 @@ export class LedgerStore {
     const expenses = await this.adapter.getExpenses()
     const pending = await this.adapter.getPendingOps()
     this.setState({ expenses, pendingOpsCount: pending.length })
+    this.notifyMutation()
   }
 
   async deleteSettlements(settlementIds: string[]): Promise<void> {
@@ -592,6 +753,7 @@ export class LedgerStore {
     }
     const settlements = await this.adapter.getSettlements()
     this.setState({ settlements })
+    this.notifyMutation()
   }
 
   async clearExpensesAndSettlements(): Promise<void> {
@@ -620,6 +782,7 @@ export class LedgerStore {
       settlements: updatedSettlements,
       pendingOpsCount: pending.length,
     })
+    this.notifyMutation()
   }
 
   async clearLedgerData(keepProfile: boolean = true): Promise<void> {
@@ -668,17 +831,114 @@ export class LedgerStore {
   async applyRemoteOps(ops: SyncOp[]): Promise<void> {
     if (ops.length === 0) return
     await this.adapter.applyRemoteOps(ops)
-    const people = await this.adapter.getPeople()
+    let people = await this.adapter.getPeople()
     const groups = await this.adapter.getGroups()
     const expenses = await this.adapter.getExpenses()
     const settlements = await this.adapter.getSettlements()
-    const pending = await this.adapter.getPendingOps()
+
+    const myId = this.state.localPersonId
+    const currentMe = this.me || people.find((p) => p.id === myId)
+
+    // Reconcile any alias IDs matching ME (e.g. created by a friend with my handle or phone)
+    if (myId && currentMe) {
+      const aliasIds: string[] = []
+      for (const p of people) {
+        if (p.id === myId) continue
+        let matchesMe = false
+        if (currentMe.handle && p.handle) {
+          const mH = currentMe.handle.trim().toLowerCase().replace(/^@/, '')
+          const pH = p.handle.trim().toLowerCase().replace(/^@/, '')
+          if (mH && pH && mH === pH) matchesMe = true
+        }
+        if (currentMe.phone && p.phone) {
+          const mP = normalizeToE164(currentMe.phone)
+          const pP = normalizeToE164(p.phone)
+          if (mP.valid && pP.valid && mP.e164 === pP.e164) matchesMe = true
+        }
+        if (matchesMe) {
+          aliasIds.push(p.id)
+        }
+      }
+
+      if (aliasIds.length > 0) {
+        for (const aliasId of aliasIds) {
+          await this.adapter.removePerson(aliasId).catch(() => {})
+          people = people.filter((p) => p.id !== aliasId)
+
+          for (let i = 0; i < expenses.length; i++) {
+            const exp = expenses[i]
+            let changed = false
+            let paidBy = exp.paidBy
+            if (paidBy === aliasId) {
+              paidBy = myId
+              changed = true
+            }
+            const shares = exp.shares.map((s) => {
+              let sChanged = false
+              let owedBy = s.owedBy
+              let owedTo = s.owedTo
+              if (owedBy === aliasId) {
+                owedBy = myId
+                sChanged = true
+              }
+              if (owedTo === aliasId) {
+                owedTo = myId
+                sChanged = true
+              }
+              if (sChanged) changed = true
+              return { ...s, owedBy, owedTo }
+            })
+            if (changed) {
+              const updated = { ...exp, paidBy, shares }
+              await this.adapter.applyRemoteOps([
+                opAddExpense({
+                  opId: generateUlid(),
+                  deviceId: this.state.deviceId,
+                  atMicros: Date.now() * 1000,
+                  expense: updated,
+                }),
+              ])
+              expenses[i] = updated
+            }
+          }
+
+          for (let i = 0; i < settlements.length; i++) {
+            const set = settlements[i]
+            let changed = false
+            let from = set.from
+            let to = set.to
+            if (from === aliasId) {
+              from = myId
+              changed = true
+            }
+            if (to === aliasId) {
+              to = myId
+              changed = true
+            }
+            if (changed) {
+              const updated = { ...set, from, to }
+              await this.adapter.applyRemoteOps([
+                opAddSettlement({
+                  opId: generateUlid(),
+                  deviceId: this.state.deviceId,
+                  atMicros: Date.now() * 1000,
+                  settlement: updated,
+                }),
+              ])
+              settlements[i] = updated
+            }
+          }
+        }
+      }
+    }
+
+    const currentPending = await this.adapter.getPendingOps()
     this.setState({
       people,
       groups,
       expenses,
       settlements,
-      pendingOpsCount: pending.length,
+      pendingOpsCount: currentPending.length,
     })
   }
 
