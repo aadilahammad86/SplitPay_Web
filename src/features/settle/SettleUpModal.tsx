@@ -55,7 +55,9 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
     return ''
   })
 
-  const [currency, setCurrency] = useState<CurrencyCode>(BASE_CURRENCY)
+  const [currency, setCurrency] = useState<CurrencyCode>(
+    () => ledgerState.defaultCurrency || BASE_CURRENCY
+  )
   const [groupId, setGroupId] = useState<string | null>(initialGroupId)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)

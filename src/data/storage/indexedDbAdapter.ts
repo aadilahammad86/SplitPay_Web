@@ -331,6 +331,16 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
     })
   }
 
+  async deleteExpense(expenseId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction('expenses', 'readwrite')
+      const store = tx.objectStore('expenses')
+      store.delete(expenseId)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
   async deleteSettlement(settlementId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = this.getDatabase().transaction('settlements', 'readwrite')

@@ -137,6 +137,10 @@ export class MemoryStorageAdapter implements StorageAdapter {
     this.ops.set(op.opId, { ...op, synced: 0 })
   }
 
+  async deleteExpense(expenseId: string): Promise<void> {
+    this.expenses.delete(expenseId)
+  }
+
   async deleteSettlement(settlementId: string): Promise<void> {
     this.settlements.delete(settlementId)
   }

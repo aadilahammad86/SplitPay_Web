@@ -17,6 +17,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
   const { store, ledgerState } = useStore()
   const me = store.me
   const meId = me?.id || ''
+  const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
 
   const [subjectType, setSubjectType] = useState<'friend' | 'group'>('friend')
   const [selectedId, setSelectedId] = useState<string>(() => {
@@ -83,7 +84,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
 
   const handleDownloadCsv = () => {
     if (!statement) return
-    const csvData = generateStatementCsv(statement, BASE_CURRENCY.code)
+    const csvData = generateStatementCsv(statement, currentCurrency.code)
     const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -263,7 +264,8 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
                       : 'text-[var(--color-text)]'
                   }`}
                 >
-                  {BASE_CURRENCY.symbol}{(statement.netBalanceMinor / 100).toFixed(2)}
+                  {currentCurrency.symbol}
+                  {(statement.netBalanceMinor / currentCurrency.scale).toFixed(2)}
                 </span>
               </div>
             )}
@@ -304,10 +306,12 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
                       {item.description}
                     </td>
                     <td className="py-2.5 px-3.5 text-right font-semibold">
-                      {BASE_CURRENCY.symbol}{(item.totalMinor / 100).toFixed(2)}
+                      {currentCurrency.symbol}
+                      {(item.totalMinor / currentCurrency.scale).toFixed(2)}
                     </td>
                     <td className="py-2.5 px-3.5 text-right font-bold text-primary">
-                      {BASE_CURRENCY.symbol}{(item.yourShareMinor / 100).toFixed(2)}
+                      {currentCurrency.symbol}
+                      {(item.yourShareMinor / currentCurrency.scale).toFixed(2)}
                     </td>
                     <td className="py-2.5 px-3.5 text-[var(--color-text-muted)]">
                       {item.paidByName}

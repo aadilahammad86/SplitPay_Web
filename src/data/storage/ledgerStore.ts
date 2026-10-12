@@ -1,5 +1,5 @@
 import type { CurrencyCode } from '../../domain/money'
-import { Currencies } from '../../domain/money'
+import { Currencies, SupportedCurrencies } from '../../domain/money'
 import type {
   Expense,
   Group,
@@ -33,6 +33,7 @@ export interface LedgerState {
   readonly deviceId: string
   readonly initialized: boolean
   readonly pendingOpsCount: number
+  readonly defaultCurrency: CurrencyCode
 }
 
 export class LedgerStore {
@@ -51,6 +52,7 @@ export class LedgerStore {
       deviceId: '',
       initialized: false,
       pendingOpsCount: 0,
+      defaultCurrency: Currencies.INR,
     }
   }
 
@@ -161,6 +163,9 @@ export class LedgerStore {
     const expenses = await this.adapter.getExpenses()
     const settlements = await this.adapter.getSettlements()
     const pendingOps = await this.adapter.getPendingOps()
+    const savedCurrencyCode = await this.adapter.getMeta('default_currency')
+    const defaultCurrency =
+      SupportedCurrencies.find((c) => c.code === savedCurrencyCode) || Currencies.INR
 
     this.setState({
       people,
@@ -171,6 +176,7 @@ export class LedgerStore {
       deviceId,
       initialized: true,
       pendingOpsCount: pendingOps.length,
+      defaultCurrency,
     })
 
     // Ensure current profile has an inviteCode
@@ -189,6 +195,12 @@ export class LedgerStore {
 
     // Auto-sync profile to Supabase on startup
     this.syncMyProfileToCloud().catch(() => {})
+  }
+
+  async setDefaultCurrency(currency: CurrencyCode): Promise<void> {
+    await this.adapter.setMeta('default_currency', currency.code)
+    this.setState({ defaultCurrency: currency })
+    this.notifyMutation()
   }
 
   get me(): Person | null {
@@ -632,6 +644,7 @@ export class LedgerStore {
     groupId: string | null
     memberIds: string[]
     mode: SplitMode
+    createdAtMicros?: number
     categoryEmoji?: string
     weights?: number[]
     basisPoints?: number[]
@@ -639,10 +652,48 @@ export class LedgerStore {
     adjustments?: number[]
   }): Promise<Expense> {
     const expenseId = generateUlid()
+    const createdAtMicros = params.createdAtMicros ?? Date.now() * 1000
     const expense = buildExpense({
       ...params,
       id: expenseId,
-      createdAtMicros: Date.now() * 1000,
+      createdAtMicros,
+    })
+
+    const op = opAddExpense({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      expense,
+    })
+
+    await this.adapter.addExpense(expense, op)
+    const expenses = await this.adapter.getExpenses()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ expenses, pendingOpsCount: pending.length })
+    this.notifyMutation()
+    return expense
+  }
+
+  async updateExpense(params: {
+    id: string
+    description: string
+    totalMinor: number
+    currency: CurrencyCode
+    paidBy: string
+    groupId: string | null
+    memberIds: string[]
+    mode: SplitMode
+    createdAtMicros?: number
+    categoryEmoji?: string
+    weights?: number[]
+    basisPoints?: number[]
+    exactAmounts?: number[]
+    adjustments?: number[]
+  }): Promise<Expense> {
+    const createdAtMicros = params.createdAtMicros ?? Date.now() * 1000
+    const expense = buildExpense({
+      ...params,
+      createdAtMicros,
     })
 
     const op = opAddExpense({
@@ -781,6 +832,74 @@ export class LedgerStore {
         tombstoned: true,
       })
       await this.adapter.tombstoneSettlement(id, op)
+    }
+    const settlements = await this.adapter.getSettlements()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ settlements, pendingOpsCount: pending.length })
+    this.notifyMutation()
+  }
+
+  async permanentRemoveExpense(expenseId: string): Promise<void> {
+    const op = opSetTombstone({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      expenseId,
+      tombstoned: true,
+    })
+    await this.adapter.tombstoneExpense(expenseId, op)
+    await this.adapter.deleteExpense(expenseId)
+    const expenses = await this.adapter.getExpenses()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ expenses, pendingOpsCount: pending.length })
+    this.notifyMutation()
+  }
+
+  async permanentRemoveSettlement(settlementId: string): Promise<void> {
+    const op = opSetSettlementTombstone({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      settlementId,
+      tombstoned: true,
+    })
+    await this.adapter.tombstoneSettlement(settlementId, op)
+    await this.adapter.deleteSettlement(settlementId)
+    const settlements = await this.adapter.getSettlements()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ settlements, pendingOpsCount: pending.length })
+    this.notifyMutation()
+  }
+
+  async permanentRemoveExpenses(expenseIds: string[]): Promise<void> {
+    for (const id of expenseIds) {
+      const op = opSetTombstone({
+        opId: generateUlid(),
+        deviceId: this.state.deviceId,
+        atMicros: Date.now() * 1000,
+        expenseId: id,
+        tombstoned: true,
+      })
+      await this.adapter.tombstoneExpense(id, op)
+      await this.adapter.deleteExpense(id)
+    }
+    const expenses = await this.adapter.getExpenses()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ expenses, pendingOpsCount: pending.length })
+    this.notifyMutation()
+  }
+
+  async permanentRemoveSettlements(settlementIds: string[]): Promise<void> {
+    for (const id of settlementIds) {
+      const op = opSetSettlementTombstone({
+        opId: generateUlid(),
+        deviceId: this.state.deviceId,
+        atMicros: Date.now() * 1000,
+        settlementId: id,
+        tombstoned: true,
+      })
+      await this.adapter.tombstoneSettlement(id, op)
+      await this.adapter.deleteSettlement(id)
     }
     const settlements = await this.adapter.getSettlements()
     const pending = await this.adapter.getPendingOps()

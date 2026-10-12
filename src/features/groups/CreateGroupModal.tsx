@@ -23,7 +23,9 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupKind, setNewGroupKind] = useState<GroupKind>('trip')
-  const [newGroupCurrency, setNewGroupCurrency] = useState<CurrencyCode>(Currencies.INR)
+  const [newGroupCurrency, setNewGroupCurrency] = useState<CurrencyCode>(
+    () => ledgerState.defaultCurrency || Currencies.INR
+  )
   const [newGroupMembers, setNewGroupMembers] = useState<string[]>([meId])
 
   const handleCreateGroup = async (e: React.FormEvent) => {

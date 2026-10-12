@@ -49,6 +49,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     isMe: (id) => store.isMe(id),
   })
 
+  const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
+
   // Calculate total spending this month
   const totalSpentMinor = ledgerState.expenses
     .filter((e) => !e.isTombstone && store.isMe(e.paidBy))
@@ -162,8 +164,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl sm:text-4xl font-extrabold tracking-tight">
                   {overall.netMinor > 0 ? '+' : overall.netMinor < 0 ? '-' : ''}
-                  {BASE_CURRENCY.symbol}
-                  {(Math.abs(overall.netMinor) / 100).toFixed(2)}
+                  {currentCurrency.symbol}
+                  {(Math.abs(overall.netMinor) / currentCurrency.scale).toFixed(2)}
                 </span>
               </div>
               <p className="text-xs text-white/80 mt-1">
@@ -179,13 +181,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5">
                 <span className="block text-[10px] text-white/80">You are owed</span>
                 <span className="text-sm font-extrabold text-emerald-300">
-                  +{BASE_CURRENCY.symbol}{(overall.totalOwedToYouMinor / 100).toFixed(2)}
+                  +{currentCurrency.symbol}{(overall.totalOwedToYouMinor / currentCurrency.scale).toFixed(2)}
                 </span>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5">
                 <span className="block text-[10px] text-white/80">You owe</span>
                 <span className="text-sm font-extrabold text-rose-300">
-                  -{BASE_CURRENCY.symbol}{(overall.totalYouOweMinor / 100).toFixed(2)}
+                  -{currentCurrency.symbol}{(overall.totalYouOweMinor / currentCurrency.scale).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -202,7 +204,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Icon name="creditcard" size={22} className="text-primary" />
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
-              {BASE_CURRENCY.symbol}{(totalSpentMinor / 100).toFixed(2)}
+              {currentCurrency.symbol}{(totalSpentMinor / currentCurrency.scale).toFixed(2)}
             </div>
             <p className="text-xs text-[var(--color-text-muted)]">
               Total expenses where you were the initial payer
@@ -504,7 +506,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <div className="flex items-center gap-2 shrink-0">
                         <MoneyDisplay
                           minor={breakdown.netMinor}
-                          currency={BASE_CURRENCY}
+                          currency={currentCurrency}
                           size="sm"
                           showSign={true}
                         />

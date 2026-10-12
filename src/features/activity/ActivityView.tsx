@@ -1,13 +1,16 @@
 import React, { useState, useMemo } from 'react'
 import { useStore } from '../../ui/storeContext'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
-import { BASE_CURRENCY } from '../../domain/entities'
+import { BASE_CURRENCY, type Expense } from '../../domain/entities'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
+import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 
 export const ActivityView: React.FC = () => {
   const { store, ledgerState } = useStore()
+  const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
 
   const [filter, setFilter] = useState<'all' | 'expenses' | 'settlements'>('all')
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
 
   const peopleMap = useMemo(
     () => new Map(ledgerState.people.map((p) => [p.id, p])),
@@ -20,7 +23,7 @@ export const ActivityView: React.FC = () => {
         id: e.id,
         title: e.description,
         amountMinor: e.totalMinor,
-        currency: e.currency,
+        currency: e.currency || currentCurrency,
         createdAtMicros: e.createdAtMicros,
         emoji: e.categoryEmoji,
         isSettlement: false,
@@ -32,7 +35,7 @@ export const ActivityView: React.FC = () => {
         id: s.id,
         title: s.note ? `Payment: ${s.note}` : 'Settlement payment',
         amountMinor: s.amountMinor,
-        currency: s.currency,
+        currency: s.currency || currentCurrency,
         createdAtMicros: s.createdAtMicros,
         emoji: '🤝',
         isSettlement: true,
@@ -41,7 +44,7 @@ export const ActivityView: React.FC = () => {
         payerId: s.from,
       })),
     ].sort((a, b) => b.createdAtMicros - a.createdAtMicros)
-  }, [ledgerState.expenses, ledgerState.settlements, peopleMap, store])
+  }, [ledgerState.expenses, ledgerState.settlements, currentCurrency, peopleMap, store])
 
   const [showDeleted, setShowDeleted] = useState(false)
 
@@ -78,15 +81,50 @@ export const ActivityView: React.FC = () => {
     }
   }
 
-  const handleDeleteExpense = async (id: string) => {
-    if (confirm('Are you sure you want to delete this expense? (This can be undone)')) {
+  const handleEditExpense = (id: string) => {
+    const exp = ledgerState.expenses.find((e) => e.id === id)
+    if (exp) {
+      setEditingExpense(exp)
+    }
+  }
+
+  const handleCancelExpense = async (id: string) => {
+    if (
+      confirm(
+        'Mark this expense as cancelled? It will show as cancelled and can be restored anytime.'
+      )
+    ) {
       await store.deleteExpense(id)
     }
   }
 
-  const handleDeleteSettlement = async (id: string) => {
-    if (confirm('Are you sure you want to delete this settlement payment record? (This can be undone)')) {
+  const handlePermanentRemoveExpense = async (id: string) => {
+    if (
+      confirm(
+        'Permanently delete and remove this expense? It will be completely purged from your ledger.'
+      )
+    ) {
+      await store.permanentRemoveExpense(id)
+    }
+  }
+
+  const handleCancelSettlement = async (id: string) => {
+    if (
+      confirm(
+        'Mark this payment as cancelled? It will show as cancelled and can be restored anytime.'
+      )
+    ) {
       await store.deleteSettlement(id)
+    }
+  }
+
+  const handlePermanentRemoveSettlement = async (id: string) => {
+    if (
+      confirm(
+        'Permanently delete and remove this payment record? It will be completely purged from your ledger.'
+      )
+    ) {
+      await store.permanentRemoveSettlement(id)
     }
   }
 
@@ -98,9 +136,13 @@ export const ActivityView: React.FC = () => {
     await store.restoreSettlement(id)
   }
 
-  const handleClearSelected = async () => {
+  const handleCancelSelected = async () => {
     if (selectedItemIds.size === 0) return
-    if (confirm(`Are you sure you want to delete/clear ${selectedItemIds.size} selected item(s)?`)) {
+    if (
+      confirm(
+        `Mark ${selectedItemIds.size} selected item(s) as cancelled? They can be restored later.`
+      )
+    ) {
       const selectedList = allItems.filter((i) => selectedItemIds.has(i.id))
       const expIds = selectedList.filter((i) => !i.isSettlement).map((i) => i.id)
       const setIds = selectedList.filter((i) => i.isSettlement).map((i) => i.id)
@@ -113,10 +155,36 @@ export const ActivityView: React.FC = () => {
     }
   }
 
+  const handlePermanentRemoveSelected = async () => {
+    if (selectedItemIds.size === 0) return
+    if (
+      confirm(
+        `Permanently delete and remove ${selectedItemIds.size} selected item(s)? This action cannot be undone.`
+      )
+    ) {
+      const selectedList = allItems.filter((i) => selectedItemIds.has(i.id))
+      const expIds = selectedList.filter((i) => !i.isSettlement).map((i) => i.id)
+      const setIds = selectedList.filter((i) => i.isSettlement).map((i) => i.id)
+
+      if (expIds.length > 0) await store.permanentRemoveExpenses(expIds)
+      if (setIds.length > 0) await store.permanentRemoveSettlements(setIds)
+
+      setSelectedItemIds(new Set())
+      setIsSelectMode(false)
+    }
+  }
+
   const handleClearAllActivity = async () => {
     if (allItems.length === 0) return
-    if (confirm('Are you sure you want to clear all expenses and settlements? This will reset your active timeline.')) {
-      await store.clearExpensesAndSettlements()
+    if (
+      confirm(
+        'Permanently clear and remove all expenses and settlements? This will reset your timeline.'
+      )
+    ) {
+      const expIds = ledgerState.expenses.map((e) => e.id)
+      const setIds = ledgerState.settlements.map((s) => s.id)
+      if (expIds.length > 0) await store.permanentRemoveExpenses(expIds)
+      if (setIds.length > 0) await store.permanentRemoveSettlements(setIds)
       setSelectedItemIds(new Set())
       setIsSelectMode(false)
     }
@@ -183,10 +251,10 @@ export const ActivityView: React.FC = () => {
                       ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
                       : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                   }`}
-                  title={showDeleted ? 'Hide deleted items' : 'Show deleted/canceled items'}
+                  title={showDeleted ? 'Hide cancelled items' : 'Show cancelled items'}
                 >
-                  <Icon name="delete" size={14} />
-                  <span>{showDeleted ? 'Hide Deleted' : `Deleted (${deletedCount})`}</span>
+                  <Icon name="close" size={14} />
+                  <span>{showDeleted ? 'Hide Cancelled' : `Cancelled (${deletedCount})`}</span>
                 </button>
               )}
 
@@ -229,7 +297,11 @@ export const ActivityView: React.FC = () => {
               onClick={handleSelectAll}
               className="text-xs font-bold text-primary hover:underline flex items-center gap-1.5 cursor-pointer"
             >
-              <span>{selectedItemIds.size === filteredItems.length && filteredItems.length > 0 ? 'Deselect All' : 'Select All'}</span>
+              <span>
+                {selectedItemIds.size === filteredItems.length && filteredItems.length > 0
+                  ? 'Deselect All'
+                  : 'Select All'}
+              </span>
             </button>
             <span className="text-xs text-[var(--color-text-muted)] font-semibold">
               {selectedItemIds.size} of {filteredItems.length} selected
@@ -240,11 +312,20 @@ export const ActivityView: React.FC = () => {
             <button
               type="button"
               disabled={selectedItemIds.size === 0}
-              onClick={handleClearSelected}
+              onClick={handleCancelSelected}
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 active:scale-95 cursor-pointer"
+            >
+              <Icon name="close" size={13} />
+              <span>Cancel Selected ({selectedItemIds.size})</span>
+            </button>
+            <button
+              type="button"
+              disabled={selectedItemIds.size === 0}
+              onClick={handlePermanentRemoveSelected}
               className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 active:scale-95 cursor-pointer"
             >
               <Icon name="delete" size={14} />
-              <span>Clear Selected ({selectedItemIds.size})</span>
+              <span>Delete Permanently ({selectedItemIds.size})</span>
             </button>
           </div>
         </div>
@@ -275,7 +356,7 @@ export const ActivityView: React.FC = () => {
                   }
                 }}
                 className={`p-4 bg-[var(--color-surface)] border rounded-2xl flex items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
-                  item.isTombstone ? 'opacity-50 bg-[var(--color-surface-subtle)]' : 'card-hover'
+                  item.isTombstone ? 'opacity-60 bg-[var(--color-surface-subtle)]' : 'card-hover'
                 } ${
                   isSelected
                     ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
@@ -299,24 +380,27 @@ export const ActivityView: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <h4
                         className={`font-bold text-xs sm:text-sm text-[var(--color-text)] truncate ${
-                          item.isTombstone ? 'line-through text-rose-500' : ''
+                          item.isTombstone ? 'line-through text-amber-600 dark:text-amber-400' : ''
                         }`}
                       >
                         {item.title}
                       </h4>
                       {item.isTombstone && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400 shrink-0">
-                          Deleted
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                          Cancelled
                         </span>
                       )}
                     </div>
                     <span className="text-[11px] text-[var(--color-text-muted)] block truncate">
                       Paid by {item.paidByName} ·{' '}
-                      {new Date(Math.floor(item.createdAtMicros / 1000)).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
+                      {new Date(Math.floor(item.createdAtMicros / 1000)).toLocaleDateString(
+                        undefined,
+                        {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }
+                      )}
                     </span>
                   </div>
                 </div>
@@ -325,7 +409,7 @@ export const ActivityView: React.FC = () => {
                   <div className="text-right">
                     <MoneyDisplay
                       minor={item.amountMinor}
-                      currency={item.currency || BASE_CURRENCY}
+                      currency={item.currency || currentCurrency}
                       size="sm"
                       showSign={false}
                       showColor={false}
@@ -335,70 +419,96 @@ export const ActivityView: React.FC = () => {
                     </span>
                   </div>
 
-                  {item.isSettlement ? (
-                    <div>
-                      {item.isTombstone ? (
+                  {/* Actions: Edit (expenses only), Cancel, Restore, or Permanent Remove */}
+                  <div className="flex items-center gap-1">
+                    {!item.isSettlement && !item.isTombstone && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditExpense(item.id)
+                        }}
+                        className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                        title="Edit expense (date, amount, members)"
+                        aria-label="Edit expense"
+                      >
+                        <Icon name="edit" size={15} />
+                      </button>
+                    )}
+
+                    {item.isTombstone ? (
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleRestoreSettlement(item.id)
+                            if (item.isSettlement) handleRestoreSettlement(item.id)
+                            else handleRestoreExpense(item.id)
                           }}
                           className="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary-subtle text-primary hover:bg-primary hover:text-white transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          title="Restore entry"
                         >
                           <Icon name="reload" size={13} />
                           <span>Restore</span>
                         </button>
-                      ) : (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleDeleteSettlement(item.id)
+                            if (item.isSettlement) handlePermanentRemoveSettlement(item.id)
+                            else handlePermanentRemoveExpense(item.id)
                           }}
                           className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                          title="Delete settlement"
-                          aria-label="Delete settlement"
+                          title="Permanently remove entry"
+                          aria-label="Permanently delete entry"
                         >
-                          <Icon name="delete" size={16} />
+                          <Icon name="delete" size={15} />
                         </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      {item.isTombstone ? (
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleRestoreExpense(item.id)
+                            if (item.isSettlement) handleCancelSettlement(item.id)
+                            else handleCancelExpense(item.id)
                           }}
-                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary-subtle text-primary hover:bg-primary hover:text-white transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          className="px-2 py-1 text-[11px] font-semibold rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+                          title="Mark as cancelled"
                         >
-                          <Icon name="reload" size={13} />
-                          <span>Restore</span>
+                          Cancel
                         </button>
-                      ) : (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleDeleteExpense(item.id)
+                            if (item.isSettlement) handlePermanentRemoveSettlement(item.id)
+                            else handlePermanentRemoveExpense(item.id)
                           }}
                           className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                          title="Delete expense"
-                          aria-label="Delete expense"
+                          title="Delete / remove entry permanently"
+                          aria-label="Delete entry"
                         >
-                          <Icon name="delete" size={16} />
+                          <Icon name="delete" size={15} />
                         </button>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )
           })}
         </div>
+      )}
+
+      {/* Edit Expense Modal */}
+      {editingExpense && (
+        <ExpenseEditorModal
+          isOpen={!!editingExpense}
+          onClose={() => setEditingExpense(null)}
+          expenseToEdit={editingExpense}
+        />
       )}
     </div>
   )

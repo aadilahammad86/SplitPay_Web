@@ -44,6 +44,7 @@ export interface StorageAdapter {
   addExpense(expense: Expense, op: SyncOp): Promise<void>
   tombstoneExpense(expenseId: string, op: SyncOp): Promise<void>
   restoreExpense(expenseId: string, op: SyncOp): Promise<void>
+  deleteExpense(expenseId: string): Promise<void>
   addSettlement(settlement: Settlement, op: SyncOp): Promise<void>
   tombstoneSettlement(settlementId: string, op: SyncOp): Promise<void>
   restoreSettlement(settlementId: string, op: SyncOp): Promise<void>

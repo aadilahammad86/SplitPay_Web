@@ -33,6 +33,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
 
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedFriendIds, setSelectedFriendIds] = useState<Set<string>>(new Set())
+  const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
 
   const friends = ledgerState.people.filter(
     (p) =>
@@ -365,7 +366,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     <div className="text-right shrink-0">
                       <MoneyDisplay
                         minor={breakdown.netMinor}
-                        currency={BASE_CURRENCY}
+                        currency={currentCurrency}
                         size="md"
                         showSign={true}
                       />
@@ -391,6 +392,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                       <SourceChips
                         slices={breakdown.slices}
                         groups={ledgerState.groups}
+                        defaultCurrency={currentCurrency}
                       />
                     </div>
                   )}
@@ -509,7 +511,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 <div className="text-xl font-extrabold">
                   <MoneyDisplay
                     minor={selectedFriendBreakdown.netMinor}
-                    currency={BASE_CURRENCY}
+                    currency={currentCurrency}
                     size="lg"
                     showSign={true}
                   />
@@ -580,6 +582,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 <SourceChips
                   slices={selectedFriendBreakdown.slices}
                   groups={ledgerState.groups}
+                  defaultCurrency={currentCurrency}
                 />
               </div>
             )}

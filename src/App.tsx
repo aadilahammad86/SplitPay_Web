@@ -18,6 +18,7 @@ import { AcceptInviteModal } from './features/invite/AcceptInviteModal'
 import { AuthScreen } from './features/auth/AuthScreen'
 import { defaultAuthService, type UserAccount } from './services/auth/authService'
 import { Icon } from './ui/components/Icon'
+import { NotificationToast } from './ui/components/NotificationToast'
 
 const AppContent: React.FC = () => {
   const { store, ledgerState } = useStore()
@@ -277,6 +278,9 @@ const AppContent: React.FC = () => {
 
       {/* Invite Link Accept Modal */}
       <AcceptInviteModal onNavigate={setCurrentTab} />
+
+      {/* Global In-App Notifications Toast */}
+      <NotificationToast />
     </div>
   )
 }

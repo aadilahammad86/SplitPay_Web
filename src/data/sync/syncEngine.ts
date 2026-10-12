@@ -1,6 +1,7 @@
 import type { StorageAdapter } from '../storage/storageAdapter'
 import type { LedgerStore } from '../storage/ledgerStore'
 import type { SyncTransport } from './syncTransport'
+import { defaultNotificationService } from '../../services/notifications/notificationService'
 
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error'
 
@@ -226,6 +227,10 @@ export class SyncEngine {
 
       if (remoteOps.length > 0) {
         await this.store.applyRemoteOps(remoteOps)
+        defaultNotificationService.notifyRemoteOps(
+          remoteOps,
+          this.store.getState().deviceId
+        )
 
         for (const op of remoteOps) {
           if (!newWatermark || op.opId > newWatermark) {

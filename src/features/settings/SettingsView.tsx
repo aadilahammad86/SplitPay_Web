@@ -9,9 +9,24 @@ import { ContactSyncModal } from '../contacts/ContactSyncModal'
 import { formatE164Display } from '../../domain/phone'
 import { Icon, type IconName } from '../../ui/components/Icon'
 import { defaultAuthService } from '../../services/auth/authService'
+import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
+import {
+  defaultNotificationService,
+  type NotificationPermissionStatus,
+} from '../../services/notifications/notificationService'
 
 interface SettingsViewProps {
   onOpenAdmin?: () => void
+}
+
+const CURRENCY_LABELS: Record<string, string> = {
+  INR: 'Indian Rupee',
+  USD: 'US Dollar',
+  EUR: 'Euro',
+  GBP: 'British Pound',
+  AED: 'UAE Dirham',
+  JPY: 'Japanese Yen',
+  KWD: 'Kuwaiti Dinar',
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
@@ -60,6 +75,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
 
   // Danger Zone / Data Clearing
   const [dataActionMsg, setDataActionMsg] = useState<string | null>(null)
+
+  // Default Currency State
+  const [currencyMsg, setCurrencyMsg] = useState<string | null>(null)
+
+  const handleSelectCurrency = async (curr: CurrencyCode) => {
+    await store.setDefaultCurrency(curr)
+    setCurrencyMsg(`✓ Default currency updated to ${curr.code} (${curr.symbol})`)
+    setTimeout(() => setCurrencyMsg(null), 3000)
+  }
+
+  // Notifications State
+  const [notifEnabled, setNotifEnabled] = useState(() => defaultNotificationService.isEnabled())
+  const [notifPermission, setNotifPermission] = useState<NotificationPermissionStatus>(() =>
+    defaultNotificationService.getPermission()
+  )
+  const [notifMsg, setNotifMsg] = useState<string | null>(null)
+
+  const handleToggleNotifications = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.checked
+    setNotifEnabled(val)
+    defaultNotificationService.setEnabled(val)
+    setNotifMsg(val ? '✓ In-app and browser notifications enabled' : 'Notifications disabled')
+    setTimeout(() => setNotifMsg(null), 3000)
+  }
+
+  const handleRequestPermission = async () => {
+    const granted = await defaultNotificationService.requestPermission()
+    setNotifPermission(defaultNotificationService.getPermission())
+    if (granted) {
+      setNotifMsg('✓ Browser notifications permitted!')
+      defaultNotificationService.notify('Notifications Activated', {
+        body: 'You will receive real-time updates when splits and payments arrive.',
+        type: 'success',
+      })
+    } else {
+      setNotifMsg('Notification permission was not granted by browser.')
+    }
+    setTimeout(() => setNotifMsg(null), 4000)
+  }
+
+  const handleSendTestNotification = () => {
+    defaultNotificationService.notify('SplitPay Test Alert', {
+      body: 'Notifications are working! New peer transactions will show up here.',
+      type: 'info',
+    })
+    setNotifMsg('✓ Test notification dispatched!')
+    setTimeout(() => setNotifMsg(null), 3000)
+  }
 
   const handleClearTransactions = async () => {
     if (confirm('Are you sure you want to clear all expenses and settlements? Your balance sheet will reset to zero, while groups and friends will remain.')) {
@@ -488,6 +551,143 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
                 </button>
               )
             })}
+          </div>
+        </div>
+      </div>
+
+      {/* Default Global Currency Section */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
+        <div>
+          <h3 className="font-bold text-sm text-[var(--color-text)] flex items-center gap-2">
+            <Icon name="coins" size={18} className="text-primary" />
+            <span>Default Currency</span>
+          </h3>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+            Select your preferred default currency. This will automatically apply across all dashboard balance summaries, expenses, settlements, statements, and friends.
+          </p>
+        </div>
+
+        {currencyMsg && (
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-semibold animate-fade-in">
+            {currencyMsg}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+          {SupportedCurrencies.map((curr) => {
+            const isSelected = (ledgerState.defaultCurrency?.code || 'INR') === curr.code
+            return (
+              <button
+                key={curr.code}
+                type="button"
+                onClick={() => handleSelectCurrency(curr)}
+                className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                  isSelected
+                    ? 'border-primary ring-2 ring-primary/20 bg-primary-subtle text-primary shadow-sm'
+                    : 'bg-[var(--color-surface-subtle)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-primary/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-extrabold">{curr.symbol}</span>
+                  {isSelected && <Icon name="check" size={14} className="text-primary" />}
+                </div>
+                <div className="mt-2">
+                  <p
+                    className={`text-xs font-bold ${
+                      isSelected ? 'text-primary' : 'text-[var(--color-text)]'
+                    }`}
+                  >
+                    {curr.code}
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] truncate">
+                    {CURRENCY_LABELS[curr.code] || curr.code}
+                  </p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Real-time Notifications & Web Alerts Section */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="font-bold text-sm text-[var(--color-text)] flex items-center gap-2">
+              <Icon name="bell" size={18} className="text-primary" />
+              <span>Real-Time Notifications & Alerts</span>
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              Receive browser alerts and in-app toasts when friends add expenses, record settlements, or sync shared ledgers.
+            </p>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer self-start sm:self-auto">
+            <input
+              type="checkbox"
+              checked={notifEnabled}
+              onChange={handleToggleNotifications}
+              className="sr-only peer"
+            />
+            <div className="w-10 h-6 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary cursor-pointer" />
+          </label>
+        </div>
+
+        {notifMsg && (
+          <div className="p-3 bg-primary-subtle border border-primary-border text-primary rounded-xl text-xs font-semibold animate-fade-in">
+            {notifMsg}
+          </div>
+        )}
+
+        <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[var(--color-text)]">
+                Browser Web Notification Permission:
+              </span>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  notifPermission === 'granted'
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    : notifPermission === 'denied'
+                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                {notifPermission === 'granted'
+                  ? '✓ Allowed'
+                  : notifPermission === 'denied'
+                  ? 'Blocked in Browser'
+                  : 'Action Needed'}
+              </span>
+            </div>
+            <p className="text-[11px] text-[var(--color-text-muted)]">
+              {notifPermission === 'granted'
+                ? 'Desktop & mobile system banners will appear when tabs are active or backgrounded.'
+                : notifPermission === 'denied'
+                ? 'Notifications are blocked in your browser settings. You can re-enable them in site permissions.'
+                : 'Grant browser permission to receive desktop & mobile notification banners.'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {notifPermission !== 'granted' && (
+              <button
+                type="button"
+                onClick={handleRequestPermission}
+                className="px-3.5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm transition-all whitespace-nowrap cursor-pointer active:scale-95"
+              >
+                Allow Notifications
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleSendTestNotification}
+              disabled={!notifEnabled}
+              className="px-3 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] text-[var(--color-text)] border border-[var(--color-border)] text-xs font-semibold rounded-xl transition-all whitespace-nowrap disabled:opacity-40 cursor-pointer active:scale-95"
+            >
+              Send Test Alert
+            </button>
           </div>
         </div>
       </div>

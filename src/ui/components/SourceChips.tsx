@@ -9,12 +9,14 @@ import { CategoryIcon } from './Icon'
 interface SourceChipsProps {
   slices: readonly BalanceSlice[]
   groups: readonly Group[]
+  defaultCurrency?: import('../../domain/money').CurrencyCode
   onSelectGroup?: (groupId: string | null) => void
 }
 
 export const SourceChips: React.FC<SourceChipsProps> = ({
   slices,
   groups,
+  defaultCurrency,
   onSelectGroup,
 }) => {
   if (slices.length === 0) return null
@@ -27,7 +29,7 @@ export const SourceChips: React.FC<SourceChipsProps> = ({
         const group = slice.groupId ? groupMap.get(slice.groupId) : null
         const emoji = group ? GroupKindInfo[group.kind].emoji : '👤'
         const label = group ? group.name : 'Direct'
-        const currency = group ? group.currency : BASE_CURRENCY
+        const currency = group ? group.currency : (defaultCurrency || BASE_CURRENCY)
 
         return (
           <button
