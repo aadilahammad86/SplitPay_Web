@@ -1,5 +1,7 @@
 import { generateUlid } from '../../domain/ulid'
 import { getSupabaseClient } from '../../supabase/supabaseClient'
+import { verifyTotpCode } from '../../domain/totp'
+import { defaultDeviceService, getDeviceName, type UserDevice } from '../device/deviceService'
 
 export interface UserAccount {
   id: string
@@ -9,6 +11,7 @@ export interface UserAccount {
   phone?: string
   isGuest: boolean
   avatarUrl?: string
+  totpEnabled?: boolean
 }
 
 export interface StoredCredentials {
@@ -19,7 +22,18 @@ export interface StoredCredentials {
   passwordHash?: string
   salt?: string
   isGuest: boolean
+  totpEnabled?: boolean
   createdAt: string
+}
+
+export interface LoginResult {
+  success: boolean
+  account?: UserAccount
+  requiresTotp?: boolean
+  requiresDeviceRevoke?: boolean
+  devices?: UserDevice[]
+  tempAccount?: UserAccount
+  error?: string
 }
 
 export const SESSION_KEY = 'splitpay_current_session'
@@ -176,10 +190,15 @@ export class AuthService {
           name: account.name,
           handle: account.username,
           avatar_url: account.avatarUrl,
+          password_hash: hash,
+          password_salt: salt,
           email: account.email || null,
           discoverable_by_phone: true,
           updated_at: new Date().toISOString(),
         })
+
+        // Register initial device
+        await defaultDeviceService.registerOrVerifyDevice(account.id)
       }
     } catch {
       // Offline-first: register succeeds locally even if cloud sync is pending
@@ -193,10 +212,7 @@ export class AuthService {
     return { success: true, account }
   }
 
-  async login(
-    username: string,
-    password: string
-  ): Promise<{ success: boolean; account?: UserAccount; error?: string }> {
+  async login(username: string, password: string): Promise<LoginResult> {
     const cleanUsername = username.trim().toLowerCase().replace(/^@/, '')
     if (!cleanUsername) {
       return { success: false, error: 'Please enter your username.' }
@@ -218,7 +234,31 @@ export class AuthService {
           email: local.email,
           isGuest: false,
           avatarUrl: `auth:sha256:${local.passwordHash}`,
+          totpEnabled: !!local.totpEnabled,
         }
+
+        // Verify active devices
+        const deviceCheck = await defaultDeviceService.registerOrVerifyDevice(local.id)
+        if (!deviceCheck.allowed && deviceCheck.requiresVerification) {
+          return {
+            success: false,
+            requiresTotp: !!local.totpEnabled,
+            requiresDeviceRevoke: true,
+            devices: deviceCheck.devices,
+            tempAccount: account,
+            error: `Device limit reached (${deviceCheck.count}/3 devices). Please disconnect an older device or verify with Google Authenticator.`,
+          }
+        }
+
+        if (local.totpEnabled) {
+          return {
+            success: false,
+            requiresTotp: true,
+            tempAccount: account,
+            error: 'Please enter your 6-digit Google Authenticator code.',
+          }
+        }
+
         this.saveSession(account)
         return { success: true, account }
       }
@@ -237,13 +277,40 @@ export class AuthService {
 
         if (!error && Array.isArray(rows) && rows.length > 0) {
           // Find any profile with registered password credentials
-          const authedProfile = rows.find(
-            (r) => r.avatar_url && typeof r.avatar_url === 'string' && r.avatar_url.startsWith('auth:sha256:')
+          let authedProfile = rows.find(
+            (r) =>
+              (r.password_hash && typeof r.password_hash === 'string') ||
+              (r.avatar_url && typeof r.avatar_url === 'string' && r.avatar_url.startsWith('auth:sha256:'))
           )
 
-          if (authedProfile && authedProfile.avatar_url) {
-            const expectedHash = authedProfile.avatar_url.replace('auth:sha256:', '')
-            const computedHash = await hashPassword(password, cleanUsername)
+          // Auto-repair fallback: if profile has null avatar_url/password_hash, check sibling profile with same phone or email
+          if (!authedProfile && rows.length > 0) {
+            const first = rows[0]
+            if (first.phone || first.email) {
+              const { data: siblings } = await supabase
+                .from('profiles')
+                .select('*')
+                .or(`email.eq.${first.email || 'none'},phone.eq.${first.phone || 'none'}`)
+                .not('avatar_url', 'is', null)
+                .limit(5)
+              const sib = siblings?.find(
+                (s) => s.password_hash || (s.avatar_url && s.avatar_url.startsWith('auth:sha256:'))
+              )
+              if (sib) {
+                authedProfile = {
+                  ...first,
+                  avatar_url: sib.avatar_url,
+                  password_hash: sib.password_hash,
+                  password_salt: sib.password_salt || cleanUsername,
+                }
+              }
+            }
+          }
+
+          if (authedProfile && (authedProfile.avatar_url || authedProfile.password_hash)) {
+            const expectedHash = authedProfile.password_hash || authedProfile.avatar_url.replace('auth:sha256:', '')
+            const salt = authedProfile.password_salt || cleanUsername
+            const computedHash = await hashPassword(password, salt)
             if (computedHash === expectedHash) {
               const profileWithEmail = rows.find((r) => r.email)
               const profileWithPhone = rows.find((r) => r.phone)
@@ -255,7 +322,8 @@ export class AuthService {
                 email: authedProfile.email || profileWithEmail?.email || undefined,
                 phone: authedProfile.phone || profileWithPhone?.phone || undefined,
                 isGuest: false,
-                avatarUrl: authedProfile.avatar_url,
+                avatarUrl: `auth:sha256:${expectedHash}`,
+                totpEnabled: !!authedProfile.totp_enabled,
               }
 
               // Cache credentials locally for offline use
@@ -265,20 +333,51 @@ export class AuthService {
                 username: cleanUsername,
                 email: account.email,
                 passwordHash: expectedHash,
-                salt: cleanUsername,
+                salt: salt,
                 isGuest: false,
+                totpEnabled: account.totpEnabled,
                 createdAt: authedProfile.created_at || new Date().toISOString(),
               }
               this.saveStoredAccounts(accounts)
 
-              // Ensure sibling profiles with null avatar_url get synced with credentials
+              // Ensure password_hash and avatar_url are permanently stored in Supabase
               Promise.resolve(
                 supabase
                   .from('profiles')
-                  .update({ avatar_url: authedProfile.avatar_url })
-                  .ilike('handle', cleanUsername)
-                  .is('avatar_url', null)
+                  .update({
+                    avatar_url: `auth:sha256:${expectedHash}`,
+                    password_hash: expectedHash,
+                    password_salt: salt,
+                  })
+                  .eq('id', authedProfile.id)
               ).catch(() => {})
+
+              // Verify active devices
+              const deviceCheck = await defaultDeviceService.registerOrVerifyDevice(
+                account.id,
+                undefined,
+                getDeviceName()
+              )
+
+              if (!deviceCheck.allowed && deviceCheck.requiresVerification) {
+                return {
+                  success: false,
+                  requiresTotp: !!authedProfile.totp_enabled,
+                  requiresDeviceRevoke: true,
+                  devices: deviceCheck.devices,
+                  tempAccount: account,
+                  error: deviceCheck.error || `Device limit reached (${deviceCheck.count}/3 devices). Please disconnect an older device or verify with Google Authenticator.`,
+                }
+              }
+
+              if (authedProfile.totp_enabled) {
+                return {
+                  success: false,
+                  requiresTotp: true,
+                  tempAccount: account,
+                  error: 'Please enter your 6-digit Google Authenticator code.',
+                }
+              }
 
               this.saveSession(account)
               return { success: true, account }
@@ -293,6 +392,152 @@ export class AuthService {
     }
 
     return { success: false, error: 'No account found with this username. Please check your spelling or sign up.' }
+  }
+
+  async completeLoginWithTotp(account: UserAccount, totpCode: string): Promise<LoginResult> {
+    const isValid = await this.verifyTotpForLogin(account.id, totpCode)
+    if (!isValid) {
+      return { success: false, error: 'Invalid 6-digit Google Authenticator code. Please try again.' }
+    }
+
+    // Authorize additional device if limit reached
+    await defaultDeviceService.authorizeAdditionalDevice(account.id)
+    this.saveSession(account)
+    return { success: true, account }
+  }
+
+  async completeLoginWithDeviceRevoke(
+    account: UserAccount,
+    revokeDeviceId: string,
+    totpCode?: string
+  ): Promise<LoginResult> {
+    if (account.totpEnabled) {
+      if (!totpCode) {
+        return { success: false, error: 'Google Authenticator 2FA code is required to revoke devices.' }
+      }
+      const isValid = await this.verifyTotpForLogin(account.id, totpCode)
+      if (!isValid) {
+        return { success: false, error: 'Invalid Google Authenticator code.' }
+      }
+    }
+
+    await defaultDeviceService.revokeDevice(account.id, revokeDeviceId)
+    const check = await defaultDeviceService.registerOrVerifyDevice(account.id)
+    if (!check.allowed) {
+      return { success: false, error: 'Unable to connect device after revocation. Please try again.' }
+    }
+
+    this.saveSession(account)
+    return { success: true, account }
+  }
+
+  async enableTotp(
+    userId: string,
+    secret: string,
+    verificationCode: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const isValid = await verifyTotpCode(verificationCode, secret)
+    if (!isValid) {
+      return {
+        success: false,
+        error: 'Invalid 6-digit verification code. Please check your Google Authenticator app and try again.',
+      }
+    }
+
+    try {
+      const supabase = getSupabaseClient()
+      if (supabase) {
+        await supabase
+          .from('profiles')
+          .update({
+            totp_secret: secret,
+            totp_enabled: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId)
+      }
+
+      const current = this.getCurrentSession()
+      if (current && current.id === userId) {
+        current.totpEnabled = true
+        this.saveSession(current)
+      }
+
+      // Update local storage credentials
+      const accounts = this.getStoredAccounts()
+      for (const key of Object.keys(accounts)) {
+        if (accounts[key]?.id === userId) {
+          accounts[key]!.totpEnabled = true
+        }
+      }
+      this.saveStoredAccounts(accounts)
+
+      return { success: true }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to enable 2FA.' }
+    }
+  }
+
+  async disableTotp(
+    userId: string,
+    verificationCode: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const secret = await this.getTotpSecret(userId)
+    if (secret) {
+      const isValid = await verifyTotpCode(verificationCode, secret)
+      if (!isValid) {
+        return { success: false, error: 'Invalid 6-digit verification code.' }
+      }
+    }
+
+    try {
+      const supabase = getSupabaseClient()
+      if (supabase) {
+        await supabase
+          .from('profiles')
+          .update({
+            totp_secret: null,
+            totp_enabled: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId)
+      }
+
+      const current = this.getCurrentSession()
+      if (current && current.id === userId) {
+        current.totpEnabled = false
+        this.saveSession(current)
+      }
+
+      const accounts = this.getStoredAccounts()
+      for (const key of Object.keys(accounts)) {
+        if (accounts[key]?.id === userId) {
+          accounts[key]!.totpEnabled = false
+        }
+      }
+      this.saveStoredAccounts(accounts)
+
+      return { success: true }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to disable 2FA.' }
+    }
+  }
+
+  async getTotpSecret(userId: string): Promise<string | null> {
+    try {
+      const supabase = getSupabaseClient()
+      if (!supabase) return null
+      const { data } = await supabase.from('profiles').select('totp_secret').eq('id', userId).single()
+      return data?.totp_secret || null
+    } catch {
+      return null
+    }
+  }
+
+  async verifyTotpForLogin(userId: string, code: string): Promise<boolean> {
+    const secret = await this.getTotpSecret(userId)
+    if (!secret) return false
+    return verifyTotpCode(code, secret)
   }
 
   async loginAsGuest(guestName?: string): Promise<{ success: boolean; account: UserAccount }> {

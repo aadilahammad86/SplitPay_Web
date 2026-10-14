@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { defaultAuthService, type UserAccount, type UsernameCheckResult } from '../../services/auth/authService'
+import { type UserDevice } from '../../services/device/deviceService'
 import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import { Icon } from '../../ui/components/Icon'
 import { Select } from '../../ui/components/Select'
@@ -30,6 +31,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   })
   const [isCheckingUsername, setIsCheckingUsername] = useState(false)
 
+  // 2FA & Multi-device verification challenge
+  const [challenge, setChallenge] = useState<{
+    account: UserAccount
+    requiresTotp: boolean
+    requiresDeviceRevoke: boolean
+    devices: UserDevice[]
+  } | null>(null)
+  const [totpInput, setTotpInput] = useState('')
+  const [selectedRevokeDeviceId, setSelectedRevokeDeviceId] = useState<string>('')
+  const [challengeLoading, setChallengeLoading] = useState(false)
+  const [challengeError, setChallengeError] = useState<string | null>(null)
+
   // Real-time username check on signup
   useEffect(() => {
     if (mode !== 'signup') return
@@ -59,6 +72,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
 
     try {
       const res = await defaultAuthService.login(username, password)
+      if (res.requiresTotp || res.requiresDeviceRevoke) {
+        setChallenge({
+          account: res.tempAccount!,
+          requiresTotp: !!res.requiresTotp,
+          requiresDeviceRevoke: !!res.requiresDeviceRevoke,
+          devices: res.devices || [],
+        })
+        if (res.devices && res.devices.length > 0) {
+          // Default to the oldest device
+          setSelectedRevokeDeviceId(res.devices[res.devices.length - 1]?.deviceId || '')
+        }
+        return
+      }
+
       if (!res.success || !res.account) {
         setErrorMessage(res.error || 'Failed to log in.')
         return
@@ -68,6 +95,62 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
       setErrorMessage(err instanceof Error ? err.message : 'Login failed.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleChallengeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!challenge) return
+
+    setChallengeError(null)
+    setChallengeLoading(true)
+
+    try {
+      if (challenge.requiresDeviceRevoke) {
+        if (!selectedRevokeDeviceId) {
+          setChallengeError('Please select a device to disconnect.')
+          setChallengeLoading(false)
+          return
+        }
+        if (challenge.requiresTotp && (!totpInput || totpInput.trim().length !== 6)) {
+          setChallengeError('Please enter a valid 6-digit Google Authenticator code.')
+          setChallengeLoading(false)
+          return
+        }
+
+        const res = await defaultAuthService.completeLoginWithDeviceRevoke(
+          challenge.account,
+          selectedRevokeDeviceId,
+          challenge.requiresTotp ? totpInput.trim() : undefined
+        )
+
+        if (!res.success || !res.account) {
+          setChallengeError(res.error || 'Device verification failed.')
+          return
+        }
+        onAuthenticated(res.account)
+      } else if (challenge.requiresTotp) {
+        if (!totpInput || totpInput.trim().length !== 6) {
+          setChallengeError('Please enter a valid 6-digit Google Authenticator code.')
+          setChallengeLoading(false)
+          return
+        }
+
+        const res = await defaultAuthService.completeLoginWithTotp(
+          challenge.account,
+          totpInput.trim()
+        )
+
+        if (!res.success || !res.account) {
+          setChallengeError(res.error || 'Invalid 6-digit code. Please try again.')
+          return
+        }
+        onAuthenticated(res.account)
+      }
+    } catch (err) {
+      setChallengeError(err instanceof Error ? err.message : 'Verification failed.')
+    } finally {
+      setChallengeLoading(false)
     }
   }
 
@@ -122,6 +205,142 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (challenge) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[var(--color-bg)] text-[var(--color-text)] animate-fade-in">
+        <div className="w-full max-w-md p-6 sm:p-8 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-2xl space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-14 h-14 rounded-2xl hero-gradient text-white flex items-center justify-center mx-auto shadow-md">
+              <Icon name="shield" size={30} strokeWidth={2.5} />
+            </div>
+            <h1 className="text-xl font-extrabold tracking-tight text-[var(--color-text)]">
+              {challenge.requiresDeviceRevoke ? 'Device Limit Reached' : 'Two-Factor Authentication'}
+            </h1>
+            <p className="text-xs text-[var(--color-text-muted)] max-w-xs mx-auto">
+              {challenge.requiresDeviceRevoke
+                ? 'Only 3 devices can be connected at a time. Select an older device to disconnect and replace with this device.'
+                : `Enter the 6-digit verification code from your Google Authenticator app for @${challenge.account.username}.`}
+            </p>
+          </div>
+
+          {challengeError && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold rounded-2xl flex items-center gap-2 animate-fade-in">
+              <Icon name="close" size={14} className="shrink-0" />
+              <span>{challengeError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleChallengeSubmit} className="space-y-4">
+            {challenge.requiresDeviceRevoke && (
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-[var(--color-text)]">
+                  Active Devices (Select one to disconnect):
+                </label>
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {challenge.devices.map((dev) => (
+                    <label
+                      key={dev.deviceId}
+                      className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                        selectedRevokeDeviceId === dev.deviceId
+                          ? 'border-primary ring-2 ring-primary/20 bg-primary-subtle'
+                          : 'border-[var(--color-border)] bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)]/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center text-primary">
+                          <Icon
+                            name={
+                              dev.deviceName.toLowerCase().includes('phone') ||
+                              dev.deviceName.toLowerCase().includes('android') ||
+                              dev.deviceName.toLowerCase().includes('ios')
+                                ? 'smartphone'
+                                : 'monitor'
+                            }
+                            size={16}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-[var(--color-text)]">
+                            {dev.deviceName}
+                          </div>
+                          <div className="text-[10px] text-[var(--color-text-muted)]">
+                            Active {new Date(dev.lastActiveAt).toLocaleDateString()} {new Date(dev.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      </div>
+                      <input
+                        type="radio"
+                        name="revokeDevice"
+                        checked={selectedRevokeDeviceId === dev.deviceId}
+                        onChange={() => setSelectedRevokeDeviceId(dev.deviceId)}
+                        className="accent-primary"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {challenge.requiresTotp && (
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  Google Authenticator 6-Digit Code
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    required
+                    maxLength={6}
+                    placeholder="000 000"
+                    value={totpInput}
+                    onChange={(e) => setTotpInput(e.target.value.replace(/\D/g, ''))}
+                    className="w-full text-center tracking-[0.4em] font-mono text-lg py-3 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl text-[var(--color-text)] focus:outline-none focus:border-primary font-bold"
+                  />
+                </div>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1 text-center">
+                  Open Google Authenticator on your mobile device to view your 6-digit code.
+                </p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={challengeLoading}
+              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md transition-all inline-flex items-center justify-center gap-2 cursor-pointer press-bounce"
+            >
+              {challengeLoading ? (
+                <>
+                  <Icon name="reload" size={16} className="animate-spin" />
+                  <span>Verifying...</span>
+                </>
+              ) : (
+                <>
+                  <Icon name="check" size={16} />
+                  <span>{challenge.requiresDeviceRevoke ? 'Disconnect & Connect Device' : 'Verify & Log In'}</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setChallenge(null)
+                setTotpInput('')
+                setChallengeError(null)
+              }}
+              className="w-full py-2 text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors text-center"
+            >
+              ← Back to Login
+            </button>
+          </form>
+        </div>
+      </div>
+    )
   }
 
   return (

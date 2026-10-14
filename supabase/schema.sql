@@ -113,6 +113,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
   discoverable_by_phone BOOLEAN NOT NULL DEFAULT TRUE,
   avatar_url TEXT,
+  password_hash TEXT,
+  password_salt TEXT,
+  totp_secret TEXT,
+  totp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   invite_code TEXT UNIQUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -138,6 +142,28 @@ CREATE POLICY "Allow clients to upsert their own profile"
   FOR ALL
   USING (true)
   WITH CHECK (true);
+
+-- ----------------------------------------------------------------------------
+-- USER DEVICES TABLE (Device limit: max 3 active devices per account)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_devices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  device_id TEXT NOT NULL,
+  device_name TEXT NOT NULL DEFAULT 'Web Browser',
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_active_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  is_verified BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE(user_id, device_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_devices_user ON public.user_devices (user_id);
+
+ALTER TABLE public.user_devices ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow user_devices access" ON public.user_devices;
+CREATE POLICY "Allow user_devices access" ON public.user_devices FOR ALL USING (true) WITH CHECK (true);
 
 -- ----------------------------------------------------------------------------
 -- AUTH OTPS TABLE (Email verification tokens)

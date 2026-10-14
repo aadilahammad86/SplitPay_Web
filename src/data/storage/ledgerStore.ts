@@ -261,6 +261,7 @@ export class LedgerStore {
     }
 
     const myHandle = (currentMe?.handle || session?.username || '').trim().toLowerCase().replace(/^@/, '')
+    const myName = (currentMe?.name || session?.name || '').trim().toLowerCase()
     const myPhone = currentMe?.phone || session?.phone
 
     const target = this.state.people.find((p) => p.id === personId)
@@ -272,6 +273,17 @@ export class LedgerStore {
           this.knownMeIds.add(personId)
           return true
         }
+      }
+
+      // Check name match: if target name is 'You' or matches user's exact name without a different conflicting handle
+      const targetName = (target.name || '').trim().toLowerCase()
+      if (
+        target.name === 'You' ||
+        targetName === 'guest user' ||
+        (myName && targetName === myName && (!target.handle || target.handle.trim().toLowerCase().replace(/^@/, '') === myHandle))
+      ) {
+        this.knownMeIds.add(personId)
+        return true
       }
 
       // Check phone match (normalized E.164)
@@ -341,23 +353,31 @@ export class LedgerStore {
         }
       }
 
+      const session = defaultAuthService.getCurrentSession()
+      const avatarUrl = (me as { avatarUrl?: string }).avatarUrl || session?.avatarUrl || undefined
+      const upsertPayload: Record<string, any> = {
+        id: me.id,
+        name: me.name || 'Anonymous',
+        handle: me.handle || null,
+        email: me.email || null,
+        email_verified: !!me.emailVerified,
+        phone: me.phone || null,
+        phone_verified: !!me.phoneVerified,
+        discoverable_by_phone: me.discoverableByPhone !== false,
+        invite_code: inviteCode,
+        updated_at: new Date().toISOString(),
+      }
+      if (avatarUrl) {
+        upsertPayload.avatar_url = avatarUrl
+        if (avatarUrl.startsWith('auth:sha256:')) {
+          upsertPayload.password_hash = avatarUrl.replace('auth:sha256:', '')
+          upsertPayload.password_salt = me.handle || session?.username || undefined
+        }
+      }
+
       const { error: upsertErr } = await supabase
         .from('profiles')
-        .upsert(
-          {
-            id: me.id,
-            name: me.name || 'Anonymous',
-            handle: me.handle || null,
-            email: me.email || null,
-            email_verified: !!me.emailVerified,
-            phone: me.phone || null,
-            phone_verified: !!me.phoneVerified,
-            discoverable_by_phone: me.discoverableByPhone !== false,
-            invite_code: inviteCode,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'id' }
-        )
+        .upsert(upsertPayload, { onConflict: 'id' })
 
       if (upsertErr) {
         console.warn('[LedgerStore] Supabase profile sync error:', upsertErr)
@@ -1082,30 +1102,43 @@ export class LedgerStore {
 
   async reconcileAliases(): Promise<boolean> {
     const session = defaultAuthService.getCurrentSession()
-    const myId = this.state.localPersonId || session?.id
+    const myId = session?.id || this.state.localPersonId
     if (!myId) return false
+
+    // Ensure state.localPersonId matches canonical session ID if available
+    if (session?.id && this.state.localPersonId !== session.id) {
+      await this.adapter.setMeta('local_person_id', session.id)
+      this.setState({ localPersonId: session.id })
+    }
 
     let people = await this.adapter.getPeople()
     const currentMe = people.find((p) => p.id === myId) || this.me
 
     const myHandle = (currentMe?.handle || session?.username || '').trim().toLowerCase().replace(/^@/, '')
+    const myName = (currentMe?.name || session?.name || '').trim().toLowerCase()
     const myPhone = currentMe?.phone || session?.phone
-
-    if (!myHandle && !myPhone) return false
 
     const aliasIds: string[] = []
     for (const p of people) {
       if (p.id === myId) continue
       let matchesMe = false
-      if (myHandle && p.handle) {
+
+      if (p.name === 'You' || p.name === 'Guest User') {
+        matchesMe = true
+      } else if (myHandle && p.handle) {
         const pH = p.handle.trim().toLowerCase().replace(/^@/, '')
         if (pH && myHandle === pH) matchesMe = true
+      } else if (myName && p.name.trim().toLowerCase() === myName) {
+        const pH = (p.handle || '').trim().toLowerCase().replace(/^@/, '')
+        if (!pH || pH === myHandle) matchesMe = true
       }
-      if (myPhone && p.phone) {
+
+      if (!matchesMe && myPhone && p.phone) {
         const mP = normalizeToE164(myPhone)
         const pP = normalizeToE164(p.phone)
         if (mP.valid && pP.valid && mP.e164 === pP.e164) matchesMe = true
       }
+
       if (matchesMe) {
         aliasIds.push(p.id)
       }
@@ -1125,13 +1158,14 @@ export class LedgerStore {
       people = people.filter((p) => p.id !== aliasId)
 
       for (let i = 0; i < expenses.length; i++) {
-        const exp = expenses[i]
+        const exp = expenses[i]!
         let changed = false
         let paidBy = exp.paidBy
         if (paidBy === aliasId) {
           paidBy = myId
           changed = true
         }
+
         const shares = exp.shares.map((s) => {
           let sChanged = false
           let owedBy = s.owedBy

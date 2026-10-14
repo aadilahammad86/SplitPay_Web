@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../../ui/storeContext'
 import { useTheme } from '../../ui/themeContext'
 import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
@@ -8,7 +8,9 @@ import { ContactSyncModal } from '../contacts/ContactSyncModal'
 import { formatE164Display } from '../../domain/phone'
 import { Icon, type IconName } from '../../ui/components/Icon'
 import { Switch } from '../../ui/components/Switch'
-import { defaultAuthService, type UsernameCheckResult } from '../../services/auth/authService'
+import { defaultAuthService, type UsernameCheckResult, type UserAccount } from '../../services/auth/authService'
+import { defaultDeviceService, type UserDevice } from '../../services/device/deviceService'
+import { generateTotpSecret, formatSecretForDisplay, generateOtpAuthUri } from '../../domain/totp'
 import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import {
   defaultNotificationService,
@@ -37,7 +39,127 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
 
   const { mode, setMode, palette, setPalette, availablePalettes } = useTheme()
   const me = store.me
-  const currentSession = defaultAuthService.getCurrentSession()
+  const [currentSession, setCurrentSession] = useState<UserAccount | null>(() =>
+    defaultAuthService.getCurrentSession()
+  )
+
+  useEffect(() => {
+    return defaultAuthService.subscribe((sess) => {
+      setCurrentSession(sess)
+    })
+  }, [])
+
+  // Multi-Device Management State (Strict 3-device limit)
+  const [devices, setDevices] = useState<UserDevice[]>([])
+  const [devicesLoading, setDevicesLoading] = useState(false)
+  const [deviceActionMsg, setDeviceActionMsg] = useState<string | null>(null)
+
+  const loadDevices = useCallback(async () => {
+    if (!currentSession?.id) return
+    setDevicesLoading(true)
+    try {
+      const list = await defaultDeviceService.getRegisteredDevices(currentSession.id)
+      setDevices(list)
+    } catch {
+      // ignore
+    } finally {
+      setDevicesLoading(false)
+    }
+  }, [currentSession])
+
+  useEffect(() => {
+    if (!currentSession?.id) return
+    let active = true
+    defaultDeviceService.getRegisteredDevices(currentSession.id).then((list) => {
+      if (active) setDevices(list)
+    }).catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [currentSession?.id])
+
+  const handleRevokeDevice = async (deviceId: string) => {
+    if (!currentSession?.id) return
+    if (confirm('Disconnect this device from your account? It will be required to log in again.')) {
+      const success = await defaultDeviceService.revokeDevice(currentSession.id, deviceId)
+      if (success) {
+        setDeviceActionMsg('✓ Device disconnected successfully.')
+        await loadDevices()
+      } else {
+        setDeviceActionMsg('Failed to disconnect device.')
+      }
+      setTimeout(() => setDeviceActionMsg(null), 3500)
+    }
+  }
+
+  // Google Authenticator 2FA State
+  const [showTotpSetup, setShowTotpSetup] = useState(false)
+  const [totpSecret, setTotpSecret] = useState('')
+  const [totpVerifyCode, setTotpVerifyCode] = useState('')
+  const [totpError, setTotpError] = useState<string | null>(null)
+  const [totpSuccessMsg, setTotpSuccessMsg] = useState<string | null>(null)
+  const [totpCopyMsg, setTotpCopyMsg] = useState<string | null>(null)
+  const [showTotpDisable, setShowTotpDisable] = useState(false)
+  const [totpDisableCode, setTotpDisableCode] = useState('')
+
+  const handleStartTotpSetup = () => {
+    const sec = generateTotpSecret()
+    setTotpSecret(sec)
+    setTotpVerifyCode('')
+    setTotpError(null)
+    setShowTotpSetup(true)
+  }
+
+  const handleConfirmTotp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentSession?.id || !totpSecret) return
+    setTotpError(null)
+
+    const res = await defaultAuthService.enableTotp(
+      currentSession.id,
+      totpSecret,
+      totpVerifyCode.trim()
+    )
+
+    if (!res.success) {
+      setTotpError(res.error || 'Invalid 6-digit code. Please check your app and try again.')
+      return
+    }
+
+    setShowTotpSetup(false)
+    setTotpSecret('')
+    setTotpVerifyCode('')
+    setTotpSuccessMsg('✓ Google Authenticator 2FA activated successfully!')
+    setTimeout(() => setTotpSuccessMsg(null), 4000)
+  }
+
+  const handleDisableTotp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentSession?.id) return
+    setTotpError(null)
+
+    const res = await defaultAuthService.disableTotp(
+      currentSession.id,
+      totpDisableCode.trim()
+    )
+
+    if (!res.success) {
+      setTotpError(res.error || 'Invalid 6-digit code. Please try again.')
+      return
+    }
+
+    setShowTotpDisable(false)
+    setTotpDisableCode('')
+    setTotpSuccessMsg('✓ Two-Factor Authentication disabled.')
+    setTimeout(() => setTotpSuccessMsg(null), 4000)
+  }
+
+  const handleCopyTotpSecret = () => {
+    if (!totpSecret) return
+    navigator.clipboard.writeText(totpSecret)
+    setTotpCopyMsg('Copied secret key to clipboard!')
+    setTimeout(() => setTotpCopyMsg(null), 3000)
+  }
 
   const handleLogout = () => {
     if (confirm('Are you sure you want to log out of SplitPay?')) {
@@ -860,6 +982,295 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
             </div>
           </form>
         )}
+      </div>
+
+      {/* Google Authenticator (TOTP 2FA) Section */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="font-bold text-sm text-[var(--color-text)] flex items-center gap-2">
+              <Icon name="shield" size={18} className="text-primary" />
+              <span>Google Authenticator (2FA)</span>
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              Secure your account with 6-digit Time-Based One-Time Passwords (RFC 6238). Required for adding a 4th device or approving device swaps.
+            </p>
+          </div>
+
+          <span
+            className={`self-start sm:self-auto px-3 py-1 text-xs font-bold rounded-xl border flex items-center gap-1.5 ${
+              currentSession?.totpEnabled
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                : 'bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)] border-[var(--color-border)]'
+            }`}
+          >
+            <Icon name={currentSession?.totpEnabled ? 'check' : 'shield'} size={13} />
+            <span>{currentSession?.totpEnabled ? '2FA Active' : '2FA Disabled'}</span>
+          </span>
+        </div>
+
+        {totpSuccessMsg && (
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold animate-fade-in flex items-center gap-2">
+            <Icon name="check" size={14} className="shrink-0" />
+            <span>{totpSuccessMsg}</span>
+          </div>
+        )}
+
+        {totpError && (
+          <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-semibold animate-fade-in flex items-center gap-2">
+            <Icon name="close" size={14} className="shrink-0" />
+            <span>{totpError}</span>
+          </div>
+        )}
+
+        {!currentSession?.totpEnabled ? (
+          <div>
+            {!showTotpSetup ? (
+              <button
+                type="button"
+                onClick={handleStartTotpSetup}
+                className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-2 cursor-pointer press-bounce"
+              >
+                <Icon name="shield" size={14} />
+                <span>Set Up Google Authenticator</span>
+              </button>
+            ) : (
+              <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-4 animate-fade-in">
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-[var(--color-text)]">
+                    Step 1: Add to Google Authenticator
+                  </h4>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    Open Google Authenticator on your mobile device, tap <strong className="text-[var(--color-text)]">+</strong>, select <strong className="text-[var(--color-text)]">Enter a setup key</strong>, and input this private key:
+                  </p>
+                </div>
+
+                {/* Secret Key Display & Copy */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="flex-1 px-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl font-mono text-xs font-bold text-primary tracking-widest select-all">
+                    {formatSecretForDisplay(totpSecret)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyTotpSecret}
+                    className="px-3 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold rounded-xl transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Icon name="clipboard" size={14} />
+                    <span>{totpCopyMsg || 'Copy Key'}</span>
+                  </button>
+                  <a
+                    href={generateOtpAuthUri({
+                      username: currentSession?.username || 'user',
+                      secret: totpSecret,
+                      issuer: 'SplitPay',
+                    })}
+                    className="px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold rounded-xl transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Icon name="link" size={14} />
+                    <span>Open App Link</span>
+                  </a>
+                </div>
+
+                {/* Verification Code Form */}
+                <form onSubmit={handleConfirmTotp} className="space-y-3 pt-2 border-t border-[var(--color-border)]">
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--color-text)] mb-1">
+                      Step 2: Enter 6-Digit Code from App to Confirm
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      required
+                      maxLength={6}
+                      placeholder="000 000"
+                      value={totpVerifyCode}
+                      onChange={(e) => setTotpVerifyCode(e.target.value.replace(/\D/g, ''))}
+                      className="w-full sm:w-48 text-center tracking-[0.4em] font-mono text-base py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-[var(--color-text)] focus:outline-none focus:border-primary font-bold"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="submit"
+                      disabled={totpVerifyCode.trim().length !== 6}
+                      className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-40 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer press-bounce"
+                    >
+                      Confirm & Activate 2FA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTotpSetup(false)
+                        setTotpSecret('')
+                        setTotpError(null)
+                      }}
+                      className="px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+              <Icon name="shield" size={18} className="shrink-0 text-emerald-600" />
+              <span>
+                Your account is protected with Google Authenticator. New sign-ins and device revocations require your 6-digit TOTP code.
+              </span>
+            </div>
+
+            {!showTotpDisable ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTotpDisable(true)
+                  setTotpDisableCode('')
+                  setTotpError(null)
+                }}
+                className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Disable Google Authenticator
+              </button>
+            ) : (
+              <form onSubmit={handleDisableTotp} className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-3 animate-fade-in">
+                <label className="block text-xs font-bold text-[var(--color-text)]">
+                  Enter 6-Digit Google Authenticator Code to Disable:
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    maxLength={6}
+                    placeholder="000 000"
+                    value={totpDisableCode}
+                    onChange={(e) => setTotpDisableCode(e.target.value.replace(/\D/g, ''))}
+                    className="w-40 text-center tracking-[0.3em] font-mono text-sm py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-[var(--color-text)] focus:outline-none focus:border-rose-500 font-bold"
+                  />
+                  <button
+                    type="submit"
+                    disabled={totpDisableCode.trim().length !== 6}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                  >
+                    Confirm Disable
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTotpDisable(false)
+                      setTotpDisableCode('')
+                      setTotpError(null)
+                    }}
+                    className="px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Connected Devices (Max 3 Devices) Section */}
+      <div className="p-6 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="font-bold text-sm text-[var(--color-text)] flex items-center gap-2">
+              <Icon name="smartphone" size={18} className="text-primary" />
+              <span>Connected Devices</span>
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              Strict device quota: Only up to 3 devices can be connected at a time. Connecting a 4th device requires verification via Google Authenticator.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-3 py-1 text-xs font-bold rounded-xl border flex items-center gap-1.5 ${
+                devices.length >= 3
+                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                  : 'bg-primary-subtle text-primary border-primary-border'
+              }`}
+            >
+              <span>{devices.length} / 3 Connected</span>
+            </span>
+            <button
+              type="button"
+              onClick={loadDevices}
+              disabled={devicesLoading}
+              className="p-1.5 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors cursor-pointer"
+              title="Refresh Devices"
+            >
+              <Icon name="reload" size={14} className={devicesLoading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+        </div>
+
+        {deviceActionMsg && (
+          <div className="p-3 bg-primary-subtle border border-primary-border text-primary rounded-xl text-xs font-semibold animate-fade-in flex items-center gap-2">
+            <Icon name="check" size={14} className="shrink-0" />
+            <span>{deviceActionMsg}</span>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {devices.length === 0 ? (
+            <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl text-center text-xs text-[var(--color-text-muted)]">
+              {devicesLoading ? 'Loading connected devices...' : 'This device is currently connected.'}
+            </div>
+          ) : (
+            devices.map((dev) => (
+              <div
+                key={dev.deviceId}
+                className="p-3.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center text-primary shrink-0">
+                    <Icon
+                      name={
+                        dev.deviceName.toLowerCase().includes('phone') ||
+                        dev.deviceName.toLowerCase().includes('android') ||
+                        dev.deviceName.toLowerCase().includes('ios')
+                          ? 'smartphone'
+                          : 'monitor'
+                      }
+                      size={18}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-[var(--color-text)] truncate">
+                        {dev.deviceName}
+                      </span>
+                      {dev.isCurrent && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary text-white">
+                          This Device
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-[var(--color-text-muted)]">
+                      Active: {new Date(dev.lastActiveAt).toLocaleDateString()} at {new Date(dev.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+
+                {!dev.isCurrent && (
+                  <button
+                    type="button"
+                    onClick={() => handleRevokeDevice(dev.deviceId)}
+                    className="px-3 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors cursor-pointer shrink-0"
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Local JSON Backup & Restore */}
