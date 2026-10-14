@@ -125,24 +125,36 @@ export class LedgerStore {
     // Sanitize any previously polluted dummy persons from people store
     const sanitizedPeople: Person[] = []
     for (const p of people) {
+      const isTestOrDummy =
+        p.id === 'p1' ||
+        p.id === 'test_p' ||
+        p.name.toLowerCase() === 'test' ||
+        p.name.toLowerCase() === 'demo' ||
+        p.name.toLowerCase() === 'demo user' ||
+        p.name === 'SplitPay Friend' ||
+        p.id.startsWith('invited_') ||
+        p.name.trim() === ''
+
+      if (isTestOrDummy) {
+        await this.adapter.removePerson(p.id).catch(() => {})
+        continue
+      }
+
       if (p.id === localPersonId) {
         sanitizedPeople.push(p)
-      } else if (
-        p.name !== 'You' &&
-        p.name !== 'SplitPay Friend' &&
-        p.name !== 'Guest User' &&
-        p.name.toLowerCase() !== 'test' &&
-        p.name.toLowerCase() !== 'demo' &&
-        p.name.toLowerCase() !== 'demo user' &&
-        !p.id.startsWith('invited_') &&
-        p.name.trim() !== ''
-      ) {
+      } else if (p.name !== 'You' && p.name !== 'Guest User') {
         sanitizedPeople.push(p)
       } else {
         await this.adapter.removePerson(p.id).catch(() => {})
       }
     }
     people = sanitizedPeople
+
+    // Sanitize any poisoned test watermark
+    const defaultLedgerWatermark = await this.adapter.getMeta('sync_watermark_default_ledger')
+    if (defaultLedgerWatermark && (defaultLedgerWatermark.toUpperCase().includes('TEST') || defaultLedgerWatermark === '01TESTOP1234567890')) {
+      await this.adapter.setMeta('sync_watermark_default_ledger', '')
+    }
 
     const session = defaultAuthService.getCurrentSession()
     if (!localPersonId) {
@@ -1112,6 +1124,27 @@ export class LedgerStore {
     }
 
     let people = await this.adapter.getPeople()
+    let hasMutations = false
+
+    // Step 0: Purge any dummy/test people from memory and adapter
+    for (const p of people) {
+      const isTestOrDummy =
+        p.id === 'p1' ||
+        p.id === 'test_p' ||
+        p.name.toLowerCase() === 'test' ||
+        p.name.toLowerCase() === 'demo' ||
+        p.name.toLowerCase() === 'demo user' ||
+        p.name === 'SplitPay Friend' ||
+        p.id.startsWith('invited_') ||
+        p.name.trim() === ''
+
+      if (isTestOrDummy) {
+        await this.adapter.removePerson(p.id).catch(() => {})
+        people = people.filter((item) => item.id !== p.id)
+        hasMutations = true
+      }
+    }
+
     const currentMe = people.find((p) => p.id === myId) || this.me
 
     const myHandle = (currentMe?.handle || session?.username || '').trim().toLowerCase().replace(/^@/, '')
@@ -1144,8 +1177,6 @@ export class LedgerStore {
       }
     }
 
-    if (aliasIds.length === 0) return false
-
     for (const id of aliasIds) {
       this.knownMeIds.add(id)
     }
@@ -1153,73 +1184,192 @@ export class LedgerStore {
     const expenses = await this.adapter.getExpenses()
     const settlements = await this.adapter.getSettlements()
 
-    for (const aliasId of aliasIds) {
-      await this.adapter.removePerson(aliasId).catch(() => {})
-      people = people.filter((p) => p.id !== aliasId)
+    if (aliasIds.length > 0) {
+      hasMutations = true
+      for (const aliasId of aliasIds) {
+        await this.adapter.removePerson(aliasId).catch(() => {})
+        people = people.filter((p) => p.id !== aliasId)
 
-      for (let i = 0; i < expenses.length; i++) {
-        const exp = expenses[i]!
-        let changed = false
-        let paidBy = exp.paidBy
-        if (paidBy === aliasId) {
-          paidBy = myId
-          changed = true
-        }
-
-        const shares = exp.shares.map((s) => {
-          let sChanged = false
-          let owedBy = s.owedBy
-          let owedTo = s.owedTo
-          if (owedBy === aliasId) {
-            owedBy = myId
-            sChanged = true
+        for (let i = 0; i < expenses.length; i++) {
+          const exp = expenses[i]!
+          let changed = false
+          let paidBy = exp.paidBy
+          if (paidBy === aliasId) {
+            paidBy = myId
+            changed = true
           }
-          if (owedTo === aliasId) {
-            owedTo = myId
-            sChanged = true
-          }
-          if (sChanged) changed = true
-          return { ...s, owedBy, owedTo }
-        })
-        if (changed) {
-          const updated = { ...exp, paidBy, shares }
-          const op = opAddExpense({
-            opId: generateUlid(),
-            deviceId: this.state.deviceId,
-            atMicros: Date.now() * 1000,
-            expense: updated,
-          })
-          await this.adapter.addExpense(updated, op)
-          expenses[i] = updated
-        }
-      }
 
-      for (let i = 0; i < settlements.length; i++) {
-        const set = settlements[i]
-        let changed = false
-        let from = set.from
-        let to = set.to
-        if (from === aliasId) {
-          from = myId
-          changed = true
-        }
-        if (to === aliasId) {
-          to = myId
-          changed = true
-        }
-        if (changed) {
-          const updated = { ...set, from, to }
-          const op = opAddSettlement({
-            opId: generateUlid(),
-            deviceId: this.state.deviceId,
-            atMicros: Date.now() * 1000,
-            settlement: updated,
+          const shares = exp.shares.map((s) => {
+            let sChanged = false
+            let owedBy = s.owedBy
+            let owedTo = s.owedTo
+            if (owedBy === aliasId) {
+              owedBy = myId
+              sChanged = true
+            }
+            if (owedTo === aliasId) {
+              owedTo = myId
+              sChanged = true
+            }
+            if (sChanged) changed = true
+            return { ...s, owedBy, owedTo }
           })
-          await this.adapter.addSettlement(updated, op)
-          settlements[i] = updated
+          if (changed) {
+            const updated = { ...exp, paidBy, shares }
+            const op = opAddExpense({
+              opId: generateUlid(),
+              deviceId: this.state.deviceId,
+              atMicros: Date.now() * 1000,
+              expense: updated,
+            })
+            await this.adapter.addExpense(updated, op)
+            expenses[i] = updated
+          }
+        }
+
+        for (let i = 0; i < settlements.length; i++) {
+          const set = settlements[i]
+          let changed = false
+          let from = set.from
+          let to = set.to
+          if (from === aliasId) {
+            from = myId
+            changed = true
+          }
+          if (to === aliasId) {
+            to = myId
+            changed = true
+          }
+          if (changed) {
+            const updated = { ...set, from, to }
+            const op = opAddSettlement({
+              opId: generateUlid(),
+              deviceId: this.state.deviceId,
+              atMicros: Date.now() * 1000,
+              settlement: updated,
+            })
+            await this.adapter.addSettlement(updated, op)
+            settlements[i] = updated
+          }
         }
       }
     }
+
+    // Step 2: Reconcile duplicate friends (same handle or same phone)
+    const friendsByHandle = new Map<string, Person[]>()
+    for (const p of people) {
+      if (p.id === myId || aliasIds.includes(p.id) || this.isMe(p.id)) continue
+      if (p.handle) {
+        const h = p.handle.trim().toLowerCase().replace(/^@/, '')
+        if (h) {
+          const list = friendsByHandle.get(h) || []
+          list.push(p)
+          friendsByHandle.set(h, list)
+        }
+      }
+    }
+
+    for (const [, duplicates] of friendsByHandle.entries()) {
+      if (duplicates.length <= 1) continue
+
+      // Find the canonical friend record:
+      // Prefer the one that already has expense shares or settlements associated with it
+      let canonical = duplicates[0]
+      let maxRefScore = -1
+
+      for (const d of duplicates) {
+        let score = 0
+        for (const e of expenses) {
+          if (e.paidBy === d.id) score += 5
+          for (const s of e.shares) {
+            if (s.owedBy === d.id || s.owedTo === d.id) score += 5
+          }
+        }
+        for (const st of settlements) {
+          if (st.from === d.id || st.to === d.id) score += 5
+        }
+        if (d.name && d.name !== 'SplitPay Friend') score += 1
+        if (score > maxRefScore) {
+          maxRefScore = score
+          canonical = d
+        }
+      }
+
+      // Merge all other duplicates into canonical
+      for (const d of duplicates) {
+        if (d.id === canonical.id) continue
+
+        await this.adapter.removePerson(d.id).catch(() => {})
+        people = people.filter((p) => p.id !== d.id)
+        hasMutations = true
+
+        // Remap any expenses referencing duplicate friend ID to canonical friend ID
+        for (let i = 0; i < expenses.length; i++) {
+          const exp = expenses[i]
+          let changed = false
+          let paidBy = exp.paidBy
+          if (paidBy === d.id) {
+            paidBy = canonical.id
+            changed = true
+          }
+          const shares = exp.shares.map((s) => {
+            let sChanged = false
+            let owedBy = s.owedBy
+            let owedTo = s.owedTo
+            if (owedBy === d.id) {
+              owedBy = canonical.id
+              sChanged = true
+            }
+            if (owedTo === d.id) {
+              owedTo = canonical.id
+              sChanged = true
+            }
+            if (sChanged) changed = true
+            return { ...s, owedBy, owedTo }
+          })
+          if (changed) {
+            const updated = { ...exp, paidBy, shares }
+            const op = opAddExpense({
+              opId: generateUlid(),
+              deviceId: this.state.deviceId,
+              atMicros: Date.now() * 1000,
+              expense: updated,
+            })
+            await this.adapter.addExpense(updated, op)
+            expenses[i] = updated
+          }
+        }
+
+        // Remap settlements
+        for (let i = 0; i < settlements.length; i++) {
+          const set = settlements[i]
+          let changed = false
+          let from = set.from
+          let to = set.to
+          if (from === d.id) {
+            from = canonical.id
+            changed = true
+          }
+          if (to === d.id) {
+            to = canonical.id
+            changed = true
+          }
+          if (changed) {
+            const updated = { ...set, from, to }
+            const op = opAddSettlement({
+              opId: generateUlid(),
+              deviceId: this.state.deviceId,
+              atMicros: Date.now() * 1000,
+              settlement: updated,
+            })
+            await this.adapter.addSettlement(updated, op)
+            settlements[i] = updated
+          }
+        }
+      }
+    }
+
+    if (!hasMutations) return false
 
     const currentPending = await this.adapter.getPendingOps()
     this.setState({

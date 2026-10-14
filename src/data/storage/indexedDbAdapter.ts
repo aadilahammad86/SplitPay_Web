@@ -377,14 +377,21 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
         switch (op.kind) {
           case 'addPerson': {
             const person = decodePerson(op.payload)
-            // Never persist anonymous dummy placeholders from other devices
+            // Never persist anonymous dummy placeholders or test users from other devices
             if (
               person.name === 'You' ||
               person.name === 'SplitPay Friend' ||
               person.name === 'Guest User' ||
+              person.name.toLowerCase() === 'test' ||
+              person.name.toLowerCase() === 'demo' ||
+              person.id === 'p1' ||
+              person.id === 'test_p' ||
               person.id.startsWith('invited_') ||
               !person.name.trim()
             ) {
+              if (person.id) {
+                peopleStore.delete(person.id)
+              }
               break
             }
             peopleStore.put(person)
@@ -393,9 +400,15 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
           case 'addGroup':
             groupsStore.put(decodeGroup(op.payload))
             break
-          case 'addExpense':
-            expensesStore.put(decodeExpense(op.payload))
+          case 'addExpense': {
+            const expense = decodeExpense(op.payload)
+            if (expense.id === 'e1' || op.opId.toUpperCase().includes('TEST')) {
+              expensesStore.delete(expense.id)
+              break
+            }
+            expensesStore.put(expense)
             break
+          }
           case 'addSettlement':
             settlementsStore.put(decodeSettlement(op.payload))
             break

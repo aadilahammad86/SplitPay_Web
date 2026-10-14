@@ -2,6 +2,7 @@ import type { StorageAdapter } from '../storage/storageAdapter'
 import type { LedgerStore } from '../storage/ledgerStore'
 import type { SyncTransport } from './syncTransport'
 import { defaultNotificationService } from '../../services/notifications/notificationService'
+import { defaultAuthService } from '../../services/auth/authService'
 
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error'
 
@@ -128,7 +129,13 @@ export class SyncEngine {
     this.stop()
 
     const watermarkKey = `sync_watermark_${ledgerId}`
-    const storedWatermark = await this.adapter.getMeta(watermarkKey)
+    let storedWatermark = await this.adapter.getMeta(watermarkKey)
+
+    // Detect and clear any corrupted test watermark (e.g. 01TESTOP...)
+    if (storedWatermark && (storedWatermark.toUpperCase().includes('TEST') || storedWatermark === '01TESTOP1234567890')) {
+      await this.adapter.setMeta(watermarkKey, '')
+      storedWatermark = null
+    }
 
     this.setState({
       ledgerId,
@@ -219,27 +226,58 @@ export class SyncEngine {
         await this.store.refreshPendingOpsCount()
       }
 
+      // Sanity check current watermark against corrupted test values
+      let currentWatermark = this.state.lastWatermark
+      if (currentWatermark && (currentWatermark.toUpperCase().includes('TEST') || currentWatermark === '01TESTOP1234567890')) {
+        currentWatermark = null
+        await this.adapter.setMeta(`sync_watermark_${ledgerId}`, '')
+      }
+
+      const isInitialSync = !currentWatermark
+
       // ----------------------------------------------------------------------
       // Step 2: Cursor pull remote ops since last watermark
       // ----------------------------------------------------------------------
-      const remoteOps = await this.transport.pullOps(ledgerId, this.state.lastWatermark)
-      let newWatermark = this.state.lastWatermark
+      const remoteOps = await this.transport.pullOps(ledgerId, currentWatermark)
+      let newWatermark = currentWatermark
 
       if (remoteOps.length > 0) {
-        await this.store.applyRemoteOps(remoteOps)
-        defaultNotificationService.notifyRemoteOps(
-          remoteOps,
-          this.store.getState().deviceId
-        )
-
-        for (const op of remoteOps) {
-          if (!newWatermark || op.opId > newWatermark) {
-            newWatermark = op.opId
+        // Filter out any corrupted test ops
+        const validOps = remoteOps.filter((op) => {
+          if (op.opId.toUpperCase().includes('TEST')) return false
+          if (op.kind === 'addPerson') {
+            const p = op.payload as { id?: string; name?: string }
+            if (p.id === 'p1' || p.id === 'test_p' || p.name?.toLowerCase() === 'test') return false
           }
-        }
+          if (op.kind === 'addExpense') {
+            const e = op.payload as { id?: string }
+            if (e.id === 'e1') return false
+          }
+          return true
+        })
 
-        if (newWatermark) {
-          await this.adapter.setMeta(`sync_watermark_${ledgerId}`, newWatermark)
+        if (validOps.length > 0) {
+          await this.store.applyRemoteOps(validOps)
+
+          const me = this.store.me
+          const session = defaultAuthService.getCurrentSession()
+          defaultNotificationService.notifyRemoteOps(validOps, {
+            localDeviceId: this.store.getState().deviceId,
+            isMe: (id) => this.store.isMe(id),
+            myName: me?.name || session?.name,
+            myHandle: me?.handle || session?.username,
+            isInitialSync,
+          })
+
+          for (const op of validOps) {
+            if (!newWatermark || op.opId > newWatermark) {
+              newWatermark = op.opId
+            }
+          }
+
+          if (newWatermark) {
+            await this.adapter.setMeta(`sync_watermark_${ledgerId}`, newWatermark)
+          }
         }
       }
 
