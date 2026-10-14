@@ -13,9 +13,14 @@ import {
 import { formatE164Display } from '../../domain/phone'
 import { useStore } from '../../ui/storeContext'
 
-interface ContactSyncModalProps {
+export interface ContactSyncContentProps {
+  onFriendAdded?: (friend: MatchedFriend) => void
+}
+
+export interface ContactSyncModalProps {
   isOpen: boolean
   onClose: () => void
+  onFriendAdded?: (friend: MatchedFriend) => void
 }
 
 const COUNTRY_CODES = [
@@ -28,9 +33,8 @@ const COUNTRY_CODES = [
   { code: '+49', label: 'Germany (+49)' },
 ]
 
-export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
-  isOpen,
-  onClose,
+export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
+  onFriendAdded,
 }) => {
   const { store, ledgerState } = useStore()
   const me = store.me
@@ -181,11 +185,11 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
     if (searchResult?.match?.id === friend.id) {
       setSearchResult((prev) => prev ? { ...prev, match: { ...prev.match!, alreadyFriend: true } } : null)
     }
+    onFriendAdded?.(friend)
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Find Friends & Contacts" maxWidth="max-w-xl">
-      <div className="space-y-4 text-sm">
+    <div className="space-y-4 text-sm">
         {/* Search by Phone Number across Database */}
         <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-3">
           <div>
@@ -411,6 +415,18 @@ export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
           </div>
         )}
       </div>
+  )
+}
+
+export const ContactSyncModal: React.FC<ContactSyncModalProps> = ({
+  isOpen,
+  onClose,
+  onFriendAdded,
+}) => {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Find Friends & Contacts" maxWidth="max-w-xl">
+      <ContactSyncContent onFriendAdded={onFriendAdded} />
     </Modal>
   )
 }
+

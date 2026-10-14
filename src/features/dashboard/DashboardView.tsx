@@ -4,6 +4,7 @@ import { calculateOverallBalance, breakdownFor } from '../../domain/balance'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { SourceChips } from '../../ui/components/SourceChips'
 import { BASE_CURRENCY, GroupKindInfo, personInitials } from '../../domain/entities'
+import { formatMoney, formatRelativeDate } from '../../domain/formatMoney'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import { CreateGroupModal } from '../groups/CreateGroupModal'
@@ -113,10 +114,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight flex items-center gap-2">
             <span>Welcome back, {me?.name || 'Friend'}</span>
-            <Icon name="star" size={22} className="text-amber-500 animate-pulse" />
+            <Icon name="star" size={20} className="text-amber-500 animate-pulse-subtle" />
           </h2>
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            {sharedLedgerId ? `Shared Ledger: ${sharedLedgerId}` : 'Local-first offline ledger active'} · All calculations verified in integer minor units
+            {sharedLedgerId ? `Shared Ledger: ${sharedLedgerId}` : 'Local-first offline ledger active'} · All calculations in integer minor units
           </p>
         </div>
 
@@ -125,7 +126,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => setShowAddExpense(true)}
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
+            className="btn-press btn-primary flex-1 sm:flex-none px-4 py-2.5 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
           >
             <Icon name="plus" size={16} />
             <span>Add Expense</span>
@@ -137,7 +138,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               setSettleAmountMinor(0)
               setShowSettleUp(true)
             }}
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
+            className="btn-press flex-1 sm:flex-none px-4 py-2.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5"
           >
             <Icon name="moneyHand" size={16} />
             <span>Settle Up</span>
@@ -147,26 +148,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Top 3 Metric Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Card 1: Net Balance Hero Card */}
-        <div className="hero-gradient rounded-3xl p-6 text-white shadow-xl relative overflow-hidden card-hover sm:col-span-2 lg:col-span-1">
-          <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="relative z-10 space-y-4">
+        {/* Card 1: Net Balance Hero Card (Redesigned) */}
+        <div className="card-hero rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden card-interactive sm:col-span-2 lg:col-span-1">
+          {/* Subtle decorative glow orb */}
+          <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/[0.08] blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col justify-between h-full space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wider uppercase text-white/80">
-                Your Net Balance
+              <span className="text-xs font-semibold tracking-wider uppercase text-white/75">
+                Net Balance
               </span>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm">
-                {overall.netMinor > 0 ? 'In Credit' : overall.netMinor < 0 ? 'In Debt' : 'Settled'}
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md border border-white/10 tracking-wider">
+                {currentCurrency.code}
               </span>
             </div>
 
-            <div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-                  {overall.netMinor > 0 ? '+' : overall.netMinor < 0 ? '-' : ''}
-                  {currentCurrency.symbol}
-                  {(Math.abs(overall.netMinor) / currentCurrency.scale).toFixed(2)}
-                </span>
+            <div className="my-1">
+              <div className="font-money text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tighter leading-tight number-enter">
+                {overall.netMinor > 0 ? '+' : overall.netMinor < 0 ? '\u2212' : ''}
+                {formatMoney(Math.abs(overall.netMinor), currentCurrency)}
               </div>
               <p className="text-xs text-white/80 mt-1">
                 {overall.netMinor > 0
@@ -177,17 +177,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/20 text-xs">
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5">
-                <span className="block text-[10px] text-white/80">You are owed</span>
-                <span className="text-sm font-extrabold text-emerald-300">
-                  +{currentCurrency.symbol}{(overall.totalOwedToYouMinor / currentCurrency.scale).toFixed(2)}
+            {/* Inline Owed/Owe indicators */}
+            <div className="flex items-center gap-4 pt-3 border-t border-white/20 text-xs font-medium">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-300 shrink-0" />
+                <span className="text-white/70 text-[11px]">Owed:</span>
+                <span className="font-money font-bold text-emerald-300">
+                  +{formatMoney(overall.totalOwedToYouMinor, currentCurrency)}
                 </span>
               </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5">
-                <span className="block text-[10px] text-white/80">You owe</span>
-                <span className="text-sm font-extrabold text-rose-300">
-                  -{currentCurrency.symbol}{(overall.totalYouOweMinor / currentCurrency.scale).toFixed(2)}
+              <span className="w-px h-3.5 bg-white/25" />
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-300 shrink-0" />
+                <span className="text-white/70 text-[11px]">Owe:</span>
+                <span className="font-money font-bold text-rose-300">
+                  {overall.totalYouOweMinor > 0 ? '\u2212' : ''}
+                  {formatMoney(overall.totalYouOweMinor, currentCurrency)}
                 </span>
               </div>
             </div>
@@ -195,54 +200,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 2: Total Spending & Out of Pocket */}
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 shadow-sm card-hover flex flex-col justify-between">
+        <div className="card-raised rounded-3xl p-6 shadow-sm card-interactive flex flex-col justify-between">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
                 You Paid Out
               </span>
-              <Icon name="creditcard" size={22} className="text-primary" />
+              <div className="w-8 h-8 rounded-xl bg-primary-subtle text-primary border border-primary-border flex items-center justify-center shadow-xs">
+                <Icon name="creditcard" size={18} />
+              </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
-              {currentCurrency.symbol}{(totalSpentMinor / currentCurrency.scale).toFixed(2)}
+            <div className="font-money text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
+              {formatMoney(totalSpentMinor, currentCurrency)}
             </div>
             <p className="text-xs text-[var(--color-text-muted)]">
               Total expenses where you were the initial payer
             </p>
           </div>
 
-          <div className="pt-4 border-t border-[var(--color-border)] mt-4">
-            <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)] mb-1.5">
-              <span>Ledger Activity</span>
-              <span className="font-bold text-[var(--color-text)]">
-                {ledgerState.expenses.filter((e) => !e.isTombstone).length} expenses
+          <div className="pt-4 border-t border-[var(--color-border-subtle)] mt-4 flex items-center justify-between">
+            <span className="text-xs text-[var(--color-text-muted)]">Ledger Activity</span>
+            <span className="text-xs font-bold text-[var(--color-text)] font-money flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>
+                {ledgerState.expenses.filter((e) => !e.isTombstone).length}{' '}
+                {ledgerState.expenses.filter((e) => !e.isTombstone).length === 1 ? 'expense' : 'expenses'}
               </span>
-            </div>
-            <div className="w-full bg-[var(--color-surface-subtle)] h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-primary h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${Math.min(
-                    100,
-                    Math.max(15, (ledgerState.expenses.filter((e) => !e.isTombstone).length / 20) * 100)
-                  )}%`,
-                }}
-              />
-            </div>
+            </span>
           </div>
         </div>
 
         {/* Card 3: Groups & Collaboration Status */}
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 shadow-sm card-hover flex flex-col justify-between">
+        <div className="card-raised rounded-3xl p-6 shadow-sm card-interactive flex flex-col justify-between">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
                 Your Circle
               </span>
-              <Icon name="users" size={22} className="text-primary" />
+              <div className="w-8 h-8 rounded-xl bg-primary-subtle text-primary border border-primary-border flex items-center justify-center shadow-xs">
+                <Icon name="users" size={18} />
+              </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
+              <span className="font-money text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
                 {ledgerState.groups.length}
               </span>
               <span className="text-xs text-[var(--color-text-muted)] font-medium">
@@ -256,9 +256,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </p>
           </div>
 
-          <div className="pt-4 border-t border-[var(--color-border)] mt-4 flex items-center justify-between">
+          <div className="pt-4 border-t border-[var(--color-border-subtle)] mt-4 flex items-center justify-between">
             <span className="text-xs text-[var(--color-text-muted)]">Debt Simplification</span>
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
               ✓ Active (min-cash-flow)
             </span>
           </div>
@@ -270,7 +270,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Left Column: Recent Activity & Group Summaries (Col 7) */}
         <div className="lg:col-span-7 space-y-6">
           {/* Recent Activity Card */}
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-6 shadow-sm">
+          <div className="card-base rounded-3xl p-5 sm:p-6 shadow-sm">
             <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)]">
               <div>
                 <h3 className="font-bold text-base text-[var(--color-text)]">
@@ -283,68 +283,75 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('activity')}
-                className="text-xs font-bold text-primary hover:underline"
+                className="text-xs font-bold text-primary hover:underline btn-press"
               >
                 View all →
               </button>
             </div>
 
             {recentTransactions.length === 0 ? (
-              <div className="py-10 text-center space-y-3">
-                <Icon name="receipt" size={40} className="mx-auto text-[var(--color-text-muted)] opacity-60" />
+              <div className="py-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center mx-auto text-[var(--color-text-muted)]">
+                  <Icon name="receipt" size={24} />
+                </div>
                 <p className="text-xs text-[var(--color-text-muted)]">
                   No activity recorded yet in this ledger.
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowAddExpense(true)}
-                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
+                  className="btn-press btn-primary px-4 py-2 font-bold text-xs rounded-xl inline-flex items-center gap-1.5"
                 >
                   <Icon name="plus" size={14} />
                   <span>Add First Expense</span>
                 </button>
               </div>
             ) : (
-              <div className="divide-y divide-[var(--color-border)]">
-                {recentTransactions.map((tx) => (
+              <div className="divide-y divide-[var(--color-border-subtle)]">
+                {recentTransactions.map((tx, idx) => (
                   <div
                     key={tx.id}
-                    className="py-3.5 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-subtle)] -mx-2 px-2 rounded-xl transition-colors"
+                    className="list-item-enter py-3.5 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-subtle)] -mx-2 px-2 rounded-xl transition-colors"
+                    style={{ '--stagger-index': idx } as React.CSSProperties}
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
                       <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary shrink-0">
                         <CategoryIcon category={tx.emoji} size={20} />
                       </div>
                       <div className="overflow-hidden">
-                        <p className="font-bold text-xs text-[var(--color-text)] truncate">
+                        <p className="font-semibold text-sm text-[var(--color-text)] truncate">
                           {tx.title}
                         </p>
-                        <p className="text-[11px] text-[var(--color-text-muted)] truncate">
+                        <p className="text-xs text-[var(--color-text-muted)] truncate mt-0.5">
                           {tx.paidBy === meId ? 'You paid' : `${tx.paidByName} paid`} ·{' '}
-                          {new Date(Math.floor(tx.createdAtMicros / 1000)).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {formatRelativeDate(tx.createdAtMicros)}
                         </p>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
-                      <MoneyDisplay
-                        minor={tx.totalMinor}
-                        currency={tx.currency}
-                        size="sm"
-                        showSign={false}
-                      />
-                      {tx.paidBy === meId ? (
-                        <span className="block text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          you lent
+                      <div className="flex items-center justify-end gap-1.5">
+                        {tx.currency.code !== currentCurrency.code && (
+                          <span className="currency-badge">{tx.currency.code}</span>
+                        )}
+                        <span
+                          className={`font-money text-sm font-bold ${
+                            tx.paidBy === meId ? 'text-owed' : 'text-owe'
+                          }`}
+                        >
+                          {tx.paidBy === meId ? '+' : '\u2212'}
+                          <MoneyDisplay
+                            minor={tx.totalMinor}
+                            currency={tx.currency}
+                            size="sm"
+                            showSign={false}
+                            showColor={false}
+                          />
                         </span>
-                      ) : (
-                        <span className="block text-[10px] font-semibold text-rose-500 dark:text-rose-400">
-                          you borrowed
-                        </span>
-                      )}
+                      </div>
+                      <span className="block text-[10px] font-semibold text-[var(--color-text-muted)] mt-0.5">
+                        {tx.paidBy === meId ? 'you lent' : 'you borrowed'}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -352,8 +359,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
           </div>
 
-          {/* Active Groups Showcase */}
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-6 shadow-sm">
+          {/* Active Groups Showcase (Redesigned Empty & Populated States) */}
+          <div className="card-base rounded-3xl p-5 sm:p-6 shadow-sm">
             <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)]">
               <div>
                 <h3 className="font-bold text-base text-[var(--color-text)]">
@@ -366,33 +373,62 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('groups')}
-                className="text-xs font-bold text-primary hover:underline"
+                className="text-xs font-bold text-primary hover:underline btn-press"
               >
                 Manage groups →
               </button>
             </div>
 
             {ledgerState.groups.length === 0 ? (
-              <div className="py-8 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-primary-subtle text-primary border border-primary-border flex items-center justify-center mx-auto shadow-sm">
-                  <Icon name="users" size={24} />
+              /* Enhanced Empty State: overlapping emoji avatars & suggestion chips */
+              <div className="py-10 flex flex-col items-center text-center space-y-4">
+                <div className="relative w-24 h-12 my-1">
+                  <div className="absolute left-0 w-11 h-11 rounded-2xl bg-[var(--color-primary-subtle)] border-2 border-[var(--color-surface)] flex items-center justify-center text-xl shadow-sm">
+                    🏠
+                  </div>
+                  <div className="absolute left-7 w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border-2 border-[var(--color-surface)] flex items-center justify-center text-xl shadow-sm z-10">
+                    ✈️
+                  </div>
+                  <div className="absolute left-14 w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border-2 border-[var(--color-surface)] flex items-center justify-center text-xl shadow-sm z-20">
+                    🍕
+                  </div>
                 </div>
+
                 <div>
-                  <h4 className="font-bold text-xs text-[var(--color-text)]">
-                    No groups created yet
+                  <h4 className="font-bold text-sm text-[var(--color-text)]">
+                    Split with your crew
                   </h4>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 max-w-xs mx-auto">
-                    Create a shared pool for a vacation, household, or dinner to split with multiple people.
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-1 max-w-xs mx-auto leading-relaxed">
+                    Create a shared pool for a vacation, household, or dinner to split expenses seamlessly.
                   </p>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => setShowCreateGroup(true)}
-                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all inline-flex items-center gap-1.5 active:scale-95"
+                  className="btn-press btn-primary px-5 py-2.5 font-bold text-xs rounded-xl shadow-md inline-flex items-center gap-1.5"
                 >
-                  <Icon name="plus" size={14} />
+                  <Icon name="plus" size={15} />
                   <span>Create Group</span>
                 </button>
+
+                {/* Quick-start suggestion chips */}
+                <div className="flex flex-wrap justify-center gap-1.5 pt-2">
+                  {[
+                    { label: '🏠 Apartment', defaultName: 'Apartment Expenses' },
+                    { label: '✈️ Trip', defaultName: 'Weekend Trip' },
+                    { label: '🍕 Dinner', defaultName: 'Friday Dinner' },
+                  ].map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={() => setShowCreateGroup(true)}
+                      className="btn-press text-[11px] font-semibold px-3 py-1 rounded-full bg-[var(--color-surface-subtle)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-primary hover:border-primary-border transition-colors"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
@@ -409,26 +445,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div
                       key={group.id}
                       onClick={() => onSelectGroup(group.id)}
-                      className="p-4 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] rounded-2xl cursor-pointer transition-all card-hover"
+                      className="p-4 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border-subtle)] border border-[var(--color-border)] rounded-2xl cursor-pointer transition-all card-interactive"
                     >
                       <div className="flex items-center justify-between">
                         <div className="w-9 h-9 rounded-xl bg-primary-subtle text-primary flex items-center justify-center">
                           <CategoryIcon category={kind.emoji} size={20} />
                         </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
+                        <span className="currency-badge">
                           {group.currency.code}
                         </span>
                       </div>
-                      <h4 className="font-bold text-sm text-[var(--color-text)] mt-2 truncate">
+                      <h4 className="font-bold text-sm text-[var(--color-text)] mt-2.5 truncate">
                         {group.name}
                       </h4>
                       <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
                         {group.memberIds.length} members · {groupExpensesCount} expenses
                       </p>
-                      <div className="mt-3 pt-2 border-t border-[var(--color-border)] flex items-center justify-between text-xs">
+                      <div className="mt-3 pt-2 border-t border-[var(--color-border-subtle)] flex items-center justify-between text-xs">
                         <span className="text-[11px] text-[var(--color-text-muted)]">Total Pool</span>
-                        <span className="font-extrabold text-[var(--color-text)]">
-                          {group.currency.symbol}{(totalGroupSpendMinor / group.currency.scale).toFixed(2)}
+                        <span className="font-money font-extrabold text-[var(--color-text)]">
+                          {formatMoney(totalGroupSpendMinor, group.currency)}
                         </span>
                       </div>
                     </div>
@@ -442,7 +478,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Right Column: Friends Balances & Smart Settle (Col 5) */}
         <div className="lg:col-span-5 space-y-6">
           {/* Friends Balances Card */}
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-5 sm:p-6 shadow-sm">
+          <div className="card-base rounded-3xl p-5 sm:p-6 shadow-sm">
             <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)]">
               <div>
                 <h3 className="font-bold text-base text-[var(--color-text)]">
@@ -455,45 +491,52 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('friends')}
-                className="text-xs font-bold text-primary hover:underline"
+                className="text-xs font-bold text-primary hover:underline btn-press"
               >
                 All friends →
               </button>
             </div>
 
             {friendsWithBalances.length === 0 ? (
-              <div className="py-8 text-center space-y-2">
-                <Icon name="users" size={36} className="mx-auto text-[var(--color-text-muted)] opacity-60" />
+              <div className="py-10 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center mx-auto text-[var(--color-text-muted)]">
+                  <Icon name="users" size={24} />
+                </div>
                 <p className="text-xs text-[var(--color-text-muted)]">
                   No friends added yet.
                 </p>
                 <button
                   type="button"
                   onClick={() => onNavigate('friends')}
-                  className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
+                  className="btn-press btn-primary px-3.5 py-1.5 font-bold text-xs rounded-xl shadow-sm inline-flex items-center gap-1.5"
                 >
                   <Icon name="plus" size={14} />
                   <span>Add Friend</span>
                 </button>
               </div>
             ) : (
-              <div className="divide-y divide-[var(--color-border)]">
-                {friendsWithBalances.map(({ friend, breakdown }) => (
-                  <div key={friend.id} className="py-3.5 space-y-2">
+              <div className="divide-y divide-[var(--color-border-subtle)]">
+                {friendsWithBalances.map(({ friend, breakdown }, idx) => (
+                  <div
+                    key={friend.id}
+                    className="list-item-enter py-3.5 space-y-2 group"
+                    style={{ '--stagger-index': idx } as React.CSSProperties}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div
                         className="flex items-center gap-2.5 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
                         onClick={() => onSelectFriend(friend.id)}
                         title={`View statement with ${friend.name}`}
                       >
-                        <div className="w-8 h-8 rounded-full hero-gradient text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-sm">
+                        {/* Clear, readable avatar with primary subtle theme */}
+                        <div className="w-9 h-9 rounded-full bg-primary-subtle text-primary border border-primary-border font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
                           {personInitials(friend.name)}
                         </div>
                         <div className="overflow-hidden">
-                          <p className="font-bold text-xs text-[var(--color-text)] truncate">
+                          <p className="font-semibold text-sm text-[var(--color-text)] truncate">
                             {friend.name}
                           </p>
-                          <p className="text-[10px] text-[var(--color-text-muted)]">
+                          <p className="text-[11px] text-[var(--color-text-muted)]">
                             {breakdown.netMinor === 0
                               ? 'Square / Settled'
                               : breakdown.theyOweYou
@@ -514,7 +557,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleQuickSettle(friend.id, breakdown.netMinor)}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg shadow-sm transition-all active:scale-95"
+                            className="btn-press px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg shadow-sm"
                           >
                             Settle
                           </button>
@@ -524,7 +567,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                     {/* Source Chips Decomposition (SE-12) */}
                     {breakdown.slices.length > 0 && (
-                      <div className="pl-10">
+                      <div className="pl-11">
                         <SourceChips
                           slices={breakdown.slices}
                           groups={ledgerState.groups}

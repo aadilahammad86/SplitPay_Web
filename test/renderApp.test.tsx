@@ -64,11 +64,13 @@ describe('Application & Views Render Tests', () => {
     expect(html).toBeDefined()
   })
 
-  it('renders FriendsView', () => {
+  it('renders FriendsView with single Add Friend button', () => {
     const html = renderToString(
       wrap(<FriendsView onNavigateToStatement={() => {}} />)
     )
     expect(html).toBeDefined()
+    expect(html).toContain('Add Friend')
+    expect(html).not.toContain('Sync Contacts')
   })
 
   it('renders GroupsView', () => {

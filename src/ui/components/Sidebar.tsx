@@ -104,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <p className="text-xs font-bold text-[var(--color-text)] truncate">
                 {me?.name || 'You'}
               </p>
-              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+              <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
                 ● Active Profile
               </p>
             </div>
@@ -125,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   defaultAuthService.logout()
                 }
               }}
-              className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[var(--color-text-muted)] hover:text-rose-600 text-xs transition-colors"
+              className="p-1.5 rounded-lg hover:bg-rose-500/10 text-[var(--color-text-muted)] hover:text-rose-600 dark:hover:text-rose-400 text-xs transition-colors"
               title="Log Out"
               aria-label="Log Out"
             >
@@ -187,14 +187,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           onClick={handleSyncClick}
           disabled={isSyncing}
-          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+          className={`btn-press w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
             isSyncing
-              ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400'
+              ? 'bg-blue-500/10 border-blue-500/25 text-blue-700 dark:text-blue-400'
               : isOffline
-              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400'
+              ? 'bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-400'
               : isError
-              ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
-              : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400'
+              ? 'bg-rose-500/10 border-rose-500/25 text-rose-700 dark:text-rose-400'
+              : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800 dark:text-emerald-400'
           }`}
           title="Click to sync now"
         >

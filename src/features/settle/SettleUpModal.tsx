@@ -6,6 +6,7 @@ import type { CurrencyCode } from '../../domain/money'
 import { SupportedCurrencies } from '../../domain/money'
 import { BASE_CURRENCY } from '../../domain/entities'
 import { Icon } from '../../ui/components/Icon'
+import { SettleSuccess } from './SettleSuccess'
 
 interface SettleUpModalProps {
   isOpen: boolean
@@ -61,6 +62,17 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
   const [groupId, setGroupId] = useState<string | null>(initialGroupId)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [settledInfo, setSettledInfo] = useState<{
+    amountMinor: number
+    currency: CurrencyCode
+    friendName: string
+  } | null>(null)
+
+  const handleModalClose = () => {
+    setSettledInfo(null)
+    setError(null)
+    onClose()
+  }
 
   const totalMinor = Math.round((parseFloat(amountStr) || 0) * currency.scale)
 
@@ -90,16 +102,44 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
         groupId,
         note: note.trim(),
       })
-      onClose()
+      const otherPersonId = from === meId ? to : from
+      const otherPerson = ledgerState.people.find((p) => p.id === otherPersonId)
+      setSettledInfo({
+        amountMinor: totalMinor,
+        currency,
+        friendName: otherPerson?.name || 'Friend',
+      })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     }
   }
 
+  if (settledInfo) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={handleModalClose}
+        title={
+          <span className="flex items-center gap-2">
+            <Icon name="check" size={18} className="text-emerald-500" />
+            <span>Settled Up</span>
+          </span>
+        }
+      >
+        <SettleSuccess
+          amountMinor={settledInfo.amountMinor}
+          currency={settledInfo.currency}
+          friendName={settledInfo.friendName}
+          onDone={handleModalClose}
+        />
+      </Modal>
+    )
+  }
+
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleModalClose}
       title={
         <span className="flex items-center gap-2">
           <Icon name="moneyHand" size={20} className="text-emerald-500" />
@@ -173,7 +213,7 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
               placeholder="0.00"
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl text-lg font-bold text-emerald-600 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="font-money w-full px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl text-lg font-bold text-[var(--color-owed)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
             />
           </div>
         </div>
@@ -215,14 +255,14 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
         <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] transition-colors"
+            onClick={handleModalClose}
+            className="btn-press px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95"
+            className="btn-press btn-primary px-5 py-2 text-xs font-bold rounded-xl inline-flex items-center gap-1.5"
           >
             <Icon name="check" size={14} />
             <span>Record Payment</span>

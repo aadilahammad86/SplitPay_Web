@@ -19,9 +19,11 @@ import { AuthScreen } from './features/auth/AuthScreen'
 import { defaultAuthService, type UserAccount } from './services/auth/authService'
 import { Icon } from './ui/components/Icon'
 import { NotificationToast } from './ui/components/NotificationToast'
+import { useViewTransition } from './ui/useViewTransition'
 
 const AppContent: React.FC = () => {
   const { store, ledgerState } = useStore()
+  const transition = useViewTransition()
   const [session, setSession] = useState<UserAccount | null>(() => defaultAuthService.getCurrentSession())
 
   React.useEffect(() => {
@@ -195,14 +197,22 @@ const AppContent: React.FC = () => {
     )
   }
 
+  const handleNavigate = (tab: string) => {
+    transition(() => setCurrentTab(tab))
+  }
+
   const navigateToFriendStatement = (friendId: string) => {
-    setStatementSubjectId(friendId)
-    setCurrentTab('statements')
+    transition(() => {
+      setStatementSubjectId(friendId)
+      setCurrentTab('statements')
+    })
   }
 
   const navigateToGroupStatement = (groupId: string) => {
-    setStatementSubjectId(groupId)
-    setCurrentTab('statements')
+    transition(() => {
+      setStatementSubjectId(groupId)
+      setCurrentTab('statements')
+    })
   }
 
   return (
@@ -210,7 +220,7 @@ const AppContent: React.FC = () => {
       {/* Desktop/Tablet Left Sidebar Navigation (Adaptive LY-03) */}
       <Sidebar
         currentTab={currentTab}
-        onNavigate={setCurrentTab}
+        onNavigate={handleNavigate}
         onAddExpense={() => setShowGlobalExpenseModal(true)}
         onOpenInstall={() => setShowInstallModal(true)}
       />
@@ -218,13 +228,13 @@ const AppContent: React.FC = () => {
       {/* Main Area: Top Mobile Header + Scrollable Viewport */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Mobile Top Header */}
-        <Navbar currentTab={currentTab} onNavigate={setCurrentTab} />
+        <Navbar currentTab={currentTab} onNavigate={handleNavigate} />
 
         {/* Main Responsive View Container (Dynamic Centered Area) */}
         <main className="flex-1 w-full max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 pb-32 md:pb-10">
           {currentTab === 'dashboard' && (
             <DashboardView
-              onNavigate={setCurrentTab}
+              onNavigate={handleNavigate}
               onSelectFriend={(fId) => navigateToFriendStatement(fId)}
               onSelectGroup={(gId) => navigateToGroupStatement(gId)}
             />
@@ -245,16 +255,16 @@ const AppContent: React.FC = () => {
           )}
 
           {currentTab === 'settings' && (
-            <SettingsView onOpenAdmin={() => setCurrentTab('admin')} />
+            <SettingsView onOpenAdmin={() => handleNavigate('admin')} />
           )}
 
           {currentTab === 'admin' && (
-            <SuperAdminView onBackToApp={() => setCurrentTab('settings')} />
+            <SuperAdminView onBackToApp={() => handleNavigate('settings')} />
           )}
         </main>
 
         {/* Mobile Floating Bottom Navigation Dock */}
-        <BottomNav currentTab={currentTab} onNavigate={setCurrentTab} />
+        <BottomNav currentTab={currentTab} onNavigate={handleNavigate} />
       </div>
 
       {/* Global Modals */}

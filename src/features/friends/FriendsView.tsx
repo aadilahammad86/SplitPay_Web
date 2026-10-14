@@ -6,7 +6,8 @@ import { SourceChips } from '../../ui/components/SourceChips'
 import { Modal } from '../../ui/components/Modal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import { EditFriendModal } from './EditFriendModal'
-import { ContactSyncModal } from '../contacts/ContactSyncModal'
+import { ContactSyncContent } from '../contacts/ContactSyncModal'
+import { isContactPickerSupported } from '../../services/contacts/contactMatchingService'
 import { BASE_CURRENCY, personInitials, type Person } from '../../domain/entities'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 import { getSupabaseClient } from '../../supabase/supabaseClient'
@@ -22,12 +23,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
 
   const [search, setSearch] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [addFriendTab, setAddFriendTab] = useState<'manual' | 'contacts'>('manual')
   const [friendName, setFriendName] = useState('')
   const [friendHandle, setFriendHandle] = useState('')
   const [selectedFriend, setSelectedFriend] = useState<Person | null>(null)
   const [editingFriend, setEditingFriend] = useState<Person | null>(null)
   const [showSettle, setShowSettle] = useState(false)
-  const [showContactsModal, setShowContactsModal] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState(0)
 
@@ -126,6 +127,26 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
     setShowAddModal(false)
   }
 
+  const handleQuickPickContact = async () => {
+    try {
+      type ContactProperty = 'name' | 'tel'
+      interface ContactPickerSelect {
+        select: (props: ContactProperty[], options?: { multiple?: boolean }) => Promise<Array<{ name?: string[]; tel?: string[] }>>
+      }
+      const navWithContacts = navigator as unknown as { contacts: ContactPickerSelect }
+      if (navWithContacts.contacts?.select) {
+        const contacts = await navWithContacts.contacts.select(['name', 'tel'], { multiple: false })
+        if (contacts && contacts.length > 0) {
+          const c = contacts[0]
+          if (c?.name?.[0]) setFriendName(c.name[0])
+          if (c?.tel?.[0]) setFriendHandle(c.tel[0])
+        }
+      }
+    } catch {
+      // User cancelled contact picker
+    }
+  }
+
   const selectedFriendBreakdown = selectedFriend
     ? breakdownFor({
         me: meId,
@@ -216,15 +237,6 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               className="w-full pl-9 pr-3.5 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setShowContactsModal(true)}
-            className="px-3.5 py-2.5 bg-[var(--color-surface)] hover:bg-[var(--color-border)] text-[var(--color-text)] border border-[var(--color-border)] font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
-            title="Find friends from your contacts"
-          >
-            <Icon name="users" size={15} />
-            <span className="hidden sm:inline">Sync Contacts</span>
-          </button>
           {friends.length > 0 && (
             <button
               type="button"
@@ -232,7 +244,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 setIsSelectMode(!isSelectMode)
                 setSelectedFriendIds(new Set())
               }}
-              className={`px-3 py-2.5 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 ${
+              className={`px-3 py-2.5 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer ${
                 isSelectMode
                   ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
                   : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-border)]'
@@ -244,8 +256,11 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
           )}
           <button
             type="button"
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
+            onClick={() => {
+              setAddFriendTab('manual')
+              setShowAddModal(true)
+            }}
+            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
           >
             <Icon name="plus" size={16} />
             <span>Add Friend</span>
@@ -444,53 +459,121 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
         </div>
       )}
 
-      {/* Add Friend Modal */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add a Friend">
-        <form onSubmit={handleAddFriend} className="space-y-4 text-sm">
-          <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-              Friend's Full Name
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Rahul Sharma"
-              value={friendName}
-              onChange={(e) => setFriendName(e.target.value)}
-              className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
+      {/* Add Friend Modal (Unified Manual & Contacts Integration) */}
+      <Modal
+        isOpen={showAddModal}
+        onClose={() => {
+          setShowAddModal(false)
+          setAddFriendTab('manual')
+        }}
+        title="Add a Friend"
+        maxWidth="max-w-xl"
+      >
+        {/* Segmented Tab Controls */}
+        <div className="flex bg-[var(--color-surface-subtle)] p-1 rounded-xl border border-[var(--color-border)] mb-4">
+          <button
+            type="button"
+            onClick={() => setAddFriendTab('manual')}
+            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              addFriendTab === 'manual'
+                ? 'bg-[var(--color-surface)] text-[var(--color-text)] shadow-sm'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            <Icon name="edit" size={14} />
+            <span>Manual Entry</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAddFriendTab('contacts')}
+            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              addFriendTab === 'contacts'
+                ? 'bg-[var(--color-surface)] text-[var(--color-text)] shadow-sm'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            <Icon name="users" size={14} />
+            <span>From Contacts & Phone</span>
+          </button>
+        </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-              Handle or Note (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. rahul_s"
-              value={friendHandle}
-              onChange={(e) => setFriendHandle(e.target.value)}
-              className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
+        {addFriendTab === 'manual' ? (
+          <form onSubmit={handleAddFriend} className="space-y-4 text-sm">
+            {isContactPickerSupported() && (
+              <div className="p-3 bg-primary-subtle border border-primary-border rounded-xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs">
+                  <Icon name="smartphone" size={16} className="text-primary shrink-0" />
+                  <span className="text-[var(--color-text)] font-medium">Have their details in your phone?</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleQuickPickContact}
+                  className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-lg shadow-sm transition-all shrink-0 inline-flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                >
+                  <Icon name="users" size={13} />
+                  <span>Autofill from Contacts</span>
+                </button>
+              </div>
+            )}
 
-          <div className="pt-2 border-t border-[var(--color-border)] flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowAddModal(false)}
-              className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
-            >
-              <Icon name="check" size={14} />
-              <span>Save Friend</span>
-            </button>
-          </div>
-        </form>
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                Friend's Full Name
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Rahul Sharma"
+                value={friendName}
+                onChange={(e) => setFriendName(e.target.value)}
+                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                Handle, Mobile Number, or Note (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. rahul_s or +91 98765 43210"
+                value={friendHandle}
+                onChange={(e) => setFriendHandle(e.target.value)}
+                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            <div className="pt-2 border-t border-[var(--color-border)] flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setAddFriendTab('contacts')}
+                className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Icon name="search" size={13} />
+                <span>Search by phone instead →</span>
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Icon name="check" size={14} />
+                  <span>Save Friend</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : (
+          <ContactSyncContent />
+        )}
       </Modal>
 
       {/* Friend Detail Modal */}
@@ -644,12 +727,6 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
         isOpen={!!editingFriend}
         onClose={() => setEditingFriend(null)}
         friend={editingFriend}
-      />
-
-      {/* Contact Sync Modal */}
-      <ContactSyncModal
-        isOpen={showContactsModal}
-        onClose={() => setShowContactsModal(false)}
       />
     </div>
   )

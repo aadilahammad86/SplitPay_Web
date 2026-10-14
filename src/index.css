@@ -1,35 +1,109 @@
 @import "tailwindcss";
 
-:root {
-  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+@custom-variant dark (&:where(.dark, .dark *));
 
-  /* Default theme values (overridden dynamically by ThemeProvider) */
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
-  --color-surface-subtle: #f1f5f9;
-  --color-surface-elevated: #ffffff;
-  --color-border: #e2e8f0;
-  --color-border-subtle: #cbd5e1;
-  --color-text: #0f172a;
-  --color-text-muted: #64748b;
-  --color-text-subtle: #94a3b8;
-  --color-primary: #10b981;
-  --color-primary-hover: #059669;
-  --color-primary-text: #ffffff;
-  --color-primary-subtle: #ecfdf5;
-  --color-primary-border: #a7f3d0;
-  --color-primary-glow: rgba(16, 185, 129, 0.25);
-  --primary-gradient-from: #10b981;
-  --primary-gradient-to: #059669;
-  --color-positive: #10b981;
-  --color-positive-bg: #ecfdf5;
-  --color-negative: #f43f5e;
-  --color-negative-bg: #fff1f2;
-  --color-warning: #f59e0b;
-  --color-chip-track: #d1fae5;
+/* ── Tailwind v4 theme tokens ── */
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* ═══════════════════════════════════════════════
+   Design Tokens — CSS Custom Properties
+   Default values (light). ThemeProvider overrides
+   these at runtime via style.setProperty().
+   ═══════════════════════════════════════════════ */
+:root {
+  /* ── Surface layers ── */
+  --color-bg:               #f6f8fb;
+  --color-surface:          #ffffff;
+  --color-surface-subtle:   #f1f5f9;
+  --color-surface-raised:   #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-overlay:  rgba(0, 0, 0, 0.4);
+
+  /* ── Borders ── */
+  --color-border:           #e2e8f0;
+  --color-border-subtle:    #f1f5f9;
+
+  /* ── Text hierarchy ── */
+  --color-text:             #0f172a;
+  --color-text-secondary:   #475569;
+  --color-text-muted:       #64748b;
+  --color-text-subtle:      #94a3b8;
+  --color-text-disabled:    #94a3b8;
+
+  /* ── Brand (overridden per palette by ThemeProvider) ── */
+  --color-primary:          #10b981;
+  --color-primary-hover:    #059669;
+  --color-primary-active:   #047857;
+  --color-primary-text:     #ffffff;
+  --color-primary-subtle:   #ecfdf5;
+  --color-primary-border:   #a7f3d0;
+  --color-primary-glow:     rgba(16, 185, 129, 0.25);
+  --primary-gradient-from:  #10b981;
+  --primary-gradient-to:    #059669;
+
+  /* ── Semantic money colors (constant across all palettes) ── */
+  --color-owed:             #059669;
+  --color-owed-bg:          #ecfdf5;
+  --color-owed-border:      #a7f3d0;
+
+  --color-owe:              #e11d48;
+  --color-owe-bg:           #fff1f2;
+  --color-owe-border:       #fecdd3;
+
+  --color-pending:          #d97706;
+  --color-pending-bg:       #fffbeb;
+  --color-pending-border:   #fde68a;
+
+  --color-settled:          #94a3b8;
+  --color-settled-bg:       #f1f5f9;
+
+  /* ── Legacy semantic aliases (backward compat) ── */
+  --color-positive:         #10b981;
+  --color-positive-bg:      #ecfdf5;
+  --color-negative:         #f43f5e;
+  --color-negative-bg:      #fff1f2;
+  --color-warning:          #f59e0b;
+
+  /* ── Status ── */
+  --color-danger:           #f43f5e;
+  --color-danger-bg:        rgba(244, 63, 94, 0.08);
+  --color-info:             #3b82f6;
+  --color-info-bg:          rgba(59, 130, 246, 0.08);
+
+  /* ── Misc ── */
+  --color-chip-track:       #d1fae5;
+
+  /* ── Elevation (light mode — soft shadows) ── */
+  --shadow-xs:   0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:   0 4px 8px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:   0 8px 16px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04);
+  --shadow-xl:   0 16px 32px rgba(0,0,0,0.10), 0 8px 16px rgba(0,0,0,0.04);
+  --shadow-glow: 0 0 16px rgba(16, 185, 129, 0.15);
+
+  /* ── Motion tokens ── */
+  --duration-instant: 100ms;
+  --duration-fast:    150ms;
+  --duration-normal:  250ms;
+  --duration-slow:    400ms;
+  --duration-slower:  600ms;
+
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out:    cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring:    linear(
+    0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%,
+    0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%,
+    1.006 50%, 1.015 55%, 1.017 63.9%, 1.001 85.7%, 1
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   Global Resets & Base Styles
+   ═══════════════════════════════════════════════ */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -39,7 +113,7 @@ html, body {
   height: 100%;
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--sans);
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
@@ -54,7 +128,9 @@ html, body {
   background-color: var(--color-bg);
 }
 
-/* Reduced Motion Support (INV-9) */
+/* ═══════════════════════════════════════════════
+   Reduced Motion (INV-9)
+   ═══════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
@@ -62,9 +138,15 @@ html, body {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+  /* Allow opacity-only transitions (non-motion, still accessible) */
+  .transition-opacity {
+    transition-duration: 150ms !important;
+  }
 }
 
-/* Safe Area Insets for iOS Safari & Standalone PWA */
+/* ═══════════════════════════════════════════════
+   Safe Area Insets (iOS Safari & Standalone PWA)
+   ═══════════════════════════════════════════════ */
 .safe-top {
   padding-top: max(0.75rem, env(safe-area-inset-top));
 }
@@ -72,12 +154,14 @@ html, body {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
-/* Form Controls - Universal Dark/Light Theme Support */
+/* ═══════════════════════════════════════════════
+   Form Controls
+   ═══════════════════════════════════════════════ */
 input, select, textarea {
   background-color: var(--color-surface);
   color: var(--color-text);
   border: 1px solid var(--color-border);
-  transition: all 0.15s ease-in-out;
+  transition: all var(--duration-fast) var(--ease-out-expo);
 }
 
 input:focus, select:focus, textarea:focus {
@@ -98,19 +182,21 @@ input[type="number"] {
   appearance: textfield;
 }
 
-/* Uniform native select baseline styling (strips OS gradients, adds clean SVG chevron) */
+/* Uniform native select baseline styling */
 select {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polylyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 0.9rem;
   padding-right: 2.25rem !important;
 }
 
-/* Custom scrollbars */
+/* ═══════════════════════════════════════════════
+   Custom Scrollbars
+   ═══════════════════════════════════════════════ */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -126,7 +212,14 @@ select {
   background: var(--color-border-subtle);
 }
 
-/* Dynamic Palette Utility Classes */
+/* Hide scrollbar on swipe containers */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ═══════════════════════════════════════════════
+   Dynamic Palette Utility Classes
+   (Keep these — used throughout the codebase)
+   ═══════════════════════════════════════════════ */
 .bg-primary {
   background-color: var(--color-primary);
 }
@@ -149,7 +242,122 @@ select {
   background: linear-gradient(135deg, var(--primary-gradient-from), var(--primary-gradient-to));
 }
 
-/* Animations & Micro-Interactions */
+/* ═══════════════════════════════════════════════
+   Typography — Tabular Numerals for Money
+   ═══════════════════════════════════════════════ */
+.font-money {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  letter-spacing: -0.01em;
+}
+
+/* ═══════════════════════════════════════════════
+   Semantic Money Color Utilities
+   ═══════════════════════════════════════════════ */
+.text-owed   { color: var(--color-owed); }
+.text-owe    { color: var(--color-owe); }
+.text-pending { color: var(--color-pending); }
+.text-settled { color: var(--color-settled); }
+
+.bg-owed     { background-color: var(--color-owed-bg); }
+.bg-owe      { background-color: var(--color-owe-bg); }
+.bg-pending  { background-color: var(--color-pending-bg); }
+
+/* Legacy semantic aliases */
+.text-positive { color: var(--color-positive); }
+.text-negative { color: var(--color-negative); }
+.text-muted    { color: var(--color-text-muted); }
+
+/* ═══════════════════════════════════════════════
+   Card Depth System
+   3-layer surface hierarchy with inner-border
+   glow on dark, subtle shadow on light.
+   ═══════════════════════════════════════════════ */
+.card-base {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-raised {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md), 0 1px 0 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.card-elevated {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+}
+
+.card-hero {
+  background: linear-gradient(135deg, var(--primary-gradient-from), var(--primary-gradient-to));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-xl), 0 0 40px var(--color-primary-glow);
+}
+
+/* ═══════════════════════════════════════════════
+   Interactive Card — Hover Lift
+   ═══════════════════════════════════════════════ */
+.card-interactive {
+  transition:
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-fast) var(--ease-out-expo),
+    border-color var(--duration-fast) var(--ease-out-expo);
+}
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary-border);
+}
+.card-interactive:active {
+  transform: translateY(0) scale(0.99);
+}
+
+/* Legacy alias */
+.card-hover {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+}
+
+/* ═══════════════════════════════════════════════
+   Button Interactions
+   ═══════════════════════════════════════════════ */
+.btn-press {
+  transition:
+    transform var(--duration-instant) var(--ease-out-expo),
+    box-shadow var(--duration-fast) var(--ease-out-expo),
+    background-color var(--duration-fast) var(--ease-out-expo);
+  cursor: pointer;
+}
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  box-shadow: var(--shadow-sm);
+}
+.btn-primary:hover {
+  background: var(--color-primary-hover);
+  box-shadow: var(--shadow-glow);
+}
+.btn-primary:active {
+  background: var(--color-primary-active, var(--color-primary-hover));
+  transform: scale(0.97);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ═══════════════════════════════════════════════
+   Animation Keyframes
+   ═══════════════════════════════════════════════ */
+
+/* ── Base enter animations ── */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -160,6 +368,12 @@ select {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Modal animations ── */
 @keyframes modalBackdropFade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -176,36 +390,137 @@ select {
   }
 }
 
+/* ── Subtle pulse (decorative) ── */
 @keyframes pulseSubtle {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.85; transform: scale(1.02); }
 }
 
+/* ── Skeleton pulse (refined — less aggressive) ── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Number / balance enter ── */
+@keyframes numberEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* ── Settle success — checkmark ── */
+@keyframes checkPop {
+  0%   { transform: scale(0); opacity: 0; }
+  50%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes checkDraw {
+  from { stroke-dasharray: 30; stroke-dashoffset: 30; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* ── Sync status ── */
+@keyframes syncSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes syncFlash {
+  0%   { color: var(--color-pending); transform: scale(1); }
+  40%  { color: var(--color-owed); transform: scale(1.3); }
+  100% { color: var(--color-owed); transform: scale(1); }
+}
+
+/* ═══════════════════════════════════════════════
+   Animation Utility Classes
+   ═══════════════════════════════════════════════ */
 .animate-fade-in {
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn var(--duration-normal) var(--ease-out-expo) forwards;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUp var(--duration-normal) var(--ease-out-expo) forwards;
 }
 
 .animate-modal-backdrop {
-  animation: modalBackdropFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: modalBackdropFade var(--duration-normal) var(--ease-out-expo) forwards;
 }
 
 .animate-modal-pop {
-  animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: modalPop var(--duration-normal) var(--ease-out-expo) forwards;
 }
 
 .animate-pulse-subtle {
   animation: pulseSubtle 3s infinite ease-in-out;
 }
 
-/* Card hover micro-interaction */
-.card-hover {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+
+/* List item stagger enter — set --stagger-index via style prop in React */
+.list-item-enter {
+  animation: slideInUp var(--duration-normal) var(--ease-out-expo) both;
+  animation-delay: calc(var(--stagger-index, 0) * 50ms);
+}
+
+/* Number / balance count-up reveal */
+.number-enter {
+  animation: numberEnter var(--duration-slower) var(--ease-out-expo) both;
+}
+
+/* Settle success animations */
+.animate-check-pop {
+  animation: checkPop var(--duration-slow) var(--ease-out-back) both;
+}
+.animate-check-draw {
+  stroke-dasharray: 30;
+  animation: checkDraw var(--duration-slow) var(--ease-out-expo) 200ms both;
+}
+
+/* Sync animations */
+.animate-sync-spin {
+  animation: syncSpin 1.2s linear infinite;
+}
+.animate-sync-done {
+  animation: syncFlash 600ms var(--ease-out-expo) both;
+}
+
+/* ═══════════════════════════════════════════════
+   View Transitions (progressive enhancement)
+   ═══════════════════════════════════════════════ */
+::view-transition-old(root) {
+  animation: var(--duration-slow) var(--ease-in-out) both fadeOutSlide;
+}
+::view-transition-new(root) {
+  animation: var(--duration-slow) var(--ease-out-expo) both fadeInSlide;
+}
+
+@keyframes fadeOutSlide {
+  to { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes fadeInSlide {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* ═══════════════════════════════════════════════
+   Currency Badge (for mixed-currency views)
+   ═══════════════════════════════════════════════ */
+.currency-badge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary, var(--color-text-muted));
+  line-height: 1;
 }
