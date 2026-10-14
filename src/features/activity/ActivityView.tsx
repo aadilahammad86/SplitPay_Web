@@ -11,6 +11,10 @@ export const ActivityView: React.FC = () => {
 
   const [filter, setFilter] = useState<'all' | 'expenses' | 'settlements'>('all')
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
+  const [cachedExpense, setCachedExpense] = useState<Expense | null>(null)
+  if (editingExpense && editingExpense !== cachedExpense) {
+    setCachedExpense(editingExpense)
+  }
 
   const peopleMap = useMemo(
     () => new Map(ledgerState.people.map((p) => [p.id, p])),
@@ -503,13 +507,11 @@ export const ActivityView: React.FC = () => {
       )}
 
       {/* Edit Expense Modal */}
-      {editingExpense && (
-        <ExpenseEditorModal
-          isOpen={!!editingExpense}
-          onClose={() => setEditingExpense(null)}
-          expenseToEdit={editingExpense}
-        />
-      )}
+      <ExpenseEditorModal
+        isOpen={Boolean(editingExpense)}
+        onClose={() => setEditingExpense(null)}
+        expenseToEdit={editingExpense || cachedExpense}
+      />
     </div>
   )
 }

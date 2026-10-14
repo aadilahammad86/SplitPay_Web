@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { defaultAuthService, type UserAccount } from '../../services/auth/authService'
+import React, { useState, useEffect } from 'react'
+import { defaultAuthService, type UserAccount, type UsernameCheckResult } from '../../services/auth/authService'
 import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import { Icon } from '../../ui/components/Icon'
 import { Select } from '../../ui/components/Select'
@@ -23,6 +23,32 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   // Status & Feedback
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [usernameCheck, setUsernameCheck] = useState<UsernameCheckResult>({
+    available: true,
+    status: 'idle',
+    message: '',
+  })
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false)
+
+  // Real-time username check on signup
+  useEffect(() => {
+    if (mode !== 'signup') return
+    const clean = username.trim().toLowerCase().replace(/^@/, '')
+    if (!clean) {
+      setUsernameCheck({ available: true, status: 'idle', message: '' })
+      setIsCheckingUsername(false)
+      return
+    }
+
+    setIsCheckingUsername(true)
+    const timer = setTimeout(async () => {
+      const res = await defaultAuthService.checkUsernameAvailability(clean)
+      setUsernameCheck(res)
+      setIsCheckingUsername(false)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [username, mode])
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,12 +72,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMessage(null)
+
+    const clean = username.trim().toLowerCase().replace(/^@/, '')
+    if (clean) {
+      if (usernameCheck.status === 'unavailable' || usernameCheck.status === 'invalid') {
+        setErrorMessage(usernameCheck.message || 'Please choose an available username.')
+        return
+      }
+      const check = await defaultAuthService.checkUsernameAvailability(clean)
+      if (!check.available) {
+        setUsernameCheck(check)
+        setErrorMessage(check.message)
+        return
+      }
+    }
+
     setLoading(true)
 
     try {
       const res = await defaultAuthService.register({
         name: displayName.trim() || 'You',
-        username: username.trim(),
+        username: clean,
         password: password,
       })
       if (!res.success || !res.account) {
@@ -166,7 +207,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                   type="text"
                   required
                   autoFocus
-                  placeholder="aadil"
+                  placeholder="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
@@ -237,7 +278,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
               <input
                 type="text"
                 required
-                placeholder="e.g. Aadil"
+                placeholder="e.g. Alex Rivera"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-sm text-[var(--color-text)] focus:outline-none"
@@ -255,11 +296,48 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                 <input
                   type="text"
                   required
-                  placeholder="aadil"
+                  placeholder="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
+                  className={`w-full pl-8 pr-10 py-2.5 bg-[var(--color-surface-subtle)] border rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none transition-colors ${
+                    usernameCheck.status === 'unavailable' || usernameCheck.status === 'invalid'
+                      ? 'border-rose-500 focus:ring-1 focus:ring-rose-500'
+                      : usernameCheck.status === 'available' && username.trim()
+                        ? 'border-emerald-500/80 focus:ring-1 focus:ring-emerald-500'
+                        : 'border-[var(--color-border)] focus:border-primary'
+                  }`}
                 />
+                <div className="absolute right-3.5 top-2.5 flex items-center">
+                  {isCheckingUsername ? (
+                    <Icon name="reload" size={16} className="text-[var(--color-text-muted)] animate-spin" />
+                  ) : usernameCheck.status === 'available' && username.trim() ? (
+                    <Icon name="check" size={16} className="text-emerald-500" />
+                  ) : usernameCheck.status === 'unavailable' ? (
+                    <Icon name="close" size={16} className="text-rose-500" />
+                  ) : usernameCheck.status === 'invalid' ? (
+                    <Icon name="alert" size={16} className="text-amber-500" />
+                  ) : null}
+                </div>
+              </div>
+              {/* Availability Message */}
+              <div className="mt-1 min-h-[16px]">
+                {isCheckingUsername ? (
+                  <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1 animate-pulse">
+                    <span>Checking availability...</span>
+                  </p>
+                ) : usernameCheck.message ? (
+                  <p
+                    className={`text-[11px] font-medium flex items-center gap-1 animate-fade-in ${
+                      usernameCheck.status === 'available'
+                        ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                        : usernameCheck.status === 'unavailable'
+                          ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                          : 'text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
+                    <span>{usernameCheck.message}</span>
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -306,8 +384,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md transition-all inline-flex items-center justify-center gap-2 mt-2"
+              disabled={loading || (!usernameCheck.available && usernameCheck.status !== 'idle') || isCheckingUsername}
+              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-2xl shadow-md transition-all inline-flex items-center justify-center gap-2 mt-2 press-bounce cursor-pointer"
             >
               {loading ? (
                 <>

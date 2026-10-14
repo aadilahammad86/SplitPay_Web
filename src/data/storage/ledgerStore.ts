@@ -41,7 +41,7 @@ export class LedgerStore {
   private adapter: StorageAdapter
   private state: LedgerState
   private listeners = new Set<() => void>()
-  private knownMeIds = new Set<string>()
+  public readonly knownMeIds = new Set<string>()
 
   constructor(adapter: StorageAdapter) {
     this.adapter = adapter
@@ -131,6 +131,9 @@ export class LedgerStore {
         p.name !== 'You' &&
         p.name !== 'SplitPay Friend' &&
         p.name !== 'Guest User' &&
+        p.name.toLowerCase() !== 'test' &&
+        p.name.toLowerCase() !== 'demo' &&
+        p.name.toLowerCase() !== 'demo user' &&
         !p.id.startsWith('invited_') &&
         p.name.trim() !== ''
       ) {

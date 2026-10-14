@@ -319,6 +319,108 @@ export class AuthService {
     }
     this.notify(null)
   }
+
+  async checkUsernameAvailability(
+    username: string,
+    currentUserId?: string,
+    knownMeIds?: Set<string>
+  ): Promise<UsernameCheckResult> {
+    const clean = username.trim().toLowerCase().replace(/^@/, '')
+    if (!clean) {
+      return { available: false, status: 'idle', message: '' }
+    }
+    if (clean.length < 3) {
+      return {
+        available: false,
+        status: 'invalid',
+        message: 'Username must be at least 3 characters',
+      }
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(clean)) {
+      return {
+        available: false,
+        status: 'invalid',
+        message: 'Only letters, numbers, and underscores allowed',
+      }
+    }
+    if (clean.length > 30) {
+      return {
+        available: false,
+        status: 'invalid',
+        message: 'Username cannot exceed 30 characters',
+      }
+    }
+
+    // If candidate matches the current session username, it belongs to this user
+    const session = this.getCurrentSession()
+    if (session && session.username?.toLowerCase() === clean) {
+      return {
+        available: true,
+        status: 'available',
+        message: '✓ This is your current username',
+      }
+    }
+
+    // 1. Check local device registered accounts
+    const localAccounts = this.getStoredAccounts()
+    const existingLocal = localAccounts[clean]
+    if (
+      existingLocal &&
+      existingLocal.id !== currentUserId &&
+      (!knownMeIds || !knownMeIds.has(existingLocal.id))
+    ) {
+      return {
+        available: false,
+        status: 'unavailable',
+        message: `@${clean} is already registered on this device`,
+      }
+    }
+
+    // 2. Check remote cloud Supabase profiles
+    try {
+      const supabase = getSupabaseClient()
+      if (supabase) {
+        const { data: rows, error } = await supabase
+          .from('profiles')
+          .select('id, handle, invite_code')
+          .or(`handle.ilike.${clean},invite_code.ilike.${clean}`)
+          .limit(10)
+
+        if (!error && Array.isArray(rows) && rows.length > 0) {
+          const conflicting = rows.find((r) => {
+            if (currentUserId && r.id === currentUserId) return false
+            if (knownMeIds && knownMeIds.has(r.id)) return false
+            if (session && r.id === session.id) return false
+            const rHandle = (r.handle || '').toLowerCase()
+            const rInvite = (r.invite_code || '').toLowerCase()
+            return rHandle === clean || rInvite === clean
+          })
+
+          if (conflicting) {
+            return {
+              available: false,
+              status: 'unavailable',
+              message: `@${clean} is already taken`,
+            }
+          }
+        }
+      }
+    } catch {
+      // Offline fallback: if cloud unreachable, local check stands
+    }
+
+    return {
+      available: true,
+      status: 'available',
+      message: `✓ @${clean} is available`,
+    }
+  }
+}
+
+export interface UsernameCheckResult {
+  available: boolean
+  status: 'idle' | 'available' | 'unavailable' | 'invalid'
+  message: string
 }
 
 export const defaultAuthService = new AuthService()

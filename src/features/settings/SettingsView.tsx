@@ -1,14 +1,14 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useStore } from '../../ui/storeContext'
 import { useTheme } from '../../ui/themeContext'
 import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
-import { OnboardingModal } from '../onboarding/OnboardingModal'
 import { EmailVerificationModal } from '../auth/EmailVerificationModal'
 import { PhoneLinkingModal } from '../auth/PhoneLinkingModal'
 import { ContactSyncModal } from '../contacts/ContactSyncModal'
 import { formatE164Display } from '../../domain/phone'
 import { Icon, type IconName } from '../../ui/components/Icon'
-import { defaultAuthService } from '../../services/auth/authService'
+import { Switch } from '../../ui/components/Switch'
+import { defaultAuthService, type UsernameCheckResult } from '../../services/auth/authService'
 import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import {
   defaultNotificationService,
@@ -67,8 +67,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
   const [passcodeMsg, setPasscodeMsg] = useState<string | null>(null)
   const [showPasscodeForm, setShowPasscodeForm] = useState(false)
 
-  // Onboarding Replay
-  const [showOnboarding, setShowOnboarding] = useState(false)
+  // Username Availability Checking
+  const [usernameCheck, setUsernameCheck] = useState<UsernameCheckResult>({
+    available: true,
+    status: 'idle',
+    message: '',
+  })
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false)
 
   // Backup & Restore
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
@@ -92,8 +97,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
   )
   const [notifMsg, setNotifMsg] = useState<string | null>(null)
 
-  const handleToggleNotifications = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.checked
+  const handleToggleNotifications = (val: boolean) => {
     setNotifEnabled(val)
     defaultNotificationService.setEnabled(val)
     setNotifMsg(val ? '✓ In-app and browser notifications enabled' : 'Notifications disabled')
@@ -146,12 +150,53 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
     }
   }
 
+  // Debounce username availability check against local accounts and Supabase profiles
+  useEffect(() => {
+    const clean = profileHandle.trim().toLowerCase().replace(/^@/, '')
+    if (!clean) {
+      setUsernameCheck({ available: true, status: 'idle', message: '' })
+      setIsCheckingUsername(false)
+      return
+    }
+
+    setIsCheckingUsername(true)
+    const timer = setTimeout(async () => {
+      const res = await defaultAuthService.checkUsernameAvailability(
+        clean,
+        currentSession?.id || me?.id,
+        store.knownMeIds
+      )
+      setUsernameCheck(res)
+      setIsCheckingUsername(false)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [profileHandle, currentSession?.id, me?.id, store.knownMeIds])
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!profileName.trim()) return
+    const clean = profileHandle.trim().toLowerCase().replace(/^@/, '')
+
+    if (clean) {
+      if (usernameCheck.status === 'unavailable' || usernameCheck.status === 'invalid') {
+        return
+      }
+      // Re-verify synchronously in case user submits while typing
+      const check = await defaultAuthService.checkUsernameAvailability(
+        clean,
+        currentSession?.id || me?.id,
+        store.knownMeIds
+      )
+      if (!check.available) {
+        setUsernameCheck(check)
+        return
+      }
+    }
+
     await store.updateLocalProfile({
       name: profileName.trim(),
-      handle: profileHandle.trim() ? profileHandle.trim().replace(/^@/, '') : undefined,
+      handle: clean || undefined,
     })
     setSavedProfileMsg(true)
     setTimeout(() => setSavedProfileMsg(false), 2500)
@@ -232,24 +277,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-12">
-      {/* Header & Tour trigger */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight">
-            Settings & Identity
-          </h2>
-          <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-0.5">
-            Personal profile, color palettes, password security, and shared ledger sync.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowOnboarding(true)}
-          className="px-4 py-2 bg-primary-subtle border border-primary-border text-primary font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all self-start sm:self-auto shadow-sm inline-flex items-center gap-1.5"
-        >
-          <Icon name="star" size={14} className="text-amber-500" />
-          <span>Replay Setup Wizard</span>
-        </button>
+      {/* Header */}
+      <div>
+        <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)] tracking-tight">
+          Settings & Identity
+        </h2>
+        <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-0.5">
+          Personal profile, color palettes, password security, and shared ledger sync.
+        </p>
       </div>
 
       {/* Account & Session Status Section */}
@@ -334,8 +369,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
                   value={profileHandle}
                   onChange={(e) => setProfileHandle(e.target.value)}
                   placeholder="username"
-                  className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
+                  className={`w-full pl-8 pr-10 py-2.5 bg-[var(--color-surface-subtle)] border rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none transition-colors ${
+                    usernameCheck.status === 'unavailable' || usernameCheck.status === 'invalid'
+                      ? 'border-rose-500 focus:ring-1 focus:ring-rose-500'
+                      : usernameCheck.status === 'available' && profileHandle.trim()
+                        ? 'border-emerald-500/80 focus:ring-1 focus:ring-emerald-500'
+                        : 'border-[var(--color-border)] focus:border-primary'
+                  }`}
                 />
+                <div className="absolute right-3.5 top-2.5 flex items-center">
+                  {isCheckingUsername ? (
+                    <Icon name="reload" size={16} className="text-[var(--color-text-muted)] animate-spin" />
+                  ) : usernameCheck.status === 'available' && profileHandle.trim() ? (
+                    <Icon name="check" size={16} className="text-emerald-500" />
+                  ) : usernameCheck.status === 'unavailable' ? (
+                    <Icon name="close" size={16} className="text-rose-500" />
+                  ) : usernameCheck.status === 'invalid' ? (
+                    <Icon name="alert" size={16} className="text-amber-500" />
+                  ) : null}
+                </div>
+              </div>
+              {/* Availability Status Message */}
+              <div className="mt-1.5 min-h-[16px]">
+                {isCheckingUsername ? (
+                  <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 animate-pulse">
+                    <span>Checking availability...</span>
+                  </p>
+                ) : usernameCheck.message ? (
+                  <p
+                    className={`text-[11px] font-medium flex items-center gap-1 animate-fade-in ${
+                      usernameCheck.status === 'available'
+                        ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                        : usernameCheck.status === 'unavailable'
+                          ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                          : 'text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
+                    <span>{usernameCheck.message}</span>
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -350,7 +422,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
             </span>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all"
+              disabled={(!usernameCheck.available && usernameCheck.status !== 'idle') || isCheckingUsername}
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer press-bounce"
             >
               Save Profile
             </button>
@@ -463,18 +536,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
             </span>
           </div>
 
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={me?.discoverableByPhone ?? false}
-              disabled={!me?.phoneVerified}
-              onChange={async (e) => {
-                await store.updateLocalProfile({ discoverableByPhone: e.target.checked })
-              }}
-              className="sr-only peer"
-            />
-            <div className="w-10 h-6 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary disabled:opacity-40" />
-          </label>
+          <Switch
+            checked={me?.discoverableByPhone ?? false}
+            disabled={!me?.phoneVerified}
+            onChange={async (val) => {
+              await store.updateLocalProfile({ discoverableByPhone: val })
+            }}
+            ariaLabel="Discoverable by Phone Number"
+          />
         </div>
       </div>
 
@@ -622,15 +691,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
             </p>
           </div>
 
-          <label className="relative inline-flex items-center cursor-pointer self-start sm:self-auto">
-            <input
-              type="checkbox"
-              checked={notifEnabled}
-              onChange={handleToggleNotifications}
-              className="sr-only peer"
-            />
-            <div className="w-10 h-6 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary cursor-pointer" />
-          </label>
+          <Switch
+            checked={notifEnabled}
+            onChange={handleToggleNotifications}
+            ariaLabel="Real-Time Notifications & Alerts"
+            className="self-start sm:self-auto"
+          />
         </div>
 
         {notifMsg && (
@@ -920,12 +986,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
           </button>
         )}
       </div>
-
-      {/* Replayable Onboarding Modal */}
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-      />
 
       {/* Email Verification Modal */}
       <EmailVerificationModal

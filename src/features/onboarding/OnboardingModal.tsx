@@ -1,13 +1,14 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { Select } from '../../ui/components/Select'
+import { Switch } from '../../ui/components/Switch'
 import { useStore } from '../../ui/storeContext'
 import { useTheme } from '../../ui/themeContext'
 import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import type { ThemeMode, ColorPaletteId } from '../../ui/theme'
 import { Icon } from '../../ui/components/Icon'
 import { normalizeToE164 } from '../../domain/phone'
-import { defaultAuthService } from '../../services/auth/authService'
+import { defaultAuthService, type UsernameCheckResult } from '../../services/auth/authService'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -27,6 +28,40 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
   const [phone, setPhone] = useState(store.me?.phone || '')
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(SupportedCurrencies[0])
   const [submitting, setSubmitting] = useState(false)
+  const [usernameCheck, setUsernameCheck] = useState<UsernameCheckResult>({
+    available: true,
+    status: 'idle',
+    message: '',
+  })
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false)
+
+  // Real-time username check on onboarding
+  useEffect(() => {
+    if (isGuestMode) {
+      setUsernameCheck({ available: true, status: 'idle', message: '' })
+      setIsCheckingUsername(false)
+      return
+    }
+    const clean = username.trim().toLowerCase().replace(/^@/, '')
+    if (!clean) {
+      setUsernameCheck({ available: true, status: 'idle', message: '' })
+      setIsCheckingUsername(false)
+      return
+    }
+
+    setIsCheckingUsername(true)
+    const timer = setTimeout(async () => {
+      const res = await defaultAuthService.checkUsernameAvailability(
+        clean,
+        store.me?.id,
+        store.knownMeIds
+      )
+      setUsernameCheck(res)
+      setIsCheckingUsername(false)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [username, isGuestMode, store.me?.id, store.knownMeIds])
 
   const handleFinish = async () => {
     setSubmitting(true)
@@ -162,8 +197,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                   <Icon name="beach" size={20} />
                 </div>
                 <div>
-                  <p className="font-bold text-xs text-[var(--color-text)]">Goa Beach Villa</p>
-                  <p className="text-[11px] text-[var(--color-text-muted)]">₹12,000.00 split equally among 4</p>
+                  <p className="font-bold text-xs text-[var(--color-text)]">Weekend Getaway</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">₹12,000.00 split equally among friends</p>
                 </div>
               </div>
               <span className="font-extrabold text-xs text-primary px-3 py-1 bg-[var(--color-surface)] border border-primary-border rounded-xl">
@@ -193,7 +228,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Swalih"
+                  placeholder="e.g. Alex Rivera"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-sm text-[var(--color-text)] focus:outline-none"
@@ -210,27 +245,64 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                   </span>
                   <input
                     type="text"
-                    placeholder="swalih"
+                    placeholder="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
+                    className={`w-full pl-8 pr-10 py-2.5 bg-[var(--color-surface-subtle)] border rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none transition-colors ${
+                      usernameCheck.status === 'unavailable' || usernameCheck.status === 'invalid'
+                        ? 'border-rose-500 focus:ring-1 focus:ring-rose-500'
+                        : usernameCheck.status === 'available' && username.trim()
+                          ? 'border-emerald-500/80 focus:ring-1 focus:ring-emerald-500'
+                          : 'border-[var(--color-border)] focus:border-primary'
+                    }`}
                   />
+                  <div className="absolute right-3.5 top-2.5 flex items-center">
+                    {isCheckingUsername ? (
+                      <Icon name="reload" size={16} className="text-[var(--color-text-muted)] animate-spin" />
+                    ) : usernameCheck.status === 'available' && username.trim() ? (
+                      <Icon name="check" size={16} className="text-emerald-500" />
+                    ) : usernameCheck.status === 'unavailable' ? (
+                      <Icon name="close" size={16} className="text-rose-500" />
+                    ) : usernameCheck.status === 'invalid' ? (
+                      <Icon name="alert" size={16} className="text-amber-500" />
+                    ) : null}
+                  </div>
+                </div>
+                {/* Availability status message */}
+                <div className="mt-1 min-h-[16px]">
+                  {isCheckingUsername ? (
+                    <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1 animate-pulse">
+                      <span>Checking availability...</span>
+                    </p>
+                  ) : usernameCheck.message && !isGuestMode ? (
+                    <p
+                      className={`text-[11px] font-medium flex items-center gap-1 animate-fade-in ${
+                        usernameCheck.status === 'available'
+                          ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                          : usernameCheck.status === 'unavailable'
+                            ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                            : 'text-amber-600 dark:text-amber-400'
+                      }`}
+                    >
+                      <span>{usernameCheck.message}</span>
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
               {/* Account Security / Password / Guest Mode Toggle */}
               <div className="p-3 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[var(--color-text)]">Account Security</span>
-                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isGuestMode}
-                      onChange={(e) => setIsGuestMode(e.target.checked)}
-                      className="rounded accent-primary"
-                    />
-                    <span>Continue as Guest</span>
-                  </label>
+                  <div>
+                    <span className="text-xs font-semibold text-[var(--color-text)] block">Account Security</span>
+                    <span className="text-[11px] text-[var(--color-text-muted)] block">Continue as guest without password</span>
+                  </div>
+                  <Switch
+                    checked={isGuestMode}
+                    onChange={setIsGuestMode}
+                    size="sm"
+                    ariaLabel="Continue as Guest"
+                  />
                 </div>
 
                 {!isGuestMode ? (
@@ -442,8 +514,13 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
           {step < stepsCount - 1 ? (
             <button
               type="button"
+              disabled={
+                step === 1 &&
+                !isGuestMode &&
+                ((!usernameCheck.available && usernameCheck.status !== 'idle') || isCheckingUsername)
+              }
               onClick={() => setStep(step + 1)}
-              className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all"
+              className="px-6 py-2.5 bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-md transition-all press-bounce cursor-pointer"
             >
               Next →
             </button>

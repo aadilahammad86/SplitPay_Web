@@ -97,19 +97,25 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
     setMemberToAdd('')
   }
 
+  const [cachedGroup, setCachedGroup] = useState<Group | null>(selectedGroup)
+  if (selectedGroup && selectedGroup !== cachedGroup) {
+    setCachedGroup(selectedGroup)
+  }
+  const activeGroup = selectedGroup || cachedGroup
+
   // Simplified Debts for selected group
-  const debtPlan = selectedGroup
+  const debtPlan = activeGroup
     ? simplifyDebts(
         groupNets({
-          group: selectedGroup,
+          group: activeGroup,
           expenses: ledgerState.expenses,
           settlements: ledgerState.settlements,
         })
       )
     : []
 
-  const groupExpenses = selectedGroup
-    ? ledgerState.expenses.filter((e) => !e.isTombstone && e.groupId === selectedGroup.id)
+  const groupExpenses = activeGroup
+    ? ledgerState.expenses.filter((e) => !e.isTombstone && e.groupId === activeGroup.id)
     : []
 
   const peopleMap = new Map(ledgerState.people.map((p) => [p.id, p]))
@@ -302,26 +308,28 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
       />
 
       {/* Group Detail Modal */}
-      {selectedGroup && (
-        <Modal
-          isOpen={Boolean(selectedGroup)}
-          onClose={() => setSelectedGroup(null)}
-          title={
+      <Modal
+        isOpen={Boolean(selectedGroup)}
+        onClose={() => setSelectedGroup(null)}
+        title={
+          activeGroup ? (
             <span className="flex items-center gap-2">
               <span className="w-7 h-7 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
-                <CategoryIcon category={GroupKindInfo[selectedGroup.kind].emoji} size={18} />
+                <CategoryIcon category={GroupKindInfo[activeGroup.kind].emoji} size={18} />
               </span>
-              <span>{selectedGroup.name}</span>
+              <span>{activeGroup.name}</span>
             </span>
-          }
-          maxWidth="max-w-2xl"
-        >
+          ) : ''
+        }
+        maxWidth="max-w-2xl"
+      >
+        {activeGroup ? (
           <div className="space-y-5 text-sm">
             {/* Action Bar */}
             <div className="flex flex-wrap gap-2 items-center justify-between pb-3 border-b border-[var(--color-border)]">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--color-text-muted)]">
-                  {selectedGroup.memberIds.length} members · {selectedGroup.currency.code}
+                  {activeGroup.memberIds.length} members · {activeGroup.currency.code}
                 </span>
                 <button
                   type="button"
@@ -345,7 +353,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                 <button
                   type="button"
                   onClick={() => {
-                    const id = selectedGroup.id
+                    const id = activeGroup.id
                     setSelectedGroup(null)
                     onNavigateToGroupStatement(id)
                   }}
@@ -361,7 +369,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
-                  Group Members ({selectedGroup.memberIds.length})
+                  Group Members ({activeGroup.memberIds.length})
                 </h4>
                 <button
                   type="button"
@@ -374,7 +382,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {selectedGroup.memberIds.map((mId) => {
+                {activeGroup.memberIds.map((mId) => {
                   const person = peopleMap.get(mId)
                   const isMe = store.isMe(mId)
                   return (
@@ -385,7 +393,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                       <span className="font-semibold text-[var(--color-text)]">
                         {isMe ? 'You' : person?.name || 'Unknown'}
                       </span>
-                      {selectedGroup.memberIds.length > 1 && (
+                      {activeGroup.memberIds.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveMemberFromGroup(mId)}
@@ -439,7 +447,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                         <div className="flex items-center gap-2">
                           <MoneyDisplay
                             minor={transfer.amountMinor}
-                            currency={selectedGroup.currency}
+                            currency={activeGroup.currency}
                             size="sm"
                             showSign={false}
                           />
@@ -511,7 +519,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
             <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => handleDeleteSingleGroup(selectedGroup)}
+                onClick={() => handleDeleteSingleGroup(activeGroup)}
                 className="px-3.5 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <Icon name="delete" size={14} />
@@ -527,12 +535,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               </button>
             </div>
           </div>
-        </Modal>
-      )}
+        ) : null}
+      </Modal>
 
       {/* Add Member Modal */}
-      {showAddMember && selectedGroup && (
-        <Modal isOpen={showAddMember} onClose={() => setShowAddMember(false)} title="Add Member to Group">
+      <Modal isOpen={showAddMember} onClose={() => setShowAddMember(false)} title="Add Member to Group">
+        {activeGroup ? (
           <div className="space-y-4 text-sm">
             <div>
               <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
@@ -545,7 +553,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                 options={[
                   { value: '', label: 'Select a friend...' },
                   ...ledgerState.people
-                    .filter((p) => !selectedGroup.memberIds.includes(p.id))
+                    .filter((p) => !activeGroup.memberIds.includes(p.id))
                     .map((p) => ({
                       value: p.id,
                       label: p.name,
@@ -572,28 +580,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               </button>
             </div>
           </div>
-        </Modal>
-      )}
+        ) : null}
+      </Modal>
 
       {/* Sub-modals for Expense & Settle */}
-      {showAddExpense && selectedGroup && (
-        <ExpenseEditorModal
-          isOpen={showAddExpense}
-          onClose={() => setShowAddExpense(false)}
-          initialGroupId={selectedGroup.id}
-        />
-      )}
+      <ExpenseEditorModal
+        isOpen={showAddExpense}
+        onClose={() => setShowAddExpense(false)}
+        initialGroupId={selectedGroup?.id ?? activeGroup?.id}
+      />
 
-      {showSettle && selectedGroup && (
-        <SettleUpModal
-          isOpen={showSettle}
-          onClose={() => setShowSettle(false)}
-          initialGroupId={selectedGroup.id}
-          initialAmountMinor={settleAmount}
-          initialFromId={settleFrom}
-          initialToId={settleTo}
-        />
-      )}
+      <SettleUpModal
+        isOpen={showSettle}
+        onClose={() => setShowSettle(false)}
+        initialGroupId={selectedGroup?.id ?? activeGroup?.id}
+        initialAmountMinor={settleAmount}
+        initialFromId={settleFrom}
+        initialToId={settleTo}
+      />
     </div>
   )
 }

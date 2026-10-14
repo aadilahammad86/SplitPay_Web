@@ -555,16 +555,22 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
   initialFriendId = null,
   expenseToEdit = null,
 }) => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
   const [shouldRenderForm, setShouldRenderForm] = useState(isOpen)
 
-  useEffect(() => {
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
     if (isOpen) {
       setShouldRenderForm(true)
-    } else {
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen && shouldRenderForm) {
       const timer = setTimeout(() => setShouldRenderForm(false), 250)
       return () => clearTimeout(timer)
     }
-  }, [isOpen])
+  }, [isOpen, shouldRenderForm])
 
   return (
     <Modal

@@ -150,10 +150,16 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
     }
   }
 
-  const selectedFriendBreakdown = selectedFriend
+  const [cachedFriend, setCachedFriend] = useState<Person | null>(selectedFriend)
+  if (selectedFriend && selectedFriend !== cachedFriend) {
+    setCachedFriend(selectedFriend)
+  }
+  const activeDetailFriend = selectedFriend || cachedFriend
+
+  const activeFriendBreakdown = activeDetailFriend
     ? breakdownFor({
         me: meId,
-        friend: selectedFriend.id,
+        friend: activeDetailFriend.id,
         expenses: ledgerState.expenses,
         settlements: ledgerState.settlements,
         isMe: (id) => store.isMe(id),
@@ -161,20 +167,20 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
     : null
 
   // Mutual transactions with selected friend
-  const mutualTransactions = selectedFriend
+  const mutualTransactions = activeDetailFriend
     ? [
         ...ledgerState.expenses
           .filter((e) =>
             !e.isTombstone &&
             e.shares.some(
               (s) =>
-                (s.owedBy === selectedFriend.id && store.isMe(s.owedTo)) ||
-                (store.isMe(s.owedBy) && s.owedTo === selectedFriend.id)
+                (s.owedBy === activeDetailFriend.id && store.isMe(s.owedTo)) ||
+                (store.isMe(s.owedBy) && s.owedTo === activeDetailFriend.id)
             )
           )
           .map((e) => {
             const myShare = e.shares.find((s) => store.isMe(s.owedBy))?.amountMinor ?? 0
-            const friendShare = e.shares.find((s) => s.owedBy === selectedFriend.id)?.amountMinor ?? 0
+            const friendShare = e.shares.find((s) => s.owedBy === activeDetailFriend.id)?.amountMinor ?? 0
             return {
               id: e.id,
               title: e.description,
@@ -191,12 +197,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
           .filter(
             (s) =>
               !s.isTombstone &&
-              ((store.isMe(s.from) && s.to === selectedFriend.id) ||
-                (s.from === selectedFriend.id && store.isMe(s.to)))
+              ((store.isMe(s.from) && s.to === activeDetailFriend.id) ||
+                (s.from === activeDetailFriend.id && store.isMe(s.to)))
           )
           .map((s) => ({
             id: s.id,
-            title: store.isMe(s.from) ? `Payment to ${selectedFriend.name}` : `Payment from ${selectedFriend.name}`,
+            title: store.isMe(s.from) ? `Payment to ${activeDetailFriend.name}` : `Payment from ${activeDetailFriend.name}`,
             totalMinor: s.amountMinor,
             relevantMinor: s.amountMinor,
             currency: s.currency,
@@ -542,7 +548,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Rahul Sharma"
+                    placeholder="e.g. Sarah Jenkins"
                     value={friendName}
                     onChange={(e) => setFriendName(e.target.value)}
                     className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
@@ -555,7 +561,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. rahul_s or +91 98765 43210"
+                    placeholder="e.g. sarah_j or phone number"
                     value={friendHandle}
                     onChange={(e) => setFriendHandle(e.target.value)}
                     className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
@@ -600,13 +606,13 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
       </Modal>
 
       {/* Friend Detail Modal */}
-      {selectedFriend && selectedFriendBreakdown && (
-        <Modal
-          isOpen={Boolean(selectedFriend)}
-          onClose={() => setSelectedFriend(null)}
-          title={`Balance with ${selectedFriend.name}`}
-          maxWidth="max-w-xl"
-        >
+      <Modal
+        isOpen={Boolean(selectedFriend)}
+        onClose={() => setSelectedFriend(null)}
+        title={activeDetailFriend ? `Balance with ${activeDetailFriend.name}` : ''}
+        maxWidth="max-w-xl"
+      >
+        {activeDetailFriend && activeFriendBreakdown ? (
           <div className="space-y-5 text-sm">
             {/* Top Balance Banner */}
             <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex items-center justify-between">
@@ -616,7 +622,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 </span>
                 <div className="text-xl font-extrabold">
                   <MoneyDisplay
-                    minor={selectedFriendBreakdown.netMinor}
+                    minor={activeFriendBreakdown.netMinor}
                     currency={currentCurrency}
                     size="lg"
                     showSign={true}
@@ -628,7 +634,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 <button
                   type="button"
                   onClick={() => {
-                    const toEdit = selectedFriend
+                    const toEdit = activeDetailFriend
                     setSelectedFriend(null)
                     setEditingFriend(toEdit)
                   }}
@@ -640,7 +646,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 <button
                   type="button"
                   onClick={() => {
-                    const toRemove = selectedFriend
+                    const toRemove = activeDetailFriend
                     setSelectedFriend(null)
                     handleRemoveSingleFriend(toRemove)
                   }}
@@ -649,12 +655,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                   <Icon name="delete" size={14} />
                   <span>Remove</span>
                 </button>
-                {selectedFriendBreakdown.netMinor !== 0 && (
+                {activeFriendBreakdown.netMinor !== 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      const id = selectedFriend.id
-                      const net = selectedFriendBreakdown.netMinor
+                      const id = activeDetailFriend.id
+                      const net = activeFriendBreakdown.netMinor
                       setSelectedFriend(null)
                       handleOpenSettle(id, net)
                     }}
@@ -667,7 +673,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 <button
                   type="button"
                   onClick={() => {
-                    const id = selectedFriend.id
+                    const id = activeDetailFriend.id
                     setSelectedFriend(null)
                     onNavigateToStatement(id)
                   }}
@@ -680,13 +686,13 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
             </div>
 
             {/* Source Chips Detail */}
-            {selectedFriendBreakdown.slices.length > 0 && (
+            {activeFriendBreakdown.slices.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                   Decomposed Balance Sources
                 </h4>
                 <SourceChips
-                  slices={selectedFriendBreakdown.slices}
+                  slices={activeFriendBreakdown.slices}
                   groups={ledgerState.groups}
                   defaultCurrency={currentCurrency}
                 />
@@ -714,7 +720,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                           <p className="font-bold text-[var(--color-text)]">{tx.title}</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">
                             {new Date(Math.floor(tx.createdAtMicros / 1000)).toLocaleDateString()} ·{' '}
-                            {tx.paidByMe ? 'You paid' : `${selectedFriend.name} paid`}
+                            {tx.paidByMe ? 'You paid' : `${activeDetailFriend.name} paid`}
                           </p>
                         </div>
                       </div>
@@ -732,18 +738,16 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               )}
             </div>
           </div>
-        </Modal>
-      )}
+        ) : null}
+      </Modal>
 
       {/* Settle Up Modal */}
-      {showSettle && (
-        <SettleUpModal
-          isOpen={showSettle}
-          onClose={() => setShowSettle(false)}
-          initialFriendId={settleFriendId}
-          initialAmountMinor={settleAmountMinor}
-        />
-      )}
+      <SettleUpModal
+        isOpen={showSettle}
+        onClose={() => setShowSettle(false)}
+        initialFriendId={settleFriendId}
+        initialAmountMinor={settleAmountMinor}
+      />
 
       {/* Edit Friend Modal */}
       <EditFriendModal

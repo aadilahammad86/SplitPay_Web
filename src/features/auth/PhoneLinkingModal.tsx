@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { Icon } from '../../ui/components/Icon'
 import { Select } from '../../ui/components/Select'
+import { Switch } from '../../ui/components/Switch'
 import { normalizeToE164, formatE164Display } from '../../domain/phone'
 import { useStore } from '../../ui/storeContext'
 
@@ -131,15 +132,13 @@ export const PhoneLinkingModal: React.FC<PhoneLinkingModalProps> = ({
             </span>
           </div>
 
-          <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-            <input
-              type="checkbox"
-              checked={discoverable}
-              onChange={(e) => setDiscoverable(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-9 h-5 bg-[var(--color-border)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary" />
-          </label>
+          <Switch
+            checked={discoverable}
+            onChange={setDiscoverable}
+            size="sm"
+            ariaLabel="Allow friends to find me"
+            className="mt-0.5"
+          />
         </div>
 
         {errorMsg && (

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { useStore } from '../../ui/storeContext'
 import type { Person } from '../../domain/entities'
@@ -67,7 +67,7 @@ const EditFriendForm: React.FC<{ friend: Person; onClose: () => void }> = ({ fri
         <input
           type="text"
           required
-          placeholder="e.g. Maya Chen"
+          placeholder="Friend's name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-sm text-[var(--color-text)] focus:outline-none"
@@ -84,7 +84,7 @@ const EditFriendForm: React.FC<{ friend: Person; onClose: () => void }> = ({ fri
           </span>
           <input
             type="text"
-            placeholder="mayachen"
+            placeholder="username"
             value={handle}
             onChange={(e) => setHandle(e.target.value)}
             className="w-full pl-8 pr-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-sm text-[var(--color-text)] focus:outline-none"
@@ -133,11 +133,11 @@ const EditFriendForm: React.FC<{ friend: Person; onClose: () => void }> = ({ fri
 }
 
 export const EditFriendModal: React.FC<EditFriendModalProps> = ({ isOpen, onClose, friend }) => {
-  const activeFriendRef = useRef<Person | null>(null)
-  if (friend) {
-    activeFriendRef.current = friend
+  const [cachedFriend, setCachedFriend] = useState<Person | null>(friend)
+  if (friend && friend !== cachedFriend) {
+    setCachedFriend(friend)
   }
-  const activeFriend = friend || activeFriendRef.current
+  const activeFriend = friend || cachedFriend
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Friend Profile">

@@ -170,17 +170,36 @@ describe('Local Storage - IndexedDB Persistence & Transactional Outbox (INV-6, A
     expect(found?.handle).toBe('robert_c')
   })
 
-  it('loads sample demo ledger with friends, group, and multiple expenses', async () => {
+  it('creates friends, group, and multiple expenses with outbox persistence', async () => {
     const store = new LedgerStore(adapter)
     await store.init()
 
-    await store.loadSampleDemoLedger(Currencies.INR)
-    const state = store.getState()
+    const me = store.me!
+    const friend1 = await store.addFriend('Friend One', 'friend_1')
+    const friend2 = await store.addFriend('Friend Two', 'friend_2')
 
-    expect(state.people.length).toBeGreaterThanOrEqual(4) // You + Alex + Maya + Liam
+    const group = await store.createGroup({
+      name: 'Shared Trip',
+      kind: 'trip',
+      memberIds: [friend1.id, friend2.id],
+      currency: Currencies.INR,
+    })
+
+    await store.addExpense({
+      description: 'Lodging',
+      totalMinor: 100000,
+      currency: Currencies.INR,
+      paidBy: me.id,
+      groupId: group.id,
+      memberIds: [me.id, friend1.id, friend2.id],
+      mode: 'equal',
+    })
+
+    const state = store.getState()
+    expect(state.people.length).toBeGreaterThanOrEqual(3)
     expect(state.groups.length).toBe(1)
-    expect(state.groups[0]?.name).toBe('Weekend Getaway (Goa)')
-    expect(state.expenses.length).toBe(3)
+    expect(state.groups[0]?.name).toBe('Shared Trip')
+    expect(state.expenses.length).toBe(1)
   })
 })
 

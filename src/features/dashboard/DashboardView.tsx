@@ -596,29 +596,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Sub-modals for Expense & Settle */}
-      {showAddExpense && (
-        <ExpenseEditorModal
-          isOpen={showAddExpense}
-          onClose={() => setShowAddExpense(false)}
-        />
-      )}
+      <ExpenseEditorModal
+        isOpen={showAddExpense}
+        onClose={() => setShowAddExpense(false)}
+      />
 
-      {showSettleUp && (
-        <SettleUpModal
-          isOpen={showSettleUp}
-          onClose={() => setShowSettleUp(false)}
-          initialFriendId={settleFriendId}
-          initialAmountMinor={settleAmountMinor}
-        />
-      )}
+      <SettleUpModal
+        isOpen={showSettleUp}
+        onClose={() => setShowSettleUp(false)}
+        initialFriendId={settleFriendId}
+        initialAmountMinor={settleAmountMinor}
+      />
 
-      {showCreateGroup && (
-        <CreateGroupModal
-          isOpen={showCreateGroup}
-          onClose={() => setShowCreateGroup(false)}
-          onCreated={(groupId) => onSelectGroup(groupId)}
-        />
-      )}
+      <CreateGroupModal
+        isOpen={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        onCreated={(groupId) => onSelectGroup(groupId)}
+      />
     </div>
   )
 }
