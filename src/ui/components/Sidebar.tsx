@@ -69,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }[mode]
 
   return (
-    <aside className="hidden md:flex flex-col w-64 lg:w-72 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)]/80 backdrop-blur-md sticky top-0 h-screen p-5 justify-between select-none">
+    <aside className="hidden md:flex flex-col w-64 lg:w-72 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)]/80 backdrop-blur-md sticky top-0 h-screen h-[100dvh] self-start p-5 justify-between select-none overflow-y-auto z-30">
       {/* Top section: Logo & App Identity */}
       <div className="space-y-6">
         <div
