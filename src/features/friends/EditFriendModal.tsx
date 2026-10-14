@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { useStore } from '../../ui/storeContext'
 import type { Person } from '../../domain/entities'
@@ -105,7 +105,7 @@ const EditFriendForm: React.FC<{ friend: Person; onClose: () => void }> = ({ fri
           type="button"
           onClick={handleDelete}
           disabled={isSaving}
-          className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors inline-flex items-center gap-1.5 active:scale-95"
+          className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors inline-flex items-center gap-1.5"
         >
           <Icon name="delete" size={14} />
           <span>Remove Friend</span>
@@ -122,7 +122,7 @@ const EditFriendForm: React.FC<{ friend: Person; onClose: () => void }> = ({ fri
           <button
             type="submit"
             disabled={isSaving}
-            className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50"
+            className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all disabled:opacity-50"
           >
             {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
@@ -133,9 +133,15 @@ const EditFriendForm: React.FC<{ friend: Person; onClose: () => void }> = ({ fri
 }
 
 export const EditFriendModal: React.FC<EditFriendModalProps> = ({ isOpen, onClose, friend }) => {
+  const activeFriendRef = useRef<Person | null>(null)
+  if (friend) {
+    activeFriendRef.current = friend
+  }
+  const activeFriend = friend || activeFriendRef.current
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Friend Profile">
-      {friend ? <EditFriendForm key={friend.id} friend={friend} onClose={onClose} /> : null}
+      {activeFriend ? <EditFriendForm key={activeFriend.id} friend={activeFriend} onClose={onClose} /> : null}
     </Modal>
   )
 }

@@ -7,10 +7,10 @@
 | :--- | :--- | :--- | :--- | :--- |
 | Background | `--color-bg` | `#f8fafc` | `#090d16` | `#000000` |
 | Surface | `--color-surface` | `#ffffff` | `#131b2e` | `#0a0a0a` |
-| Surface Subtle | `--color-surface-subtle` | `#f1f5f9` | `#1e293b` | `#141414` |
+| Surface Subtle | `--color-surface-subtle` | `#e2e8f0` | `#1e293b` | `#141414` |
 | Surface Elevated | `--color-surface-elevated` | `#ffffff` | `#1a243a` | `#171717` |
-| Border | `--color-border` | `#e2e8f0` | `#2a3754` | `#262626` |
-| Border Subtle | `--color-border-subtle` | `#cbd5e1` | `#1e293b` | `#1a1a1a` |
+| Border | `--color-border` | `#cbd5e1` | `#2a3754` | `#262626` |
+| Border Subtle | `--color-border-subtle` | `#e2e8f0` | `#1e293b` | `#1a1a1a` |
 
 ### Text Levels & Semantics (`src/ui/theme.ts:225-257`)
 | Token | CSS Variable | Light | Dark / AMOLED | Usage |

@@ -200,7 +200,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md transition-all active:scale-95 inline-flex items-center justify-center gap-2"
+              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md transition-all inline-flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -307,7 +307,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md transition-all active:scale-95 inline-flex items-center justify-center gap-2 mt-2"
+              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md transition-all inline-flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
                 <>
@@ -381,7 +381,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md transition-all active:scale-95 inline-flex items-center justify-center gap-2"
+              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-2xl shadow-md transition-all inline-flex items-center justify-center gap-2"
             >
               <Icon name="check" size={16} />
               <span>Start Using SplitPay as Guest</span>

@@ -147,7 +147,7 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95"
+                className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
               >
                 {loading ? <Icon name="reload" size={14} className="animate-spin" /> : <Icon name="send" size={14} />}
                 <span>Send Code</span>
@@ -243,7 +243,7 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
                 <button
                   type="submit"
                   disabled={otpInput.length !== 6 || loading}
-                  className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95"
+                  className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
                 >
                   <Icon name="check" size={14} />
                   <span>Verify Email</span>

@@ -193,13 +193,13 @@ export interface ThemeColors {
 export const lightTheme: ThemeColors = {
   bg: '#f6f8fb',
   surface: '#ffffff',
-  surfaceSubtle: '#f1f5f9',
+  surfaceSubtle: '#e2e8f0',
   surfaceRaised: '#ffffff',
   surfaceElevated: '#ffffff',
   surfaceOverlay: 'rgba(0, 0, 0, 0.4)',
 
-  border: '#e2e8f0',
-  borderSubtle: '#f1f5f9',
+  border: '#cbd5e1',
+  borderSubtle: '#e2e8f0',
 
   text: '#0f172a',
   textSecondary: '#475569',
@@ -225,7 +225,7 @@ export const lightTheme: ThemeColors = {
   pendingBg: '#fffbeb',
   pendingBorder: '#fde68a',
   settled: '#94a3b8',
-  settledBg: '#f1f5f9',
+  settledBg: '#e2e8f0',
 
   positive: '#10b981',
   positiveBg: '#ecfdf5',

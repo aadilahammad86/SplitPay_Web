@@ -246,7 +246,7 @@ export const ActivityView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowDeleted(!showDeleted)}
-                  className={`px-2.5 py-2 font-bold text-xs rounded-xl border transition-all flex items-center gap-1 active:scale-95 shrink-0 cursor-pointer ${
+                  className={`px-2.5 py-2 font-bold text-xs rounded-xl border transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
                     showDeleted
                       ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
                       : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
@@ -264,7 +264,7 @@ export const ActivityView: React.FC = () => {
                   setIsSelectMode(!isSelectMode)
                   setSelectedItemIds(new Set())
                 }}
-                className={`px-3 py-2 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer ${
+                className={`px-3 py-2 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   isSelectMode
                     ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
                     : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-border)]'
@@ -277,7 +277,7 @@ export const ActivityView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleClearAllActivity}
-                className="px-2.5 py-2 font-bold text-xs rounded-xl border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
+                className="px-2.5 py-2 font-bold text-xs rounded-xl border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all flex items-center gap-1 cursor-pointer"
                 title="Clear all activity transactions"
               >
                 <Icon name="delete" size={14} />
@@ -313,7 +313,7 @@ export const ActivityView: React.FC = () => {
               type="button"
               disabled={selectedItemIds.size === 0}
               onClick={handleCancelSelected}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 cursor-pointer"
             >
               <Icon name="close" size={13} />
               <span>Cancel Selected ({selectedItemIds.size})</span>
@@ -322,7 +322,7 @@ export const ActivityView: React.FC = () => {
               type="button"
               disabled={selectedItemIds.size === 0}
               onClick={handlePermanentRemoveSelected}
-              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 cursor-pointer"
             >
               <Icon name="delete" size={14} />
               <span>Delete Permanently ({selectedItemIds.size})</span>

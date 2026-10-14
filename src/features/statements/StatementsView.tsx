@@ -113,7 +113,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
           <button
             type="button"
             onClick={handleDownloadCsv}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
           >
             <Icon name="document" size={16} />
             <span>Download CSV</span>

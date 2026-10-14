@@ -228,7 +228,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
             <button
               type="submit"
               disabled={searchingPhone || !phoneSearchQuery.trim()}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 shrink-0 inline-flex items-center justify-center gap-1.5"
+              className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all shrink-0 inline-flex items-center justify-center gap-1.5"
             >
               {searchingPhone ? <Icon name="reload" size={13} className="animate-spin" /> : <Icon name="users" size={13} />}
               <span>Search</span>
@@ -261,7 +261,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
                     type="button"
                     disabled={searchResult.match.alreadyFriend}
                     onClick={() => handleAddMatchedFriend(searchResult.match!)}
-                    className="px-3.5 py-1.5 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:bg-primary-hover disabled:opacity-50 shrink-0 inline-flex items-center gap-1"
+                    className="px-3.5 py-1.5 bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:bg-primary-hover disabled:opacity-50 shrink-0 inline-flex items-center gap-1 transition-all cursor-pointer"
                   >
                     <Icon name={searchResult.match.alreadyFriend ? 'check' : 'plus'} size={12} />
                     <span>{searchResult.match.alreadyFriend ? 'Friend' : 'Add Friend'}</span>
@@ -283,7 +283,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
                       href={searchResult.whatsappInviteUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all self-start sm:self-auto"
+                      className="btn-press inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all cursor-pointer self-start sm:self-auto"
                     >
                       <span>Invite via WhatsApp</span>
                       <Icon name="share" size={12} />
@@ -311,7 +311,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
                 type="button"
                 disabled={loading}
                 onClick={handleTriggerContactPicker}
-                className="px-3.5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5"
               >
                 {loading ? <Icon name="reload" size={13} className="animate-spin" /> : <Icon name="users" size={13} />}
                 <span>Pick Contacts</span>
@@ -340,7 +340,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
                             type="button"
                             disabled={friend.alreadyFriend}
                             onClick={() => handleAddMatchedFriend(friend)}
-                            className="px-3 py-1 text-xs font-bold bg-primary text-white rounded-lg disabled:opacity-50"
+                            className="px-3 py-1 text-xs font-bold bg-primary hover:bg-primary-hover text-white rounded-lg disabled:opacity-50 transition-all cursor-pointer"
                           >
                             {friend.alreadyFriend ? 'Added' : 'Add Friend'}
                           </button>
@@ -369,7 +369,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
                             href={u.whatsappUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="px-3 py-1 text-xs font-bold bg-emerald-600 text-white rounded-lg shadow-sm"
+                            className="btn-press px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm transition-all cursor-pointer"
                           >
                             Invite
                           </a>
@@ -401,7 +401,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
             <button
               type="button"
               onClick={handleShareInvite}
-              className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 shrink-0"
+              className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
             >
               <Icon name="share" size={13} />
               <span>{copiedLink ? 'Copied!' : 'Share Link'}</span>

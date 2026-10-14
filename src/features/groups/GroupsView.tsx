@@ -134,7 +134,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                 setIsSelectMode(!isSelectMode)
                 setSelectedGroupIds(new Set())
               }}
-              className={`px-3 py-2.5 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer ${
+              className={`px-3 py-2.5 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                 isSelectMode
                   ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
                   : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-border)]'
@@ -147,7 +147,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
           <button
             type="button"
             onClick={() => setShowCreateGroup(true)}
-            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
+            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
           >
             <Icon name="plus" size={16} />
             <span>Create Group</span>
@@ -176,7 +176,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               type="button"
               disabled={selectedGroupIds.size === 0}
               onClick={handleDeleteSelectedGroups}
-              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 cursor-pointer"
             >
               <Icon name="delete" size={14} />
               <span>Delete Selected Groups ({selectedGroupIds.size})</span>
@@ -198,7 +198,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
           <button
             type="button"
             onClick={() => setShowCreateGroup(true)}
-            className="mt-2 px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-md hover:bg-primary-hover transition-all inline-flex items-center gap-1.5 active:scale-95"
+            className="mt-2 px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-md hover:bg-primary-hover transition-all inline-flex items-center gap-1.5"
           >
             <Icon name="plus" size={14} />
             <span>Create your first group</span>
@@ -376,7 +376,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               <div className="flex flex-wrap gap-2">
                 {selectedGroup.memberIds.map((mId) => {
                   const person = peopleMap.get(mId)
-                  const isMe = mId === meId
+                  const isMe = store.isMe(mId)
                   return (
                     <div
                       key={mId}
@@ -422,8 +422,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               ) : (
                 <div className="space-y-2">
                   {debtPlan.map((transfer, idx) => {
-                    const debtorName = transfer.from === meId ? 'You' : peopleMap.get(transfer.from)?.name || 'Unknown'
-                    const creditorName = transfer.to === meId ? 'You' : peopleMap.get(transfer.to)?.name || 'Unknown'
+                    const debtorName = store.isMe(transfer.from) ? 'You' : peopleMap.get(transfer.from)?.name || 'Unknown'
+                    const creditorName = store.isMe(transfer.to) ? 'You' : peopleMap.get(transfer.to)?.name || 'Unknown'
 
                     return (
                       <div
@@ -485,7 +485,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
                         <div>
                           <p className="font-semibold text-xs text-[var(--color-text)]">{exp.description}</p>
                           <span className="text-[10px] text-[var(--color-text-muted)]">
-                            Paid by {exp.paidBy === meId ? 'You' : peopleMap.get(exp.paidBy)?.name || 'Unknown'} ·{' '}
+                            Paid by {store.isMe(exp.paidBy) ? 'You' : peopleMap.get(exp.paidBy)?.name || 'Unknown'} ·{' '}
                             {new Date(Math.floor(exp.createdAtMicros / 1000)).toLocaleDateString(undefined, {
                               month: 'short',
                               day: 'numeric',
@@ -512,7 +512,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
               <button
                 type="button"
                 onClick={() => handleDeleteSingleGroup(selectedGroup)}
-                className="px-3.5 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors inline-flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <Icon name="delete" size={14} />
                 <span>Delete Group</span>

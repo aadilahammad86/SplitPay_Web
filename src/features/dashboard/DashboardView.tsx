@@ -323,7 +323,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           {tx.title}
                         </p>
                         <p className="text-xs text-[var(--color-text-muted)] truncate mt-0.5">
-                          {tx.paidBy === meId ? 'You paid' : `${tx.paidByName} paid`} ·{' '}
+                          {store.isMe(tx.paidBy) ? 'You paid' : `${tx.paidByName} paid`} ·{' '}
                           {formatRelativeDate(tx.createdAtMicros)}
                         </p>
                       </div>
@@ -336,10 +336,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         )}
                         <span
                           className={`font-money text-sm font-bold ${
-                            tx.paidBy === meId ? 'text-owed' : 'text-owe'
+                            store.isMe(tx.paidBy) ? 'text-owed' : 'text-owe'
                           }`}
                         >
-                          {tx.paidBy === meId ? '+' : '\u2212'}
+                          {store.isMe(tx.paidBy) ? '+' : '\u2212'}
                           <MoneyDisplay
                             minor={tx.totalMinor}
                             currency={tx.currency}
@@ -350,7 +350,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </span>
                       </div>
                       <span className="block text-[10px] font-semibold text-[var(--color-text-muted)] mt-0.5">
-                        {tx.paidBy === meId ? 'you lent' : 'you borrowed'}
+                        {store.isMe(tx.paidBy) ? 'you lent' : 'you borrowed'}
                       </span>
                     </div>
                   </div>

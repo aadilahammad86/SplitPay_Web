@@ -17,14 +17,14 @@
   /* ── Surface layers ── */
   --color-bg:               #f6f8fb;
   --color-surface:          #ffffff;
-  --color-surface-subtle:   #f1f5f9;
+  --color-surface-subtle:   #e2e8f0;
   --color-surface-raised:   #ffffff;
   --color-surface-elevated: #ffffff;
   --color-surface-overlay:  rgba(0, 0, 0, 0.4);
 
   /* ── Borders ── */
-  --color-border:           #e2e8f0;
-  --color-border-subtle:    #f1f5f9;
+  --color-border:           #cbd5e1;
+  --color-border-subtle:    #e2e8f0;
 
   /* ── Text hierarchy ── */
   --color-text:             #0f172a;
@@ -58,7 +58,7 @@
   --color-pending-border:   #fde68a;
 
   --color-settled:          #94a3b8;
-  --color-settled-bg:       #f1f5f9;
+  --color-settled-bg:       #e2e8f0;
 
   /* ── Legacy semantic aliases (backward compat) ── */
   --color-positive:         #10b981;
@@ -325,17 +325,45 @@ select {
 }
 
 /* ═══════════════════════════════════════════════
-   Button Interactions
+   Universal Button Press & Soft Smooth Bounce
+   Applies to all buttons, role="button", and .btn-press
    ═══════════════════════════════════════════════ */
-.btn-press {
-  transition:
-    transform var(--duration-instant) var(--ease-out-expo),
-    box-shadow var(--duration-fast) var(--ease-out-expo),
-    background-color var(--duration-fast) var(--ease-out-expo);
+button:not(:disabled):not([aria-disabled="true"]),
+[role="button"]:not([aria-disabled="true"]):not([disabled]),
+.btn-press,
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled) {
   cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transform: scale(1) translateZ(0);
+  /* Soft smooth bounce spring on release */
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.45, 0.64, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+  will-change: transform;
 }
-.btn-press:active {
-  transform: scale(0.97);
+
+/* Snappy, responsive compression when pressed down */
+button:not(:disabled):not([aria-disabled="true"]):active,
+[role="button"]:not([aria-disabled="true"]):not([disabled]):active,
+.btn-press:active,
+input[type="button"]:not(:disabled):active,
+input[type="submit"]:not(:disabled):active {
+  transform: scale(0.97) translateZ(0);
+  transition: transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Navigation rows, sidebar items, and stationary controls should never shrink */
+nav button:active,
+aside button:active,
+.sidebar-nav-item:active,
+.no-press:active {
+  transform: none !important;
 }
 
 .btn-primary {
@@ -349,7 +377,6 @@ select {
 }
 .btn-primary:active {
   background: var(--color-primary-active, var(--color-primary-hover));
-  transform: scale(0.97);
   box-shadow: var(--shadow-xs);
 }
 
@@ -379,6 +406,11 @@ select {
   to { opacity: 1; }
 }
 
+@keyframes modalBackdropFadeExit {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @keyframes modalPop {
   from {
     opacity: 0;
@@ -387,6 +419,29 @@ select {
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modalPopExit {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96) translateY(12px);
+  }
+}
+
+/* ── Tab transition ── */
+@keyframes tabSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -454,8 +509,20 @@ select {
   animation: modalBackdropFade var(--duration-normal) var(--ease-out-expo) forwards;
 }
 
+.animate-modal-backdrop-exit {
+  animation: modalBackdropFadeExit 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 .animate-modal-pop {
   animation: modalPop var(--duration-normal) var(--ease-out-expo) forwards;
+}
+
+.animate-modal-pop-exit {
+  animation: modalPopExit 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-tab-enter {
+  animation: tabSlideIn 200ms var(--ease-out-expo) both;
 }
 
 .animate-pulse-subtle {
@@ -496,19 +563,26 @@ select {
 
 /* ═══════════════════════════════════════════════
    View Transitions (progressive enhancement)
+   Keep root stable; only crossfade main content
    ═══════════════════════════════════════════════ */
-::view-transition-old(root) {
-  animation: var(--duration-slow) var(--ease-in-out) both fadeOutSlide;
-}
+::view-transition-old(root),
 ::view-transition-new(root) {
-  animation: var(--duration-slow) var(--ease-out-expo) both fadeInSlide;
+  animation: none;
 }
 
-@keyframes fadeOutSlide {
-  to { opacity: 0; transform: translateY(-8px); }
+main {
+  view-transition-name: app-main;
 }
-@keyframes fadeInSlide {
-  from { opacity: 0; transform: translateY(8px); }
+
+::view-transition-old(app-main) {
+  animation: 140ms cubic-bezier(0.4, 0, 0.2, 1) both fadeOut;
+}
+::view-transition-new(app-main) {
+  animation: 140ms cubic-bezier(0.4, 0, 0.2, 1) both fadeIn;
+}
+
+@keyframes fadeOut {
+  to { opacity: 0; }
 }
 
 /* ═══════════════════════════════════════════════

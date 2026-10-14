@@ -154,7 +154,7 @@ export const SyncStatusModal: React.FC<SyncStatusModalProps> = ({ isOpen, onClos
             type="button"
             disabled={isSyncing}
             onClick={handleManualSync}
-            className="flex-1 py-2.5 px-4 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 inline-flex items-center justify-center gap-1.5"
+            className="flex-1 py-2.5 px-4 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all inline-flex items-center justify-center gap-1.5"
           >
             <Icon name="reload" size={14} className={isSyncing ? 'animate-spin' : ''} />
             <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>

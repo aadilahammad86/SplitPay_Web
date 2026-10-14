@@ -26,6 +26,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const [addFriendTab, setAddFriendTab] = useState<'manual' | 'contacts'>('manual')
   const [friendName, setFriendName] = useState('')
   const [friendHandle, setFriendHandle] = useState('')
+  const [autofillSuccess, setAutofillSuccess] = useState(false)
   const [selectedFriend, setSelectedFriend] = useState<Person | null>(null)
   const [editingFriend, setEditingFriend] = useState<Person | null>(null)
   const [showSettle, setShowSettle] = useState(false)
@@ -140,6 +141,8 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
           const c = contacts[0]
           if (c?.name?.[0]) setFriendName(c.name[0])
           if (c?.tel?.[0]) setFriendHandle(c.tel[0])
+          setAutofillSuccess(true)
+          setTimeout(() => setAutofillSuccess(false), 2500)
         }
       }
     } catch {
@@ -244,7 +247,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                 setIsSelectMode(!isSelectMode)
                 setSelectedFriendIds(new Set())
               }}
-              className={`px-3 py-2.5 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer ${
+              className={`px-3 py-2.5 font-bold text-xs rounded-xl border transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                 isSelectMode
                   ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
                   : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-border)]'
@@ -260,7 +263,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               setAddFriendTab('manual')
               setShowAddModal(true)
             }}
-            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
+            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
             <Icon name="plus" size={16} />
             <span>Add Friend</span>
@@ -289,7 +292,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               type="button"
               disabled={selectedFriendIds.size === 0}
               onClick={handleRemoveSelectedFriends}
-              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 cursor-pointer"
             >
               <Icon name="delete" size={14} />
               <span>Remove Selected ({selectedFriendIds.size})</span>
@@ -469,14 +472,20 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
         title="Add a Friend"
         maxWidth="max-w-xl"
       >
-        {/* Segmented Tab Controls */}
-        <div className="flex bg-[var(--color-surface-subtle)] p-1 rounded-xl border border-[var(--color-border)] mb-4">
+        {/* Segmented Tab Controls with hardware-accelerated sliding active pill */}
+        <div className="relative grid grid-cols-2 p-1 bg-[var(--color-surface-subtle)] rounded-xl border border-[var(--color-border)] mb-4 shadow-2xs">
+          <div
+            aria-hidden="true"
+            className={`absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-lg bg-primary shadow-sm transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none ${
+              addFriendTab === 'contacts' ? 'translate-x-full' : 'translate-x-0'
+            }`}
+          />
           <button
             type="button"
             onClick={() => setAddFriendTab('manual')}
-            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`relative z-10 py-2 px-3 rounded-lg text-xs font-bold transition-colors duration-150 flex items-center justify-center gap-1.5 cursor-pointer ${
               addFriendTab === 'manual'
-                ? 'bg-[var(--color-surface)] text-[var(--color-text)] shadow-sm'
+                ? 'text-white'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -486,9 +495,9 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
           <button
             type="button"
             onClick={() => setAddFriendTab('contacts')}
-            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`relative z-10 py-2 px-3 rounded-lg text-xs font-bold transition-colors duration-150 flex items-center justify-center gap-1.5 cursor-pointer ${
               addFriendTab === 'contacts'
-                ? 'bg-[var(--color-surface)] text-[var(--color-text)] shadow-sm'
+                ? 'text-white'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -497,83 +506,97 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
           </button>
         </div>
 
-        {addFriendTab === 'manual' ? (
-          <form onSubmit={handleAddFriend} className="space-y-4 text-sm">
-            {isContactPickerSupported() && (
-              <div className="p-3 bg-primary-subtle border border-primary-border rounded-xl flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs">
-                  <Icon name="smartphone" size={16} className="text-primary shrink-0" />
-                  <span className="text-[var(--color-text)] font-medium">Have their details in your phone?</span>
+        {/* Tab Body with height stabilization & smooth enter animation */}
+        <div className="min-h-[290px]">
+          {addFriendTab === 'manual' ? (
+            <div key="manual" className="animate-tab-enter">
+              <form onSubmit={handleAddFriend} className="space-y-4 text-sm">
+                {isContactPickerSupported() && (
+                  <div className="p-3 bg-primary-subtle border border-primary-border rounded-xl flex items-center justify-between gap-3 transition-colors">
+                    <div className="flex items-center gap-2 text-xs">
+                      <Icon name="smartphone" size={16} className="text-primary shrink-0" />
+                      <span className="text-[var(--color-text)] font-medium">Have their details in your phone?</span>
+                    </div>
+                    {autofillSuccess ? (
+                      <span className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-lg border border-emerald-300 dark:border-emerald-800 shadow-sm shrink-0 inline-flex items-center gap-1.5 animate-fade-in">
+                        <Icon name="check" size={13} />
+                        <span>Autofilled!</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleQuickPickContact}
+                        className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-lg shadow-sm transition-all shrink-0 inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Icon name="users" size={13} />
+                        <span>Autofill from Contacts</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                    Friend's Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Rahul Sharma"
+                    value={friendName}
+                    onChange={(e) => setFriendName(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={handleQuickPickContact}
-                  className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-lg shadow-sm transition-all shrink-0 inline-flex items-center gap-1.5 active:scale-95 cursor-pointer"
-                >
-                  <Icon name="users" size={13} />
-                  <span>Autofill from Contacts</span>
-                </button>
-              </div>
-            )}
 
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-                Friend's Full Name
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Rahul Sharma"
-                value={friendName}
-                onChange={(e) => setFriendName(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                    Handle, Mobile Number, or Note (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. rahul_s or +91 98765 43210"
+                    value={friendHandle}
+                    onChange={(e) => setFriendHandle(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  />
+                </div>
+
+                <div className="pt-2 border-t border-[var(--color-border)] flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAddFriendTab('contacts')}
+                    className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Icon name="search" size={13} />
+                    <span>Search by phone instead →</span>
+                  </button>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddModal(false)}
+                      className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Icon name="check" size={14} />
+                      <span>Save Friend</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-                Handle, Mobile Number, or Note (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. rahul_s or +91 98765 43210"
-                value={friendHandle}
-                onChange={(e) => setFriendHandle(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
+          ) : (
+            <div key="contacts" className="animate-tab-enter">
+              <ContactSyncContent onFriendAdded={() => setShowAddModal(false)} />
             </div>
-
-            <div className="pt-2 border-t border-[var(--color-border)] flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setAddFriendTab('contacts')}
-                className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
-              >
-                <Icon name="search" size={13} />
-                <span>Search by phone instead →</span>
-              </button>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Icon name="check" size={14} />
-                  <span>Save Friend</span>
-                </button>
-              </div>
-            </div>
-          </form>
-        ) : (
-          <ContactSyncContent />
-        )}
+          )}
+        </div>
       </Modal>
 
       {/* Friend Detail Modal */}

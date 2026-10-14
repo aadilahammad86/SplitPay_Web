@@ -282,7 +282,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = ({ onBackToApp }) =
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md transition-all active:scale-95 inline-flex items-center justify-center gap-2"
+              className="w-full py-3 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md transition-all inline-flex items-center justify-center gap-2"
             >
               {isLoggingIn ? <Icon name="reload" size={16} className="animate-spin" /> : <Icon name="lock" size={16} />}
               <span>Authenticate & Enter Console</span>
@@ -379,7 +379,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = ({ onBackToApp }) =
                 type="button"
                 onClick={handleTestConnection}
                 disabled={isTestingConnection}
-                className="px-3 py-1.5 bg-primary-subtle border border-primary-border text-primary font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1.5 active:scale-95"
+                className="px-3 py-1.5 bg-primary-subtle border border-primary-border text-primary font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1.5"
               >
                 <Icon name="reload" size={13} className={isTestingConnection ? 'animate-spin' : ''} />
                 <span>Test Connection</span>
@@ -453,7 +453,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = ({ onBackToApp }) =
             </span>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all"
             >
               Save & Connect Database
             </button>
@@ -494,7 +494,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = ({ onBackToApp }) =
               />
               <button
                 type="submit"
-                className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 shrink-0"
+                className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0"
               >
                 Update Ledger ID
               </button>
@@ -664,7 +664,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = ({ onBackToApp }) =
             <div className="flex justify-end pt-1">
               <button
                 type="submit"
-                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
+                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all"
               >
                 Save New Admin Password
               </button>

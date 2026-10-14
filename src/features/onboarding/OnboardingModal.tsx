@@ -412,7 +412,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                 type="button"
                 onClick={handleFinish}
                 disabled={submitting}
-                className="w-full py-3.5 px-6 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-extrabold text-sm rounded-2xl shadow-lg transition-all active:scale-95 inline-flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 px-6 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white font-extrabold text-sm rounded-2xl shadow-lg transition-all inline-flex items-center justify-center gap-2 cursor-pointer"
               >
                 {submitting ? (
                   <Icon name="reload" size={16} className="animate-spin" />
@@ -443,7 +443,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
             <button
               type="button"
               onClick={() => setStep(step + 1)}
-              className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95"
+              className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md transition-all"
             >
               Next →
             </button>

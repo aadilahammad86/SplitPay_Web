@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { Select } from '../../ui/components/Select'
 import { useStore } from '../../ui/storeContext'
@@ -69,10 +69,18 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
   } | null>(null)
 
   const handleModalClose = () => {
-    setSettledInfo(null)
-    setError(null)
     onClose()
   }
+
+  useEffect(() => {
+    if (!isOpen) {
+      const timer = setTimeout(() => {
+        setSettledInfo(null)
+        setError(null)
+      }, 250)
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen])
 
   const totalMinor = Math.round((parseFloat(amountStr) || 0) * currency.scale)
 

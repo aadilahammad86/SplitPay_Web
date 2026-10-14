@@ -51,7 +51,7 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
             <button
               type="button"
               onClick={handleInstallClick}
-              className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
+              className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
             >
               <Icon name="smartphone" size={18} />
               <span>Install App</span>

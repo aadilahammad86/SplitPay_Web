@@ -23,6 +23,7 @@ import { getSupabaseClient } from '../../supabase/supabaseClient'
 import { normalizeToE164 } from '../../domain/phone'
 import type { LedgerBackup, StorageAdapter } from './storageAdapter'
 import { MemoryStorageAdapter } from './memoryStorageAdapter'
+import { defaultAuthService } from '../../services/auth/authService'
 
 export interface LedgerState {
   readonly people: readonly Person[]
@@ -40,6 +41,7 @@ export class LedgerStore {
   private adapter: StorageAdapter
   private state: LedgerState
   private listeners = new Set<() => void>()
+  private knownMeIds = new Set<string>()
 
   constructor(adapter: StorageAdapter) {
     this.adapter = adapter
@@ -139,24 +141,50 @@ export class LedgerStore {
     }
     people = sanitizedPeople
 
+    const session = defaultAuthService.getCurrentSession()
     if (!localPersonId) {
-      // Create initial local profile
-      const myId = generateUlid()
-      const me: Person = {
-        id: myId,
-        name: 'You',
-        inviteCode: `sp_${myId.slice(-6).toLowerCase()}`,
+      if (session) {
+        localPersonId = session.id
+        const me: Person = {
+          id: session.id,
+          name: session.name || 'You',
+          handle: session.isGuest ? undefined : session.username,
+          email: session.email,
+          phone: session.phone,
+          inviteCode: `sp_${session.id.slice(-6).toLowerCase()}`,
+        }
+        const op = opAddPerson({
+          opId: generateUlid(),
+          deviceId,
+          atMicros: Date.now() * 1000,
+          person: me,
+        })
+        await this.adapter.addPerson(me, op)
+        await this.adapter.setMeta('local_person_id', session.id)
+        people = await this.adapter.getPeople()
+      } else {
+        // Create initial local profile
+        const myId = generateUlid()
+        const me: Person = {
+          id: myId,
+          name: 'You',
+          inviteCode: `sp_${myId.slice(-6).toLowerCase()}`,
+        }
+        const op = opAddPerson({
+          opId: generateUlid(),
+          deviceId,
+          atMicros: Date.now() * 1000,
+          person: me,
+        })
+        await this.adapter.addPerson(me, op)
+        await this.adapter.setMeta('local_person_id', myId)
+        localPersonId = myId
+        people = await this.adapter.getPeople()
       }
-      const op = opAddPerson({
-        opId: generateUlid(),
-        deviceId,
-        atMicros: Date.now() * 1000,
-        person: me,
-      })
-      await this.adapter.addPerson(me, op)
-      await this.adapter.setMeta('local_person_id', myId)
-      localPersonId = myId
-      people = await this.adapter.getPeople()
+    } else if (session && session.id && localPersonId !== session.id) {
+      // Migrate from previous temporary ID to canonical session ID
+      await this.adapter.setMeta('local_person_id', session.id)
+      localPersonId = session.id
     }
 
     const groups = await this.adapter.getGroups()
@@ -195,6 +223,9 @@ export class LedgerStore {
 
     // Auto-sync profile to Supabase on startup
     this.syncMyProfileToCloud().catch(() => {})
+
+    // Reconcile any existing aliases on startup
+    await this.reconcileAliases().catch(() => {})
   }
 
   async setDefaultCurrency(currency: CurrencyCode): Promise<void> {
@@ -212,25 +243,43 @@ export class LedgerStore {
     if (!personId) return false
     const myId = this.state.localPersonId
     if (personId === myId) return true
-    const currentMe = this.me
-    if (!currentMe) return false
-    if (currentMe.id === personId) return true
+    if (this.knownMeIds.has(personId)) return true
 
-    const target = this.state.people.find((p) => p.id === personId)
-    if (!target) return false
-
-    // Check handle match (case-insensitive)
-    if (currentMe.handle && target.handle) {
-      const cleanMe = currentMe.handle.trim().toLowerCase().replace(/^@/, '')
-      const cleanTarget = target.handle.trim().toLowerCase().replace(/^@/, '')
-      if (cleanMe && cleanTarget && cleanMe === cleanTarget) return true
+    const session = defaultAuthService.getCurrentSession()
+    if (session?.id && personId === session.id) {
+      this.knownMeIds.add(personId)
+      return true
     }
 
-    // Check phone match (normalized E.164)
-    if (currentMe.phone && target.phone) {
-      const normMe = normalizeToE164(currentMe.phone)
-      const normTarget = normalizeToE164(target.phone)
-      if (normMe.valid && normTarget.valid && normMe.e164 === normTarget.e164) return true
+    const currentMe = this.me
+    if (currentMe && currentMe.id === personId) {
+      this.knownMeIds.add(personId)
+      return true
+    }
+
+    const myHandle = (currentMe?.handle || session?.username || '').trim().toLowerCase().replace(/^@/, '')
+    const myPhone = currentMe?.phone || session?.phone
+
+    const target = this.state.people.find((p) => p.id === personId)
+    if (target) {
+      // Check handle match (case-insensitive)
+      if (myHandle && target.handle) {
+        const cleanTarget = target.handle.trim().toLowerCase().replace(/^@/, '')
+        if (cleanTarget && myHandle === cleanTarget) {
+          this.knownMeIds.add(personId)
+          return true
+        }
+      }
+
+      // Check phone match (normalized E.164)
+      if (myPhone && target.phone) {
+        const normMe = normalizeToE164(myPhone)
+        const normTarget = normalizeToE164(target.phone)
+        if (normMe.valid && normTarget.valid && normMe.e164 === normTarget.e164) {
+          this.knownMeIds.add(personId)
+          return true
+        }
+      }
     }
 
     return false
@@ -238,7 +287,7 @@ export class LedgerStore {
 
   resolvePersonId(personId: string): string {
     if (this.isMe(personId)) {
-      return this.state.localPersonId || this.me?.id || personId
+      return this.state.localPersonId || this.me?.id || defaultAuthService.getCurrentSession()?.id || personId
     }
     return personId
   }
@@ -267,6 +316,22 @@ export class LedgerStore {
 
         if (existingProfiles && existingProfiles.length > 0) {
           const existing = existingProfiles[0]
+          if (existing.id !== me.id) {
+            await supabase.from('profiles').delete().eq('id', existing.id)
+          }
+        }
+      }
+
+      // Prevent profiles_invite_code_key collision by removing stale profiles
+      if (inviteCode) {
+        const { data: existingWithCode } = await supabase
+          .from('profiles')
+          .select('id, invite_code')
+          .eq('invite_code', inviteCode)
+          .limit(1)
+
+        if (existingWithCode && existingWithCode.length > 0) {
+          const existing = existingWithCode[0]
           if (existing.id !== me.id) {
             await supabase.from('profiles').delete().eq('id', existing.id)
           }
@@ -425,6 +490,9 @@ export class LedgerStore {
     this.syncMyProfileToCloud().catch((err) => {
       console.warn('Background profile cloud sync error:', err)
     })
+
+    // Reconcile any existing aliases for this updated profile
+    await this.reconcileAliases().catch(() => {})
 
     this.notifyMutation()
     return updated
@@ -991,108 +1059,12 @@ export class LedgerStore {
   async applyRemoteOps(ops: SyncOp[]): Promise<void> {
     if (ops.length === 0) return
     await this.adapter.applyRemoteOps(ops)
-    let people = await this.adapter.getPeople()
+    const people = await this.adapter.getPeople()
     const groups = await this.adapter.getGroups()
     const expenses = await this.adapter.getExpenses()
     const settlements = await this.adapter.getSettlements()
-
-    const myId = this.state.localPersonId
-    const currentMe = this.me || people.find((p) => p.id === myId)
-
-    // Reconcile any alias IDs matching ME (e.g. created by a friend with my handle or phone)
-    if (myId && currentMe) {
-      const aliasIds: string[] = []
-      for (const p of people) {
-        if (p.id === myId) continue
-        let matchesMe = false
-        if (currentMe.handle && p.handle) {
-          const mH = currentMe.handle.trim().toLowerCase().replace(/^@/, '')
-          const pH = p.handle.trim().toLowerCase().replace(/^@/, '')
-          if (mH && pH && mH === pH) matchesMe = true
-        }
-        if (currentMe.phone && p.phone) {
-          const mP = normalizeToE164(currentMe.phone)
-          const pP = normalizeToE164(p.phone)
-          if (mP.valid && pP.valid && mP.e164 === pP.e164) matchesMe = true
-        }
-        if (matchesMe) {
-          aliasIds.push(p.id)
-        }
-      }
-
-      if (aliasIds.length > 0) {
-        for (const aliasId of aliasIds) {
-          await this.adapter.removePerson(aliasId).catch(() => {})
-          people = people.filter((p) => p.id !== aliasId)
-
-          for (let i = 0; i < expenses.length; i++) {
-            const exp = expenses[i]
-            let changed = false
-            let paidBy = exp.paidBy
-            if (paidBy === aliasId) {
-              paidBy = myId
-              changed = true
-            }
-            const shares = exp.shares.map((s) => {
-              let sChanged = false
-              let owedBy = s.owedBy
-              let owedTo = s.owedTo
-              if (owedBy === aliasId) {
-                owedBy = myId
-                sChanged = true
-              }
-              if (owedTo === aliasId) {
-                owedTo = myId
-                sChanged = true
-              }
-              if (sChanged) changed = true
-              return { ...s, owedBy, owedTo }
-            })
-            if (changed) {
-              const updated = { ...exp, paidBy, shares }
-              await this.adapter.applyRemoteOps([
-                opAddExpense({
-                  opId: generateUlid(),
-                  deviceId: this.state.deviceId,
-                  atMicros: Date.now() * 1000,
-                  expense: updated,
-                }),
-              ])
-              expenses[i] = updated
-            }
-          }
-
-          for (let i = 0; i < settlements.length; i++) {
-            const set = settlements[i]
-            let changed = false
-            let from = set.from
-            let to = set.to
-            if (from === aliasId) {
-              from = myId
-              changed = true
-            }
-            if (to === aliasId) {
-              to = myId
-              changed = true
-            }
-            if (changed) {
-              const updated = { ...set, from, to }
-              await this.adapter.applyRemoteOps([
-                opAddSettlement({
-                  opId: generateUlid(),
-                  deviceId: this.state.deviceId,
-                  atMicros: Date.now() * 1000,
-                  settlement: updated,
-                }),
-              ])
-              settlements[i] = updated
-            }
-          }
-        }
-      }
-    }
-
     const currentPending = await this.adapter.getPendingOps()
+
     this.setState({
       people,
       groups,
@@ -1100,6 +1072,127 @@ export class LedgerStore {
       settlements,
       pendingOpsCount: currentPending.length,
     })
+
+    // Reconcile aliases immediately
+    await this.reconcileAliases().catch(() => {})
+  }
+
+  async reconcileAliases(): Promise<boolean> {
+    const session = defaultAuthService.getCurrentSession()
+    const myId = this.state.localPersonId || session?.id
+    if (!myId) return false
+
+    let people = await this.adapter.getPeople()
+    const currentMe = people.find((p) => p.id === myId) || this.me
+
+    const myHandle = (currentMe?.handle || session?.username || '').trim().toLowerCase().replace(/^@/, '')
+    const myPhone = currentMe?.phone || session?.phone
+
+    if (!myHandle && !myPhone) return false
+
+    const aliasIds: string[] = []
+    for (const p of people) {
+      if (p.id === myId) continue
+      let matchesMe = false
+      if (myHandle && p.handle) {
+        const pH = p.handle.trim().toLowerCase().replace(/^@/, '')
+        if (pH && myHandle === pH) matchesMe = true
+      }
+      if (myPhone && p.phone) {
+        const mP = normalizeToE164(myPhone)
+        const pP = normalizeToE164(p.phone)
+        if (mP.valid && pP.valid && mP.e164 === pP.e164) matchesMe = true
+      }
+      if (matchesMe) {
+        aliasIds.push(p.id)
+      }
+    }
+
+    if (aliasIds.length === 0) return false
+
+    for (const id of aliasIds) {
+      this.knownMeIds.add(id)
+    }
+
+    const expenses = await this.adapter.getExpenses()
+    const settlements = await this.adapter.getSettlements()
+
+    for (const aliasId of aliasIds) {
+      await this.adapter.removePerson(aliasId).catch(() => {})
+      people = people.filter((p) => p.id !== aliasId)
+
+      for (let i = 0; i < expenses.length; i++) {
+        const exp = expenses[i]
+        let changed = false
+        let paidBy = exp.paidBy
+        if (paidBy === aliasId) {
+          paidBy = myId
+          changed = true
+        }
+        const shares = exp.shares.map((s) => {
+          let sChanged = false
+          let owedBy = s.owedBy
+          let owedTo = s.owedTo
+          if (owedBy === aliasId) {
+            owedBy = myId
+            sChanged = true
+          }
+          if (owedTo === aliasId) {
+            owedTo = myId
+            sChanged = true
+          }
+          if (sChanged) changed = true
+          return { ...s, owedBy, owedTo }
+        })
+        if (changed) {
+          const updated = { ...exp, paidBy, shares }
+          const op = opAddExpense({
+            opId: generateUlid(),
+            deviceId: this.state.deviceId,
+            atMicros: Date.now() * 1000,
+            expense: updated,
+          })
+          await this.adapter.addExpense(updated, op)
+          expenses[i] = updated
+        }
+      }
+
+      for (let i = 0; i < settlements.length; i++) {
+        const set = settlements[i]
+        let changed = false
+        let from = set.from
+        let to = set.to
+        if (from === aliasId) {
+          from = myId
+          changed = true
+        }
+        if (to === aliasId) {
+          to = myId
+          changed = true
+        }
+        if (changed) {
+          const updated = { ...set, from, to }
+          const op = opAddSettlement({
+            opId: generateUlid(),
+            deviceId: this.state.deviceId,
+            atMicros: Date.now() * 1000,
+            settlement: updated,
+          })
+          await this.adapter.addSettlement(updated, op)
+          settlements[i] = updated
+        }
+      }
+    }
+
+    const currentPending = await this.adapter.getPendingOps()
+    this.setState({
+      people,
+      expenses,
+      settlements,
+      pendingOpsCount: currentPending.length,
+    })
+    this.notifyMutation()
+    return true
   }
 
   async refreshPendingOpsCount(): Promise<number> {

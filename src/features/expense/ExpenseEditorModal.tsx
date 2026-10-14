@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { Select } from '../../ui/components/Select'
 import { useStore } from '../../ui/storeContext'
@@ -538,7 +538,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
         </button>
         <button
           type="submit"
-          className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95 cursor-pointer"
+          className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
         >
           <Icon name="check" size={14} />
           <span>{expenseToEdit ? 'Save Changes' : 'Save Expense'}</span>
@@ -555,6 +555,17 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
   initialFriendId = null,
   expenseToEdit = null,
 }) => {
+  const [shouldRenderForm, setShouldRenderForm] = useState(isOpen)
+
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRenderForm(true)
+    } else {
+      const timer = setTimeout(() => setShouldRenderForm(false), 250)
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen])
+
   return (
     <Modal
       isOpen={isOpen}
@@ -562,7 +573,7 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
       title={expenseToEdit ? 'Edit Expense' : 'Add Expense'}
       maxWidth="max-w-xl"
     >
-      {isOpen && (
+      {(isOpen || shouldRenderForm) && (
         <ExpenseEditorForm
           key={expenseToEdit?.id ?? 'new_expense'}
           onClose={onClose}

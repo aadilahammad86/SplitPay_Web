@@ -138,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={onAddExpense}
-          className="w-full py-2.5 px-4 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-98"
+          className="w-full py-2.5 px-4 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
         >
           <Icon name="plus" size={16} strokeWidth={2.5} />
           <span>Add New Expense</span>
@@ -153,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={item.id}
                 type="button"
                 onClick={() => onNavigate(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`sidebar-nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors duration-150 ${
                   isActive
                     ? 'bg-primary text-white shadow-sm'
                     : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-subtle)]'

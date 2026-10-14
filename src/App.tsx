@@ -31,6 +31,38 @@ const AppContent: React.FC = () => {
       setSession(s)
     })
   }, [])
+
+  // Keep store's local profile synchronized with active session on startup or login
+  React.useEffect(() => {
+    if (session && ledgerState.initialized) {
+      const currentMe = store.me
+      const cleanSessionUsername = session.isGuest ? undefined : session.username.trim().toLowerCase().replace(/^@/, '')
+      const cleanMeHandle = currentMe?.handle?.trim().toLowerCase().replace(/^@/, '')
+
+      const needsSync =
+        !currentMe ||
+        currentMe.id !== session.id ||
+        (cleanSessionUsername && cleanMeHandle !== cleanSessionUsername) ||
+        (session.name && currentMe.name === 'You' && session.name !== 'You')
+
+      if (needsSync) {
+        store
+          .updateLocalProfile({
+            id: session.id,
+            name: session.name,
+            handle: cleanSessionUsername,
+            email: session.email,
+            phone: session.phone,
+          })
+          .then(() => store.reconcileAliases())
+          .catch((err) => {
+            console.warn('Session synchronization to store failed:', err)
+          })
+      } else {
+        store.reconcileAliases().catch(() => {})
+      }
+    }
+  }, [session, ledgerState.initialized, store])
   const [currentTab, setCurrentTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       if (window.location.hash === '#admin' || window.location.search.includes('admin=1')) {
@@ -186,7 +218,7 @@ const AppContent: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold text-sm rounded-2xl shadow-md transition-all active:scale-95 inline-flex items-center justify-center gap-2"
+              className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold text-sm rounded-2xl shadow-md transition-all inline-flex items-center justify-center gap-2"
             >
               <Icon name="unlock" size={16} />
               <span>Unlock Ledger</span>
@@ -198,6 +230,7 @@ const AppContent: React.FC = () => {
   }
 
   const handleNavigate = (tab: string) => {
+    if (tab === currentTab) return
     transition(() => setCurrentTab(tab))
   }
 
@@ -268,12 +301,10 @@ const AppContent: React.FC = () => {
       </div>
 
       {/* Global Modals */}
-      {showGlobalExpenseModal && (
-        <ExpenseEditorModal
-          isOpen={showGlobalExpenseModal}
-          onClose={() => setShowGlobalExpenseModal(false)}
-        />
-      )}
+      <ExpenseEditorModal
+        isOpen={showGlobalExpenseModal}
+        onClose={() => setShowGlobalExpenseModal(false)}
+      />
 
       <InstallModal
         isOpen={showInstallModal}

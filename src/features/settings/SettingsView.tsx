@@ -281,7 +281,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
           <button
             type="button"
             onClick={handleLogout}
-            className="px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-xl transition-all self-start sm:self-auto inline-flex items-center gap-1.5 shadow-sm active:scale-95"
+            className="px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-xl transition-all self-start sm:self-auto inline-flex items-center gap-1.5 shadow-sm"
           >
             <Icon name="logout" size={14} />
             <span>Log Out</span>
@@ -350,7 +350,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
             </span>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all"
             >
               Save Profile
             </button>
@@ -377,7 +377,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
           <button
             type="button"
             onClick={() => setShowContactsModal(true)}
-            className="px-3.5 py-2 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all self-start sm:self-auto inline-flex items-center gap-1.5 shadow-sm active:scale-95"
+            className="px-3.5 py-2 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-xl hover:bg-primary hover:text-white transition-all self-start sm:self-auto inline-flex items-center gap-1.5 shadow-sm"
           >
             <Icon name="users" size={14} />
             <span>Find from Contacts</span>
@@ -675,7 +675,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
               <button
                 type="button"
                 onClick={handleRequestPermission}
-                className="px-3.5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm transition-all whitespace-nowrap cursor-pointer active:scale-95"
+                className="px-3.5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm transition-all whitespace-nowrap cursor-pointer"
               >
                 Allow Notifications
               </button>
@@ -684,7 +684,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
               type="button"
               onClick={handleSendTestNotification}
               disabled={!notifEnabled}
-              className="px-3 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] text-[var(--color-text)] border border-[var(--color-border)] text-xs font-semibold rounded-xl transition-all whitespace-nowrap disabled:opacity-40 cursor-pointer active:scale-95"
+              className="px-3 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] text-[var(--color-text)] border border-[var(--color-border)] text-xs font-semibold rounded-xl transition-all whitespace-nowrap disabled:opacity-40 cursor-pointer"
             >
               Send Test Alert
             </button>
@@ -815,13 +815,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
           <button
             type="button"
             onClick={handleExportBackup}
-            className="w-full sm:w-auto px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center justify-center gap-1.5 active:scale-95"
+            className="w-full sm:w-auto px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all inline-flex items-center justify-center gap-1.5"
           >
             <Icon name="save" size={15} />
             <span>Export JSON Backup</span>
           </button>
 
-          <label className="w-full sm:w-auto px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 active:scale-95">
+          <label className="w-full sm:w-auto px-4 py-2.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer inline-flex items-center justify-center gap-1.5">
             <Icon name="cloud" size={15} />
             <span>Import JSON Backup</span>
             <input
@@ -864,7 +864,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
             <button
               type="button"
               onClick={handleClearTransactions}
-              className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-all shrink-0 active:scale-95 cursor-pointer"
+              className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-all shrink-0 cursor-pointer"
             >
               Clear Transactions
             </button>
@@ -881,7 +881,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
             <button
               type="button"
               onClick={handleClearAllLedgerData}
-              className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-all shrink-0 active:scale-95 cursor-pointer"
+              className="px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl transition-all shrink-0 cursor-pointer"
             >
               Clear Ledger Data
             </button>
@@ -898,7 +898,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
             <button
               type="button"
               onClick={handleFactoryReset}
-              className="px-4 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition-all shrink-0 active:scale-95 cursor-pointer"
+              className="px-4 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
             >
               Factory Reset
             </button>

@@ -278,7 +278,7 @@ export const AcceptInviteModal: React.FC<AcceptInviteModalProps> = ({ onNavigate
                     type="button"
                     disabled={submitting}
                     onClick={handleAcceptInvite}
-                    className="flex-1 py-2.5 px-4 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center justify-center gap-1.5 active:scale-95"
+                    className="flex-1 py-2.5 px-4 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center justify-center gap-1.5"
                   >
                     {submitting ? (
                       <Icon name="reload" size={14} className="animate-spin" />

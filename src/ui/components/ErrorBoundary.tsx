@@ -125,7 +125,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <button
                 type="button"
                 onClick={this.handleReload}
-                className="flex-1 py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-2xl shadow-md transition-all active:scale-95 inline-flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-2xl shadow-md transition-all inline-flex items-center justify-center gap-2"
               >
                 <Icon name="reload" size={15} />
                 <span>Reload Page</span>

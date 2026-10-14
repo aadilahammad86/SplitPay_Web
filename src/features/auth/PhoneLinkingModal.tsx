@@ -159,7 +159,7 @@ export const PhoneLinkingModal: React.FC<PhoneLinkingModalProps> = ({
           <button
             type="submit"
             disabled={loading || !currentNormalized.valid}
-            className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 active:scale-95"
+            className="px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5"
           >
             {loading ? <Icon name="reload" size={14} className="animate-spin" /> : <Icon name="check" size={14} />}
             <span>Save Phone Number</span>
