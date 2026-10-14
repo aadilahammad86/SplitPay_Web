@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   isContactPickerSupported,
   matchContactsAgainstDirectory,
@@ -16,23 +16,13 @@ describe('Services - Contact Matching & Privacy Rules', () => {
     })
 
     it('returns true when contacts in navigator and ContactsManager in window', () => {
-      try {
-        Object.defineProperty(globalThis.navigator, 'contacts', {
-          value: {},
-          configurable: true,
-          writable: true,
-        })
-        // @ts-expect-error Mocking window on globalThis
-        globalThis.window = {
-          ContactsManager: function () {},
-        }
+      vi.stubGlobal('navigator', { contacts: {} })
+      vi.stubGlobal('window', { ContactsManager: function () {} })
 
+      try {
         expect(isContactPickerSupported()).toBe(true)
       } finally {
-        // @ts-expect-error Cleanup
-        delete globalThis.navigator.contacts
-        // @ts-expect-error Cleanup
-        delete globalThis.window
+        vi.unstubAllGlobals()
       }
     })
   })
