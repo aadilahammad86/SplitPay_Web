@@ -35,13 +35,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
     if (mode !== 'signup') return
     const clean = username.trim().toLowerCase().replace(/^@/, '')
     if (!clean) {
-      setUsernameCheck({ available: true, status: 'idle', message: '' })
-      setIsCheckingUsername(false)
-      return
+      const resetTimer = setTimeout(() => {
+        setUsernameCheck({ available: true, status: 'idle', message: '' })
+        setIsCheckingUsername(false)
+      }, 0)
+      return () => clearTimeout(resetTimer)
     }
 
-    setIsCheckingUsername(true)
     const timer = setTimeout(async () => {
+      setIsCheckingUsername(true)
       const res = await defaultAuthService.checkUsernameAvailability(clean)
       setUsernameCheck(res)
       setIsCheckingUsername(false)

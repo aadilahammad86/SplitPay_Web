@@ -231,10 +231,12 @@ const AppContent: React.FC = () => {
 
   const handleNavigate = (tab: string) => {
     if (tab === currentTab) return
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
     transition(() => setCurrentTab(tab))
   }
 
   const navigateToFriendStatement = (friendId: string) => {
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
     transition(() => {
       setStatementSubjectId(friendId)
       setCurrentTab('statements')
@@ -242,6 +244,7 @@ const AppContent: React.FC = () => {
   }
 
   const navigateToGroupStatement = (groupId: string) => {
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
     transition(() => {
       setStatementSubjectId(groupId)
       setCurrentTab('statements')

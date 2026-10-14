@@ -26,9 +26,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onNavigate }) 
               key={tab.id}
               type="button"
               onClick={() => onNavigate(tab.id)}
-              className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all relative ${
+              className={`bottom-nav-item flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-colors relative ${
                 isActive
-                  ? 'text-primary font-bold scale-105'
+                  ? 'text-primary font-bold'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-medium'
               }`}
             >

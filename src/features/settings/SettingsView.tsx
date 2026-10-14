@@ -154,13 +154,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onOpenAdmin }) => {
   useEffect(() => {
     const clean = profileHandle.trim().toLowerCase().replace(/^@/, '')
     if (!clean) {
-      setUsernameCheck({ available: true, status: 'idle', message: '' })
-      setIsCheckingUsername(false)
-      return
+      const resetTimer = setTimeout(() => {
+        setUsernameCheck({ available: true, status: 'idle', message: '' })
+        setIsCheckingUsername(false)
+      }, 0)
+      return () => clearTimeout(resetTimer)
     }
 
-    setIsCheckingUsername(true)
     const timer = setTimeout(async () => {
+      setIsCheckingUsername(true)
       const res = await defaultAuthService.checkUsernameAvailability(
         clean,
         currentSession?.id || me?.id,

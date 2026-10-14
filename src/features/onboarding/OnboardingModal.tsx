@@ -37,20 +37,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
   // Real-time username check on onboarding
   useEffect(() => {
-    if (isGuestMode) {
-      setUsernameCheck({ available: true, status: 'idle', message: '' })
-      setIsCheckingUsername(false)
-      return
-    }
     const clean = username.trim().toLowerCase().replace(/^@/, '')
-    if (!clean) {
-      setUsernameCheck({ available: true, status: 'idle', message: '' })
-      setIsCheckingUsername(false)
-      return
+    if (isGuestMode || !clean) {
+      const resetTimer = setTimeout(() => {
+        setUsernameCheck({ available: true, status: 'idle', message: '' })
+        setIsCheckingUsername(false)
+      }, 0)
+      return () => clearTimeout(resetTimer)
     }
 
-    setIsCheckingUsername(true)
     const timer = setTimeout(async () => {
+      setIsCheckingUsername(true)
       const res = await defaultAuthService.checkUsernameAvailability(
         clean,
         store.me?.id,

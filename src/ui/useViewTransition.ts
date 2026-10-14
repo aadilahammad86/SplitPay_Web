@@ -11,14 +11,6 @@ import { useCallback } from 'react'
  */
 export function useViewTransition() {
   return useCallback((callback: () => void) => {
-    if (
-      typeof document !== 'undefined' &&
-      'startViewTransition' in document
-    ) {
-      ;(document as unknown as { startViewTransition: (cb: () => void) => void })
-        .startViewTransition(callback)
-    } else {
-      callback()
-    }
+    callback()
   }, [])
 }
