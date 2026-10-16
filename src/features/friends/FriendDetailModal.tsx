@@ -280,7 +280,7 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
           <div className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl space-y-2.5">
             <div className="flex items-center justify-between text-xs pb-2 border-b border-[var(--color-border-subtle)]">
               <div className="flex items-center gap-2">
-                <span>🧾</span>
+                <Icon name="receipt" size={15} strokeWidth={2} className="text-primary" />
                 <span className="text-[var(--color-text)] font-medium">
                   Direct 1:1 Shared Bills ({directBills.length} items)
                 </span>
@@ -301,7 +301,7 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
 
             <div className="flex items-center justify-between text-xs pb-2 border-b border-[var(--color-border-subtle)]">
               <div className="flex items-center gap-2">
-                <span>💸</span>
+                <Icon name="moneyHand" size={15} strokeWidth={2} className="text-emerald-400" />
                 <span className="text-[var(--color-text)] font-medium">
                   Direct Personal Loans & Credit ({directLoans.length} entries)
                 </span>

@@ -7,7 +7,7 @@ import { AddLoanCreditModal } from './AddLoanCreditModal'
 import { FriendDetailModal } from '../friends/FriendDetailModal'
 import { ActivityDetailModal } from '../activity/ActivityDetailModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
-import { CategoryIcon } from '../../ui/components/Icon'
+import { CategoryIcon, Icon } from '../../ui/components/Icon'
 
 interface CreditLentViewProps {
   onNavigateToStatement: (friendId: string) => void
@@ -205,7 +205,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             onClick={() => handleOpenAddModal('lent')}
             className="btn-press px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-3 cursor-pointer transition-all hover:scale-[1.02]"
           >
-            <span className="text-xl">💸</span>
+            <Icon name="moneyHand" size={22} strokeWidth={2} />
             <div className="text-left">
               <span className="block leading-none">+ Give Loan (Lent)</span>
               <span className="text-[10px] text-slate-900/80 font-medium block mt-1">Record money lent to a friend</span>
@@ -216,7 +216,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             onClick={() => handleOpenAddModal('borrowed')}
             className="btn-press px-6 py-3.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] hover:border-emerald-500/50 font-extrabold text-sm rounded-2xl shadow-md flex items-center gap-3 cursor-pointer transition-all hover:scale-[1.02]"
           >
-            <span className="text-xl">📥</span>
+            <Icon name="creditcardHand" size={22} strokeWidth={2} />
             <div className="text-left">
               <span className="block leading-none">+ Take Credit (Borrowed)</span>
               <span className="text-[10px] text-[var(--color-text-muted)] font-medium block mt-1">Record money borrowed from someone</span>
@@ -233,8 +233,8 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               Total Money Lent (Given)
             </span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-sm font-bold">
-              ↗️
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+              <Icon name="arrowUp" size={16} strokeWidth={2} />
             </div>
           </div>
           <div className="my-2">
@@ -261,8 +261,8 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             <span className="text-[11px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400">
               Total Credit (Borrowed)
             </span>
-            <div className="w-8 h-8 rounded-xl bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/30 flex items-center justify-center text-sm font-bold">
-              ↙️
+            <div className="w-8 h-8 rounded-xl bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/30 flex items-center justify-center">
+              <Icon name="arrowDown" size={16} strokeWidth={2} />
             </div>
           </div>
           <div className="my-2">
@@ -369,8 +369,8 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
       {/* Respected Individuals Directory (Cards) */}
       {filteredSummaries.length === 0 ? (
         <div className="p-12 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-sm space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-primary-subtle text-primary flex items-center justify-center text-3xl mx-auto shadow-sm">
-            💳
+          <div className="w-14 h-14 rounded-2xl bg-primary-subtle text-primary flex items-center justify-center mx-auto shadow-sm">
+            <Icon name="creditcard" size={28} strokeWidth={2} />
           </div>
           <h3 className="font-bold text-base text-[var(--color-text)]">No entries matching this filter</h3>
           <p className="text-xs text-[var(--color-text-muted)] max-w-sm mx-auto">
@@ -462,7 +462,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                   <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border-subtle)] rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[var(--color-text)] flex items-center gap-1.5">
-                        <span>🧾</span>
+                        <Icon name="receipt" size={15} strokeWidth={2} className="text-primary" />
                         <span>Splitwise Amounts</span>
                       </span>
                       <span
@@ -496,7 +496,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                   <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border-subtle)] rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[var(--color-text)] flex items-center gap-1.5">
-                        <span>💸</span>
+                        <Icon name="moneyHand" size={15} strokeWidth={2} className="text-emerald-400" />
                         <span>Direct Loan / Credit</span>
                       </span>
                       <span

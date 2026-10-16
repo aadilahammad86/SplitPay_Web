@@ -118,7 +118,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            <span>💸</span>
+            <Icon name="moneyHand" size={15} strokeWidth={2} />
             <span>I Lent Money (Loan Given)</span>
           </button>
           <button
@@ -130,7 +130,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            <span>📥</span>
+            <Icon name="creditcardHand" size={15} strokeWidth={2} />
             <span>I Borrowed (Credit Taken)</span>
           </button>
         </div>

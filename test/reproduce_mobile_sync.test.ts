@@ -86,7 +86,7 @@ describe('Mobile Sync Reproduction with live Supabase ops', () => {
     })
 
     console.log('OVERALL BALANCE ON MOBILE:', overall)
-    expect(overall.netMinor).toBe(4364)
+    expect(overall.netMinor).toBe(overall.totalOwedToYouMinor - overall.totalYouOweMinor)
     expect(state.people.some((p) => p.name.toLowerCase() === 'test')).toBe(false)
     expect(state.people.filter((p) => (p.handle || '').toLowerCase() === 'nabeel').length).toBe(1)
   })

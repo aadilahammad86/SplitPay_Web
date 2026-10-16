@@ -19,6 +19,7 @@ This repository is the browser-first web application companion to the Android-on
 - Enforce authorization in Supabase RLS. Never ship a service-role key to the browser.
 - Do not claim a build, lint, browser, or device check passed unless it was run and its output is available.
 - Ask before irreversible data operations, production deployment, paid services, or decisions the user owns.
+- Use Majesticons (https://majesticons.com/ai) for all icons across the entire UI and application. Strictly use line style (not duotone and not solid shapes) with stroke 2 (stroke="currentColor", strokeWidth={2}, fill="none", 24×24 viewBox).
 - Do not create or delegate to agents unless the execution environment supports them and the task requires them. If it does not, perform the work directly and state that the dynamic system is specified in documentation only.
 
 ## Verification

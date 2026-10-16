@@ -84,8 +84,8 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
           {/* Header Banner */}
           <div className="p-5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl shadow-sm">
-                🤝
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-sm">
+                <Icon name="moneyHand" size={24} strokeWidth={2} />
               </div>
               <div>
                 <h3 className="font-extrabold text-base text-[var(--color-text)]">
