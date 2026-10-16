@@ -196,9 +196,9 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                 <span
                   className={`text-xs font-bold ${
                     breakdown.netMinor > 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
+                      ? 'text-owed'
                       : breakdown.netMinor < 0
-                      ? 'text-rose-600 dark:text-rose-400'
+                      ? 'text-owe'
                       : 'text-[var(--color-text-muted)]'
                   }`}
                 >
@@ -221,7 +221,7 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                   onClose()
                   onOpenSettleUp(friend.id, breakdown.netMinor)
                 }}
-                className="btn-press px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                className="btn-press px-4 py-2 btn-glow font-extrabold text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <Icon name="moneyHand" size={15} />
                 <span>Settle Up</span>
@@ -266,9 +266,9 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
             <span
               className={`font-mono text-sm font-extrabold ${
                 directTotalNet > 0
-                  ? 'text-emerald-600 dark:text-emerald-400'
+                  ? 'text-owed'
                   : directTotalNet < 0
-                  ? 'text-rose-600 dark:text-rose-400'
+                  ? 'text-owe'
                   : 'text-[var(--color-text-muted)]'
               }`}
             >
@@ -288,9 +288,9 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
               <span
                 className={`font-mono font-bold ${
                   directBillsNet > 0
-                    ? 'text-emerald-600 dark:text-emerald-400'
+                    ? 'text-owed'
                     : directBillsNet < 0
-                    ? 'text-rose-600 dark:text-rose-400'
+                    ? 'text-owe'
                     : 'text-[var(--color-text-muted)]'
                 }`}
               >
@@ -301,7 +301,7 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
 
             <div className="flex items-center justify-between text-xs pb-2 border-b border-[var(--color-border-subtle)]">
               <div className="flex items-center gap-2">
-                <Icon name="moneyHand" size={15} strokeWidth={2} className="text-emerald-400" />
+                <Icon name="moneyHand" size={15} strokeWidth={2} className="text-primary" />
                 <span className="text-[var(--color-text)] font-medium">
                   Direct Personal Loans & Credit ({directLoans.length} entries)
                 </span>
@@ -309,9 +309,9 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
               <span
                 className={`font-mono font-bold ${
                   directLoansNet > 0
-                    ? 'text-emerald-600 dark:text-emerald-400'
+                    ? 'text-owed'
                     : directLoansNet < 0
-                    ? 'text-rose-600 dark:text-rose-400'
+                    ? 'text-owe'
                     : 'text-[var(--color-text-muted)]'
                 }`}
               >
@@ -379,9 +379,9 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                       <span
                         className={`font-mono font-bold text-xs ${
                           groupSliceAmount > 0
-                            ? 'text-emerald-600 dark:text-emerald-400'
+                            ? 'text-owed'
                             : groupSliceAmount < 0
-                            ? 'text-rose-600 dark:text-rose-400'
+                            ? 'text-owe'
                             : 'text-[var(--color-text-muted)]'
                         }`}
                       >
@@ -447,9 +447,7 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                   <div className="text-right shrink-0">
                     <span
                       className={`font-mono font-bold ${
-                        tx.paidByMe
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-rose-600 dark:text-rose-400'
+                        tx.paidByMe ? 'text-owed' : 'text-owe'
                       }`}
                     >
                       {tx.paidByMe ? '+' : '\u2212'}

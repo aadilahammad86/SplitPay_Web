@@ -114,7 +114,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
             onClick={() => setLoanType('lent')}
             className={`py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               loanType === 'lent'
-                ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                ? 'btn-glow font-extrabold'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -126,7 +126,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
             onClick={() => setLoanType('borrowed')}
             className={`py-2 px-3 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               loanType === 'borrowed'
-                ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                ? 'btn-glow font-extrabold'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -243,7 +243,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
           <button
             type="submit"
             disabled={submitting}
-            className="px-5 py-2 text-xs font-extrabold text-slate-950 bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="px-5 py-2 text-xs font-extrabold btn-glow rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             <Icon name="check" size={14} />
             <span>{submitting ? 'Saving...' : loanType === 'lent' ? 'Record Loan Given' : 'Record Credit Taken'}</span>

@@ -7,6 +7,21 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-elevated: var(--color-surface-elevated);
+
+  --color-border: var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
+
+  --color-text: var(--color-text);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-subtle: var(--color-text-subtle);
+  --color-text-disabled: var(--color-text-disabled);
+
   --color-primary: var(--color-primary);
   --color-primary-hover: var(--color-primary-hover);
   --color-primary-active: var(--color-primary-active);
@@ -290,6 +305,12 @@ select {
    3-layer surface hierarchy with inner-border
    glow on dark, subtle shadow on light.
    ═══════════════════════════════════════════════ */
+.card-surface {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
 .card-base {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -310,8 +331,50 @@ select {
 
 .card-hero {
   background: linear-gradient(135deg, var(--primary-gradient-from), var(--primary-gradient-to));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: var(--shadow-xl), 0 0 40px var(--color-primary-glow);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-xl), 0 0 35px var(--color-primary-glow);
+  color: #ffffff;
+}
+
+/* ═══════════════════════════════════════════════
+   Glowing Card & Button Design System
+   Ambient primary aura, vibrant contrast, sleek borders
+   ═══════════════════════════════════════════════ */
+.card-hero-glow {
+  background: linear-gradient(135deg, var(--primary-gradient-from), var(--primary-gradient-to));
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 14px 34px -4px var(--color-primary-glow), 0 0 24px var(--color-primary-glow);
+  color: #ffffff;
+}
+
+.card-glow {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 6px 20px -2px var(--color-primary-glow), var(--shadow-sm);
+  transition: transform 0.22s cubic-bezier(0.34, 1.45, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-glow:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 10px 30px -4px var(--color-primary-glow), 0 0 18px var(--color-primary-glow);
+}
+
+.btn-glow {
+  background: linear-gradient(135deg, var(--primary-gradient-from), var(--primary-gradient-to));
+  color: var(--color-primary-text, #ffffff) !important;
+  box-shadow: 0 8px 24px -4px var(--color-primary-glow), 0 0 14px var(--color-primary-glow);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transition: transform 0.22s cubic-bezier(0.34, 1.45, 0.64, 1), box-shadow 0.2s ease;
+}
+.btn-glow:hover {
+  box-shadow: 0 12px 32px -4px var(--color-primary-glow), 0 0 22px var(--color-primary-glow);
+}
+
+.sidebar-nav-active-glow {
+  background: linear-gradient(135deg, var(--primary-gradient-from), var(--primary-gradient-to)) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 22px -3px var(--color-primary-glow), 0 0 14px var(--color-primary-glow);
 }
 
 /* ═══════════════════════════════════════════════

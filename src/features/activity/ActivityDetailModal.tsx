@@ -84,7 +84,7 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
           {/* Header Banner */}
           <div className="p-5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-owed border border-[var(--color-owed-border)] text-owed flex items-center justify-center shadow-sm">
                 <Icon name="moneyHand" size={24} strokeWidth={2} />
               </div>
               <div>
@@ -103,7 +103,7 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
                 size="md"
                 showSign={false}
               />
-              <span className="text-[10px] text-emerald-500 font-bold block mt-0.5">Settled</span>
+              <span className="text-[10px] text-owed font-bold block mt-0.5">Settled</span>
             </div>
           </div>
 
@@ -293,7 +293,7 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-[var(--color-text)]">{name}</span>
                         {isPayer && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/30">
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 bg-primary-subtle text-primary rounded border border-primary-border">
                             Payer
                           </span>
                         )}
@@ -322,9 +322,9 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
                     <div
                       className={`font-mono text-[11px] font-extrabold mt-0.5 ${
                         netEffect > 0
-                          ? 'text-emerald-600 dark:text-emerald-400'
+                          ? 'text-owed'
                           : netEffect < 0
-                          ? 'text-rose-600 dark:text-rose-400'
+                          ? 'text-owe'
                           : 'text-[var(--color-text-muted)]'
                       }`}
                     >
@@ -341,7 +341,7 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
           </div>
 
           {/* Verification note */}
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
+          <div className="p-3 bg-primary-subtle border border-primary-border rounded-xl flex items-center gap-2 text-xs text-primary">
             <Icon name="check" size={14} className="shrink-0" />
             <span>
               Exact minor unit sum verified:{' '}
@@ -386,7 +386,7 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
                   const myShare = expense.shares.find((s) => store.isMe(s.owedBy))?.amountMinor || 0
                   onSettleUp(expense.paidBy, myShare)
                 }}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                className="btn-press px-4 py-2 btn-primary font-extrabold text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <Icon name="moneyHand" size={14} />
                 <span>Settle with {payerName}</span>

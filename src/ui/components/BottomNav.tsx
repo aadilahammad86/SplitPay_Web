@@ -18,8 +18,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onNavigate }) 
   ]
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-surface)]/90 backdrop-blur-lg border-t border-[var(--color-border)] px-2 py-1 safe-bottom shadow-lg">
-      <div className="flex items-center justify-around max-w-lg mx-auto">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-surface)]/95 backdrop-blur-lg border-t border-[var(--color-border)] px-1 py-1 safe-bottom shadow-lg">
+      <div className="flex items-center justify-between max-w-lg mx-auto w-full">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id
           return (
@@ -27,19 +27,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onNavigate }) 
               key={tab.id}
               type="button"
               onClick={() => onNavigate(tab.id)}
-              className={`bottom-nav-item flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-colors relative ${
+              className={`bottom-nav-item flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all relative ${
                 isActive
                   ? 'text-primary font-bold'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-medium'
               }`}
             >
               {isActive && (
-                <span className="absolute -top-1 w-6 h-1 rounded-full bg-primary" />
+                <span
+                  className="absolute -top-1 w-5 h-1 rounded-full bg-primary"
+                  style={{ boxShadow: '0 0 8px var(--color-primary-glow)' }}
+                />
               )}
-              <span className="mb-0.5">
-                <Icon name={tab.icon} size={20} strokeWidth={isActive ? 2.5 : 2} />
+              <span className="mb-0.5 shrink-0">
+                <Icon name={tab.icon} size={18} strokeWidth={isActive ? 2.5 : 2} />
               </span>
-              <span className="text-[10px] tracking-tight">{tab.label}</span>
+              <span className="text-[9px] sm:text-[10px] tracking-tight truncate w-full text-center">
+                {tab.label}
+              </span>
             </button>
           )
         })}

@@ -73,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate }) => {
                 ? 'bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-400'
                 : isError
                 ? 'bg-rose-500/10 border-rose-500/25 text-rose-700 dark:text-rose-400'
-                : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800 dark:text-emerald-400'
+                : 'bg-owed text-owed border border-[var(--color-owed-border)]'
             }`}
             title={
               isOffline

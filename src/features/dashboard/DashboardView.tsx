@@ -132,7 +132,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('credit')}
-            className="btn-press flex-1 sm:flex-none px-3.5 py-2.5 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 hover:bg-primary/20 transition-colors"
+            className="btn-press flex-1 sm:flex-none px-3.5 py-2.5 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 hover:bg-primary hover:text-white transition-all cursor-pointer"
           >
             <Icon name="creditcard" size={15} />
             <span>Lent / Credit</span>
@@ -140,7 +140,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => setShowAddExpense(true)}
-            className="btn-press btn-primary flex-1 sm:flex-none px-4 py-2.5 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
+            className="btn-press btn-glow flex-1 sm:flex-none px-4 py-2.5 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Icon name="plus" size={16} />
             <span>Add Expense</span>
@@ -152,7 +152,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               setSettleAmountMinor(0)
               setShowSettleUp(true)
             }}
-            className="btn-press flex-1 sm:flex-none px-4 py-2.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5"
+            className="btn-press card-glow flex-1 sm:flex-none px-4 py-2.5 text-[var(--color-text)] font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Icon name="moneyHand" size={16} />
             <span>Settle Up</span>
@@ -162,8 +162,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Top 3 Metric Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Card 1: Net Balance Hero Card (Redesigned) */}
-        <div className="card-hero rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden card-interactive sm:col-span-2 lg:col-span-1">
+        {/* Card 1: Net Balance Hero Card (Redesigned with Ambient Glow) */}
+        <div className="card-hero-glow rounded-3xl p-6 sm:p-7 text-white relative overflow-hidden card-interactive sm:col-span-2 lg:col-span-1">
           {/* Subtle decorative glow orb */}
           <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/[0.08] blur-3xl pointer-events-none" />
 
@@ -214,7 +214,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 2: Total Spending & Out of Pocket */}
-        <div className="card-raised rounded-3xl p-6 shadow-sm card-interactive flex flex-col justify-between">
+        <div className="card-glow rounded-3xl p-6 card-interactive flex flex-col justify-between">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
@@ -245,7 +245,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 3: Groups & Collaboration Status */}
-        <div className="card-raised rounded-3xl p-6 shadow-sm card-interactive flex flex-col justify-between">
+        <div className="card-glow rounded-3xl p-6 card-interactive flex flex-col justify-between">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
@@ -272,7 +272,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <div className="pt-4 border-t border-[var(--color-border-subtle)] mt-4 flex items-center justify-between">
             <span className="text-xs text-[var(--color-text-muted)]">Debt Simplification</span>
-            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
+            <span className="text-xs font-bold text-primary bg-primary-subtle px-2 py-0.5 rounded-full border border-primary-border">
               ✓ Active (min-cash-flow)
             </span>
           </div>
@@ -581,7 +581,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleQuickSettle(friend.id, breakdown.netMinor)}
-                            className="btn-press px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg shadow-sm"
+                            className="btn-press px-2.5 py-1 btn-primary font-bold text-[11px] rounded-lg shadow-sm"
                           >
                             Settle
                           </button>

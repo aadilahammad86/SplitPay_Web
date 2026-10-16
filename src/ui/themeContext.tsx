@@ -171,12 +171,15 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     /* Shadow glow updates with palette color */
     root.style.setProperty('--shadow-glow', `0 0 20px ${colors.primaryGlow}`)
 
+    root.setAttribute('data-theme', mode)
+    root.setAttribute('data-palette', palette)
+
     if (isDark) {
       root.classList.add('dark')
     } else {
       root.classList.remove('dark')
     }
-  }, [colors, paletteTokens, isDark])
+  }, [colors, paletteTokens, isDark, mode, palette])
 
   const availablePalettes = Object.values(colorPalettes)
 

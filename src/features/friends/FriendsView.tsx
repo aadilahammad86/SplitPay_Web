@@ -209,7 +209,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               setAddFriendTab('manual')
               setShowAddModal(true)
             }}
-            className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+            className="px-4 py-2.5 btn-glow font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
             <Icon name="plus" size={16} />
             <span>Add Friend</span>
@@ -294,7 +294,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     setSelectedFriend(friend)
                   }
                 }}
-                className={`p-5 bg-[var(--color-surface)] border rounded-3xl shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-3 card-hover ${
+                className={`p-5 card-glow rounded-3xl transition-all cursor-pointer flex flex-col justify-between gap-3 card-hover ${
                   isSelected
                     ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
                     : 'border-[var(--color-border)] hover:border-primary/40'

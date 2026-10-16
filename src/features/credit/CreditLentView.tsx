@@ -189,7 +189,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--color-text)]">
               Lent & Credit
             </h1>
-            <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+            <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary-subtle text-primary border border-primary-border">
               Loans & Credit Ledger
             </span>
           </div>
@@ -203,18 +203,18 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
           <button
             type="button"
             onClick={() => handleOpenAddModal('lent')}
-            className="btn-press px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-3 cursor-pointer transition-all hover:scale-[1.02]"
+            className="btn-press btn-glow px-6 py-3.5 font-extrabold text-sm rounded-2xl flex items-center gap-3 cursor-pointer transition-all hover:scale-[1.02]"
           >
             <Icon name="moneyHand" size={22} strokeWidth={2} />
             <div className="text-left">
-              <span className="block leading-none">+ Give Loan (Lent)</span>
-              <span className="text-[10px] text-slate-900/80 font-medium block mt-1">Record money lent to a friend</span>
+              <span className="block leading-none text-white font-extrabold">+ Give Loan (Lent)</span>
+              <span className="text-[10px] text-white/90 font-medium block mt-1">Record money lent to a friend</span>
             </div>
           </button>
           <button
             type="button"
             onClick={() => handleOpenAddModal('borrowed')}
-            className="btn-press px-6 py-3.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] hover:border-emerald-500/50 font-extrabold text-sm rounded-2xl shadow-md flex items-center gap-3 cursor-pointer transition-all hover:scale-[1.02]"
+            className="btn-press card-glow px-6 py-3.5 text-[var(--color-text)] font-extrabold text-sm rounded-2xl flex items-center gap-3 cursor-pointer transition-all hover:scale-[1.02]"
           >
             <Icon name="creditcardHand" size={22} strokeWidth={2} />
             <div className="text-left">
@@ -225,20 +225,20 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         </div>
       </div>
 
-      {/* 3 KPI Balance Cards */}
+      {/* 3 KPI Balance Cards with Glowing Aesthetics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Card 1: Total Lent (Receivables) */}
-        <div className="card-surface rounded-3xl p-6 shadow-sm border-emerald-500/30 flex flex-col justify-between">
+        <div className="card-glow rounded-3xl p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-owed">
               Total Money Lent (Given)
             </span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-owed text-owed border border-[var(--color-owed-border)] flex items-center justify-center">
               <Icon name="arrowUp" size={16} strokeWidth={2} />
             </div>
           </div>
           <div className="my-2">
-            <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
+            <div className="text-3xl font-extrabold text-owed font-mono">
               +{formatMoney(totals.totalLent, currentCurrency)}
             </div>
             <p className="text-xs text-[var(--color-text-muted)] mt-1">
@@ -250,18 +250,18 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
               Splitwise: <strong className="text-[var(--color-text)] font-mono">{formatMoney(totals.splitwiseTotal, currentCurrency)}</strong>
             </span>
             <span>
-              Loans: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{formatMoney(totals.directLoanTotal, currentCurrency)}</strong>
+              Loans: <strong className="text-owed font-mono">{formatMoney(totals.directLoanTotal, currentCurrency)}</strong>
             </span>
           </div>
         </div>
 
         {/* Card 2: Total Credit Taken (Payables) */}
-        <div className="card-surface rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+        <div className="card-glow rounded-3xl p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-owe">
               Total Credit (Borrowed)
             </span>
-            <div className="w-8 h-8 rounded-xl bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/30 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-owe text-owe border border-[var(--color-owe-border)] flex items-center justify-center">
               <Icon name="arrowDown" size={16} strokeWidth={2} />
             </div>
           </div>
@@ -282,8 +282,8 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
           </div>
         </div>
 
-        {/* Card 3: Net Credit Position */}
-        <div className="card-hero rounded-3xl p-6 text-white shadow-xl flex flex-col justify-between">
+        {/* Card 3: Net Credit Position (Hero Glowing Card) */}
+        <div className="card-hero-glow rounded-3xl p-6 text-white flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-white/80">
               Net Credit Standing
@@ -320,7 +320,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             onClick={() => setFilter('all')}
             className={`px-3.5 py-1.5 rounded-xl cursor-pointer transition-all ${
               filter === 'all'
-                ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                ? 'btn-glow font-extrabold'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -331,7 +331,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             onClick={() => setFilter('lent')}
             className={`px-3.5 py-1.5 rounded-xl cursor-pointer transition-all ${
               filter === 'lent'
-                ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                ? 'btn-glow font-extrabold'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -342,7 +342,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             onClick={() => setFilter('credit')}
             className={`px-3.5 py-1.5 rounded-xl cursor-pointer transition-all ${
               filter === 'credit'
-                ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                ? 'btn-glow font-extrabold'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -353,7 +353,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             onClick={() => setFilter('splitwise')}
             className={`px-3.5 py-1.5 rounded-xl cursor-pointer transition-all ${
               filter === 'splitwise'
-                ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                ? 'btn-glow font-extrabold'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
@@ -420,9 +420,9 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                       <span
                         className={`font-mono text-xl font-extrabold ${
                           combinedNet > 0
-                            ? 'text-emerald-600 dark:text-emerald-400'
+                            ? 'text-owed'
                             : combinedNet < 0
-                            ? 'text-rose-600 dark:text-rose-400'
+                            ? 'text-owe'
                             : 'text-[var(--color-text-muted)]'
                         }`}
                       >
@@ -439,7 +439,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                         <button
                           type="button"
                           onClick={() => handleOpenSettle(friend.id, combinedNet)}
-                          className="btn-press px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm cursor-pointer"
+                          className="btn-press btn-primary px-3.5 py-2 font-extrabold text-xs rounded-xl shadow-sm cursor-pointer"
                         >
                           Settle / Repay
                         </button>
@@ -468,9 +468,9 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                       <span
                         className={`font-mono text-xs font-extrabold ${
                           splitwiseNet > 0
-                            ? 'text-emerald-600 dark:text-emerald-400'
+                            ? 'text-owed'
                             : splitwiseNet < 0
-                            ? 'text-rose-600 dark:text-rose-400'
+                            ? 'text-owe'
                             : 'text-[var(--color-text-muted)]'
                         }`}
                       >
@@ -496,15 +496,15 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                   <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border-subtle)] rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[var(--color-text)] flex items-center gap-1.5">
-                        <Icon name="moneyHand" size={15} strokeWidth={2} className="text-emerald-400" />
+                        <Icon name="moneyHand" size={15} strokeWidth={2} className="text-primary" />
                         <span>Direct Loan / Credit</span>
                       </span>
                       <span
                         className={`font-mono text-xs font-extrabold ${
                           directLoanNet > 0
-                            ? 'text-emerald-600 dark:text-emerald-400'
+                            ? 'text-owed'
                             : directLoanNet < 0
-                            ? 'text-rose-600 dark:text-rose-400'
+                            ? 'text-owe'
                             : 'text-[var(--color-text-muted)]'
                         }`}
                       >
@@ -590,9 +590,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                 <div className="text-right shrink-0">
                   <span
                     className={`font-mono font-bold ${
-                      entry.isLent
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-rose-600 dark:text-rose-400'
+                      entry.isLent ? 'text-owed' : 'text-owe'
                     }`}
                   >
                     {entry.isLent ? '+' : '\u2212'}

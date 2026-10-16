@@ -105,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <p className="text-xs font-bold text-[var(--color-text)] truncate">
                 {me?.name || 'You'}
               </p>
-              <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+              <p className="text-[10px] text-primary font-medium">
                 ● Active Profile
               </p>
             </div>
@@ -139,7 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={onAddExpense}
-          className="w-full py-2.5 px-4 bg-primary hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+          className="w-full py-2.5 px-4 btn-glow font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           <Icon name="plus" size={16} strokeWidth={2.5} />
           <span>Add New Expense</span>
@@ -154,9 +154,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={item.id}
                 type="button"
                 onClick={() => onNavigate(item.id)}
-                className={`sidebar-nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors duration-150 ${
+                className={`sidebar-nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
                   isActive
-                    ? 'bg-primary text-white shadow-sm'
+                    ? 'sidebar-nav-active-glow font-bold'
                     : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-subtle)]'
                 }`}
               >
@@ -195,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               ? 'bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-400'
               : isError
               ? 'bg-rose-500/10 border-rose-500/25 text-rose-700 dark:text-rose-400'
-              : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800 dark:text-emerald-400'
+              : 'bg-owed text-owed border border-[var(--color-owed-border)]'
           }`}
           title="Click to sync now"
         >

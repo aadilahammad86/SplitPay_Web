@@ -217,7 +217,7 @@ export const ActivityView: React.FC = () => {
               onClick={() => setFilter('all')}
               className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 filter === 'all'
-                  ? 'bg-primary text-white shadow-sm'
+                  ? 'btn-glow font-bold'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
               }`}
             >
@@ -228,7 +228,7 @@ export const ActivityView: React.FC = () => {
               onClick={() => setFilter('expenses')}
               className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 filter === 'expenses'
-                  ? 'bg-primary text-white shadow-sm'
+                  ? 'btn-glow font-bold'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
               }`}
             >
@@ -239,7 +239,7 @@ export const ActivityView: React.FC = () => {
               onClick={() => setFilter('settlements')}
               className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 filter === 'settlements'
-                  ? 'bg-primary text-white shadow-sm'
+                  ? 'btn-glow font-bold'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
               }`}
             >
@@ -365,7 +365,7 @@ export const ActivityView: React.FC = () => {
                     setSelectedDetailIsSettlement(item.isSettlement)
                   }
                 }}
-                className={`p-4 bg-[var(--color-surface)] border rounded-2xl flex items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+                className={`p-4 card-glow rounded-2xl flex items-center justify-between gap-3 transition-all cursor-pointer ${
                   item.isTombstone ? 'opacity-60 bg-[var(--color-surface-subtle)]' : 'card-hover'
                 } ${
                   isSelected
