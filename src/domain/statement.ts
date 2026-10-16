@@ -1,5 +1,6 @@
 import type { Expense, Group, Person, Settlement } from './entities'
 import { breakdownFor } from './balance'
+import { isExpenseParticipant, isSettlementParticipant } from './privacy'
 
 export interface StatementItem {
   id: string
@@ -131,6 +132,8 @@ export function buildGroupStatement(params: {
   for (const e of expenses) {
     if (e.groupId !== group.id) continue
     if (e.createdAtMicros < startMicros || e.createdAtMicros > endMicros) continue
+    // Invariant INV-TRANSACTION-PRIVACY: Only include transactions where the user participated
+    if (!isExpenseParticipant(e, me.id)) continue
 
     const myShare = e.shares.find((s) => s.owedBy === me.id)?.amountMinor ?? 0
     items.push({
@@ -149,6 +152,8 @@ export function buildGroupStatement(params: {
   for (const st of settlements) {
     if (st.groupId !== group.id) continue
     if (st.createdAtMicros < startMicros || st.createdAtMicros > endMicros) continue
+    // Invariant INV-TRANSACTION-PRIVACY: Only include settlements where the user is from or to
+    if (!isSettlementParticipant(st, me.id)) continue
 
     items.push({
       id: st.id,

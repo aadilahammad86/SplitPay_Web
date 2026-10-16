@@ -4,6 +4,7 @@ import { useTheme } from '../themeContext'
 import { Icon, type IconName } from './Icon'
 import { SyncStatusModal } from '../../features/sync/SyncStatusModal'
 import { defaultAuthService } from '../../services/auth/authService'
+import { isExpenseParticipant } from '../../domain/privacy'
 
 interface SidebarProps {
   currentTab: string
@@ -27,7 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'credit', label: 'Lent / Credit', icon: 'creditcard', count: null },
     { id: 'friends', label: 'Friends', icon: 'user', count: ledgerState.people.filter((p) => p.id !== me?.id).length },
     { id: 'groups', label: 'Groups', icon: 'users', count: ledgerState.groups.length },
-    { id: 'activity', label: 'Activity', icon: 'receipt', count: ledgerState.expenses.filter((e) => !e.isTombstone).length },
+    { id: 'activity', label: 'Activity', icon: 'receipt', count: ledgerState.expenses.filter((e) => !e.isTombstone && isExpenseParticipant(e, me?.id, store.isMe)).length },
     { id: 'statements', label: 'Statements', icon: 'chart', count: null },
     { id: 'settings', label: 'Settings', icon: 'settings', count: null },
   ]

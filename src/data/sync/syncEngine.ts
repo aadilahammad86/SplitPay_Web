@@ -267,6 +267,7 @@ export class SyncEngine {
             myName: me?.name || session?.name,
             myHandle: me?.handle || session?.username,
             isInitialSync,
+            getExpenseById: (id) => this.store.getState().expenses.find((e) => e.id === id),
           })
 
           for (const op of validOps) {

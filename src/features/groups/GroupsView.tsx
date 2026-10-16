@@ -13,6 +13,7 @@ import {
   GroupKindInfo,
 } from '../../domain/entities'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
+import { isExpenseParticipant, isSettlementParticipant } from '../../domain/privacy'
 
 interface GroupsViewProps {
   onNavigateToGroupStatement: (groupId: string) => void
@@ -103,19 +104,21 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
   }
   const activeGroup = selectedGroup || cachedGroup
 
-  // Simplified Debts for selected group
+  // Simplified Debts for selected group (filtered strictly to participant transactions)
   const debtPlan = activeGroup
     ? simplifyDebts(
         groupNets({
           group: activeGroup,
-          expenses: ledgerState.expenses,
-          settlements: ledgerState.settlements,
+          expenses: ledgerState.expenses.filter((e) => isExpenseParticipant(e, meId, store.isMe)),
+          settlements: ledgerState.settlements.filter((s) => isSettlementParticipant(s, meId, store.isMe)),
         })
-      )
+      ).filter((transfer) => store.isMe(transfer.from) || store.isMe(transfer.to))
     : []
 
   const groupExpenses = activeGroup
-    ? ledgerState.expenses.filter((e) => !e.isTombstone && e.groupId === activeGroup.id)
+    ? ledgerState.expenses.filter(
+        (e) => !e.isTombstone && e.groupId === activeGroup.id && isExpenseParticipant(e, meId, store.isMe)
+      )
     : []
 
   const peopleMap = new Map(ledgerState.people.map((p) => [p.id, p]))
@@ -215,7 +218,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
           {ledgerState.groups.map((group) => {
             const kindInfo = GroupKindInfo[group.kind]
             const totalGroupSpendMinor = ledgerState.expenses
-              .filter((e) => !e.isTombstone && e.groupId === group.id)
+              .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, store.isMe))
               .reduce((acc, e) => acc + e.totalMinor, 0)
             const isSelected = selectedGroupIds.has(group.id)
 

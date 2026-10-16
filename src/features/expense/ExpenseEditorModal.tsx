@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { Select } from '../../ui/components/Select'
 import { useStore } from '../../ui/storeContext'
@@ -12,6 +12,7 @@ import {
   type SplitMode,
   SplitModeLabels,
   type Expense,
+  type Person,
 } from '../../domain/entities'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
@@ -124,10 +125,21 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
 
   const totalMinor = Math.round((parseFloat(amountStr) || 0) * currency.scale)
 
+  const candidatePeople: readonly Person[] = useMemo(() => {
+    if (!groupId) return ledgerState.people
+    const grp = ledgerState.groups.find((g) => g.id === groupId)
+    if (!grp) return ledgerState.people
+    return ledgerState.people.filter((p: Person) => grp.memberIds.includes(p.id))
+  }, [groupId, ledgerState.groups, ledgerState.people])
+
   const handleToggleMember = (id: string) => {
     if (selectedMemberIds.includes(id)) {
       if (selectedMemberIds.length > 1) {
-        setSelectedMemberIds(selectedMemberIds.filter((m) => m !== id))
+        const next = selectedMemberIds.filter((m) => m !== id)
+        setSelectedMemberIds(next)
+        if (paidBy === id) {
+          setPaidBy(next[0] || meId)
+        }
       }
     } else {
       setSelectedMemberIds([...selectedMemberIds, id])
@@ -396,6 +408,9 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
                 if (grp) {
                   setCurrency(grp.currency)
                   setSelectedMemberIds([...grp.memberIds])
+                  if (!grp.memberIds.includes(paidBy)) {
+                    setPaidBy(grp.memberIds.includes(meId) ? meId : grp.memberIds[0] || meId)
+                  }
                 }
               }
             }}
@@ -424,7 +439,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
               onClick={() => setMode(m)}
               className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
                 mode === m
-                  ? 'bg-indigo-600 text-white shadow-sm'
+                  ? 'bg-primary text-white shadow-sm'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
               }`}
             >
@@ -440,7 +455,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
           Split Between ({selectedMemberIds.length} people)
         </label>
         <div className="space-y-2 max-h-48 overflow-y-auto p-2 bg-[var(--color-surface-subtle)]/50 border border-[var(--color-border)] rounded-xl">
-          {ledgerState.people.map((person) => {
+          {candidatePeople.map((person) => {
             const isSelected = selectedMemberIds.includes(person.id)
             return (
               <div
@@ -452,7 +467,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => handleToggleMember(person.id)}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
                   />
                   <span className="font-semibold text-xs">
                     {person.id === me?.id ? 'You' : person.name}

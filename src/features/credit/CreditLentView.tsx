@@ -8,6 +8,7 @@ import { FriendDetailModal } from '../friends/FriendDetailModal'
 import { ActivityDetailModal } from '../activity/ActivityDetailModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import { CategoryIcon, Icon } from '../../ui/components/Icon'
+import { isExpenseParticipant } from '../../domain/privacy'
 
 interface CreditLentViewProps {
   onNavigateToStatement: (friendId: string) => void
@@ -89,14 +90,22 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         (e) =>
           !e.isTombstone &&
           e.isLoan &&
-          e.shares.some((s) => s.owedBy === friend.id || s.owedTo === friend.id)
+          e.shares.some(
+            (s) =>
+              (s.owedBy === friend.id && store.isMe(s.owedTo)) ||
+              (store.isMe(s.owedBy) && s.owedTo === friend.id)
+          )
       ).length
 
       const sharedBillsCount = ledgerState.expenses.filter(
         (e) =>
           !e.isTombstone &&
           !e.isLoan &&
-          e.shares.some((s) => s.owedBy === friend.id || s.owedTo === friend.id)
+          e.shares.some(
+            (s) =>
+              (s.owedBy === friend.id && store.isMe(s.owedTo)) ||
+              (store.isMe(s.owedBy) && s.owedTo === friend.id)
+          )
       ).length
 
       return {
@@ -148,7 +157,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
   // Recent Loan & Credit Ledger Entries
   const recentCreditEntries = useMemo(() => {
     return ledgerState.expenses
-      .filter((e) => !e.isTombstone)
+      .filter((e) => !e.isTombstone && isExpenseParticipant(e, meId, store.isMe))
       .map((e) => {
         const isLent = store.isMe(e.paidBy)
         return {
@@ -166,7 +175,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
       })
       .sort((a, b) => b.createdAtMicros - a.createdAtMicros)
       .slice(0, 8)
-  }, [ledgerState.expenses, currentCurrency, store])
+  }, [ledgerState.expenses, currentCurrency, store, meId])
 
   const handleOpenAddModal = (type: 'lent' | 'borrowed', friendId?: string) => {
     setLoanModalType(type)

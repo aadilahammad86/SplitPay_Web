@@ -11,6 +11,7 @@ import { CreateGroupModal } from '../groups/CreateGroupModal'
 import { ActivityDetailModal } from '../activity/ActivityDetailModal'
 import { FriendDetailModal } from '../friends/FriendDetailModal'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
+import { isExpenseParticipant, isSettlementParticipant } from '../../domain/privacy'
 
 interface DashboardViewProps {
   onNavigate: (tab: string) => void
@@ -64,34 +65,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .reduce((sum, e) => sum + e.totalMinor, 0)
 
   // Recent transactions (expenses + settlements combined, reverse chronological)
+  // Invariant INV-TRANSACTION-PRIVACY: Filter strictly to transactions where the user participates
   const recentTransactions = [
-    ...ledgerState.expenses.filter((e) => !e.isTombstone).map((e) => ({
-      id: e.id,
-      title: e.description,
-      totalMinor: e.totalMinor,
-      currency: e.currency,
-      paidBy: e.paidBy,
-      paidByName: store.isMe(e.paidBy) ? 'You' : (ledgerState.people.find((p) => p.id === e.paidBy)?.name || 'Someone'),
-      myShareMinor: e.shares.find((s) => store.isMe(s.owedBy))?.amountMinor || 0,
-      createdAtMicros: e.createdAtMicros,
-      emoji: e.categoryEmoji || '🧾',
-      isSettlement: false,
-      groupId: e.groupId,
-    })),
-    ...ledgerState.settlements.filter((s) => !s.isTombstone).map((s) => ({
-      id: s.id,
-      title: s.note ? `Payment: ${s.note}` : 'Payment recorded',
-      totalMinor: s.amountMinor,
-      currency: s.currency,
-      paidBy: s.from,
-      paidByName: store.isMe(s.from) ? 'You' : (ledgerState.people.find((p) => p.id === s.from)?.name || 'Someone'),
-      myShareMinor: 0,
-      createdAtMicros: s.createdAtMicros,
-      emoji: '🤝',
-      isSettlement: true,
-      groupId: s.groupId,
-    })),
+    ...ledgerState.expenses
+      .filter((e) => !e.isTombstone && isExpenseParticipant(e, meId, store.isMe))
+      .map((e) => ({
+        id: e.id,
+        title: e.description,
+        totalMinor: e.totalMinor,
+        currency: e.currency,
+        paidBy: e.paidBy,
+        paidByName: store.isMe(e.paidBy) ? 'You' : (ledgerState.people.find((p) => p.id === e.paidBy)?.name || 'Someone'),
+        myShareMinor: e.shares.find((s) => store.isMe(s.owedBy))?.amountMinor || 0,
+        createdAtMicros: e.createdAtMicros,
+        emoji: e.categoryEmoji || '🧾',
+        isSettlement: false,
+        groupId: e.groupId,
+      })),
+    ...ledgerState.settlements
+      .filter((s) => !s.isTombstone && isSettlementParticipant(s, meId, store.isMe))
+      .map((s) => ({
+        id: s.id,
+        title: s.note ? `Payment: ${s.note}` : 'Payment recorded',
+        totalMinor: s.amountMinor,
+        currency: s.currency,
+        paidBy: s.from,
+        paidByName: store.isMe(s.from) ? 'You' : (ledgerState.people.find((p) => p.id === s.from)?.name || 'Someone'),
+        myShareMinor: 0,
+        createdAtMicros: s.createdAtMicros,
+        emoji: '🤝',
+        isSettlement: true,
+        groupId: s.groupId,
+      })),
   ].sort((a, b) => b.createdAtMicros - a.createdAtMicros).slice(0, 6)
+
+  const visibleExpensesCount = ledgerState.expenses.filter(
+    (e) => !e.isTombstone && isExpenseParticipant(e, meId, store.isMe)
+  ).length
 
   // Friends breakdown with non-zero balances
   const friendsWithBalances = validFriends
@@ -127,23 +137,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
         </div>
 
-        {/* Quick Action Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Quick Action Buttons (Option A: Uniform Equal Height & Balanced Ergonomics) */}
+        <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => onNavigate('credit')}
-            className="btn-press flex-1 sm:flex-none px-3.5 py-2.5 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 hover:bg-primary hover:text-white transition-all cursor-pointer"
+            className="btn-press flex-1 min-w-0 min-h-[52px] sm:min-h-0 sm:flex-none py-2 px-2 bg-primary-subtle text-primary border border-primary-border font-bold text-[11px] sm:text-xs rounded-2xl shadow-xs flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 hover:bg-primary hover:text-white transition-all cursor-pointer text-center"
           >
-            <Icon name="creditcard" size={15} />
-            <span>Lent / Credit</span>
+            <Icon name="creditcard" size={17} strokeWidth={2} />
+            <span className="truncate w-full text-center">Lent / Credit</span>
           </button>
           <button
             type="button"
             onClick={() => setShowAddExpense(true)}
-            className="btn-press btn-glow flex-1 sm:flex-none px-4 py-2.5 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+            className="btn-press btn-glow flex-1 min-w-0 min-h-[52px] sm:min-h-0 sm:flex-none py-2 px-2 font-bold text-[11px] sm:text-xs rounded-2xl flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center"
           >
-            <Icon name="plus" size={16} />
-            <span>Add Expense</span>
+            <Icon name="plus" size={17} strokeWidth={2.5} />
+            <span className="truncate w-full text-center">Add Expense</span>
           </button>
           <button
             type="button"
@@ -152,10 +162,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               setSettleAmountMinor(0)
               setShowSettleUp(true)
             }}
-            className="btn-press card-glow flex-1 sm:flex-none px-4 py-2.5 text-[var(--color-text)] font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+            className="btn-press card-glow flex-1 min-w-0 min-h-[52px] sm:min-h-0 sm:flex-none py-2 px-2 text-[var(--color-text)] font-bold text-[11px] sm:text-xs rounded-2xl flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center"
           >
-            <Icon name="moneyHand" size={16} />
-            <span>Settle Up</span>
+            <Icon name="moneyHand" size={17} strokeWidth={2} />
+            <span className="truncate w-full text-center">Settle Up</span>
           </button>
         </div>
       </div>
@@ -237,8 +247,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-xs font-bold text-[var(--color-text)] font-money flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span>
-                {ledgerState.expenses.filter((e) => !e.isTombstone).length}{' '}
-                {ledgerState.expenses.filter((e) => !e.isTombstone).length === 1 ? 'expense' : 'expenses'}
+                {visibleExpensesCount}{' '}
+                {visibleExpensesCount === 1 ? 'expense' : 'expenses'}
               </span>
             </span>
           </div>
@@ -459,10 +469,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {ledgerState.groups.map((group) => {
                   const kind = GroupKindInfo[group.kind]
                   const groupExpensesCount = ledgerState.expenses.filter(
-                    (e) => !e.isTombstone && e.groupId === group.id
+                    (e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, store.isMe)
                   ).length
                   const totalGroupSpendMinor = ledgerState.expenses
-                    .filter((e) => !e.isTombstone && e.groupId === group.id)
+                    .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, store.isMe))
                     .reduce((acc, e) => acc + e.totalMinor, 0)
 
                   return (

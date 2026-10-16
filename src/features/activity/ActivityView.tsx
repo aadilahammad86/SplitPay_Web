@@ -5,10 +5,12 @@ import { BASE_CURRENCY, type Expense } from '../../domain/entities'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 import { ActivityDetailModal } from './ActivityDetailModal'
+import { isExpenseParticipant, isSettlementParticipant } from '../../domain/privacy'
 
 export const ActivityView: React.FC = () => {
   const { store, ledgerState } = useStore()
   const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
+  const meId = ledgerState.localPersonId || ''
 
   const [filter, setFilter] = useState<'all' | 'expenses' | 'settlements'>('all')
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
@@ -26,32 +28,36 @@ export const ActivityView: React.FC = () => {
 
   const allItems = useMemo(() => {
     return [
-      ...ledgerState.expenses.map((e) => ({
-        id: e.id,
-        title: e.description,
-        amountMinor: e.totalMinor,
-        currency: e.currency || currentCurrency,
-        createdAtMicros: e.createdAtMicros,
-        emoji: e.categoryEmoji,
-        isSettlement: false,
-        isTombstone: e.isTombstone,
-        paidByName: store.isMe(e.paidBy) ? 'You' : peopleMap.get(e.paidBy)?.name || 'Unknown',
-        payerId: e.paidBy,
-      })),
-      ...ledgerState.settlements.map((s) => ({
-        id: s.id,
-        title: s.note ? `Payment: ${s.note}` : 'Settlement payment',
-        amountMinor: s.amountMinor,
-        currency: s.currency || currentCurrency,
-        createdAtMicros: s.createdAtMicros,
-        emoji: '🤝',
-        isSettlement: true,
-        isTombstone: Boolean(s.isTombstone),
-        paidByName: store.isMe(s.from) ? 'You' : peopleMap.get(s.from)?.name || 'Unknown',
-        payerId: s.from,
-      })),
+      ...ledgerState.expenses
+        .filter((e) => isExpenseParticipant(e, meId, store.isMe))
+        .map((e) => ({
+          id: e.id,
+          title: e.description,
+          amountMinor: e.totalMinor,
+          currency: e.currency || currentCurrency,
+          createdAtMicros: e.createdAtMicros,
+          emoji: e.categoryEmoji,
+          isSettlement: false,
+          isTombstone: e.isTombstone,
+          paidByName: store.isMe(e.paidBy) ? 'You' : peopleMap.get(e.paidBy)?.name || 'Unknown',
+          payerId: e.paidBy,
+        })),
+      ...ledgerState.settlements
+        .filter((s) => isSettlementParticipant(s, meId, store.isMe))
+        .map((s) => ({
+          id: s.id,
+          title: s.note ? `Payment: ${s.note}` : 'Settlement payment',
+          amountMinor: s.amountMinor,
+          currency: s.currency || currentCurrency,
+          createdAtMicros: s.createdAtMicros,
+          emoji: '🤝',
+          isSettlement: true,
+          isTombstone: Boolean(s.isTombstone),
+          paidByName: store.isMe(s.from) ? 'You' : peopleMap.get(s.from)?.name || 'Unknown',
+          payerId: s.from,
+        })),
     ].sort((a, b) => b.createdAtMicros - a.createdAtMicros)
-  }, [ledgerState.expenses, ledgerState.settlements, currentCurrency, peopleMap, store])
+  }, [ledgerState.expenses, ledgerState.settlements, currentCurrency, peopleMap, store, meId])
 
   const [showDeleted, setShowDeleted] = useState(false)
 
@@ -188,8 +194,8 @@ export const ActivityView: React.FC = () => {
         'Permanently clear and remove all expenses and settlements? This will reset your timeline.'
       )
     ) {
-      const expIds = ledgerState.expenses.map((e) => e.id)
-      const setIds = ledgerState.settlements.map((s) => s.id)
+      const expIds = allItems.filter((i) => !i.isSettlement).map((i) => i.id)
+      const setIds = allItems.filter((i) => i.isSettlement).map((i) => i.id)
       if (expIds.length > 0) await store.permanentRemoveExpenses(expIds)
       if (setIds.length > 0) await store.permanentRemoveSettlements(setIds)
       setSelectedItemIds(new Set())

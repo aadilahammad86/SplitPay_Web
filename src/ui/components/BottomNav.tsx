@@ -35,7 +35,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onNavigate }) 
             >
               {isActive && (
                 <span
-                  className="absolute -top-1 w-5 h-1 rounded-full bg-primary"
+                  className="absolute -top-1 left-1/2 -translate-x-1/2 w-5 h-1 rounded-full bg-primary"
                   style={{ boxShadow: '0 0 8px var(--color-primary-glow)' }}
                 />
               )}

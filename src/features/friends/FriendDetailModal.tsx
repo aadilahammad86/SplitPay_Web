@@ -6,6 +6,7 @@ import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { CategoryIcon, Icon } from '../../ui/components/Icon'
 import { BASE_CURRENCY, GroupKindInfo, personInitials, type Person } from '../../domain/entities'
 import { formatMoney } from '../../domain/formatMoney'
+import { isExpenseParticipant } from '../../domain/privacy'
 
 interface FriendDetailModalProps {
   isOpen: boolean
@@ -354,7 +355,7 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                 const slice = breakdown.groupSlices.find((s) => s.groupId === group.id)
                 const groupSliceAmount = slice?.amountMinor ?? 0
                 const totalGroupSpend = ledgerState.expenses
-                  .filter((e) => !e.isTombstone && e.groupId === group.id)
+                  .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, me?.id, store.isMe))
                   .reduce((sum, e) => sum + e.totalMinor, 0)
 
                 return (

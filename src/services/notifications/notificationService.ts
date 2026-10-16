@@ -1,4 +1,6 @@
 import type { SyncOp } from '../../domain/syncOp'
+import { isExpenseOpParticipant, isExpenseParticipant } from '../../domain/privacy'
+import type { Expense } from '../../domain/entities'
 
 export type NotificationPermissionStatus = 'granted' | 'denied' | 'default' | 'unsupported'
 
@@ -20,6 +22,7 @@ export interface NotifyRemoteOpsOptions {
   myHandle?: string
   isInitialSync?: boolean
   maxAgeMicros?: number
+  getExpenseById?: (id: string) => Expense | undefined
 }
 
 export class NotificationService {
@@ -158,10 +161,18 @@ export class NotificationService {
           currency?: { symbol?: string; scale?: number }
           totalMinor?: number
           paidBy?: string
+          shares?: Array<{ owedBy?: string; owedTo?: string }>
         }
         if (payload.id === 'e1' || op.opId.toUpperCase().includes('TEST')) continue
         // Don't notify if paid by me on another device
         if (payload.paidBy && options.isMe && options.isMe(payload.paidBy)) continue
+
+        // Enforce INV-TRANSACTION-PRIVACY:
+        // Group or 1:1 transactions are strictly visible only to participants.
+        // If the user is not a participant (neither payer nor debtor in shares), suppress notification.
+        if (options.isMe && !isExpenseOpParticipant(payload, undefined, options.isMe)) {
+          continue
+        }
 
         const desc = payload.description || 'Expense'
         const curr = payload.currency?.symbol || '₹'
@@ -184,6 +195,12 @@ export class NotificationService {
         // If settlement was made by me to someone else, don't notify "Payment Received"
         if (payload.from && options.isMe && options.isMe(payload.from)) continue
 
+        // Enforce INV-TRANSACTION-PRIVACY:
+        // A settlement is strictly between two parties. Suppress notification if local user is not the recipient.
+        if (options.isMe && (!payload.to || !options.isMe(payload.to))) {
+          continue
+        }
+
         const curr = payload.currency?.symbol || '₹'
         const scale = payload.currency?.scale || 100
         const amount =
@@ -195,6 +212,13 @@ export class NotificationService {
           type: 'success',
         })
       } else if (op.kind === 'tombstoneExpense') {
+        const payload = op.payload as { expenseId?: string }
+        if (payload.expenseId && options.getExpenseById && options.isMe) {
+          const exp = options.getExpenseById(payload.expenseId)
+          if (exp && !isExpenseParticipant(exp, undefined, options.isMe)) {
+            continue
+          }
+        }
         this.notify('Expense Cancelled', {
           body: 'An expense was marked as cancelled by a collaborator',
           type: 'warning',

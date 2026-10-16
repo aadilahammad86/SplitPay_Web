@@ -5,6 +5,7 @@ import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { CategoryIcon, Icon } from '../../ui/components/Icon'
 import { BASE_CURRENCY, SplitModeLabels, personInitials, type Expense, type Settlement } from '../../domain/entities'
 import { formatMoney } from '../../domain/formatMoney'
+import { isExpenseParticipant, isSettlementParticipant } from '../../domain/privacy'
 
 interface ActivityDetailModalProps {
   isOpen: boolean
@@ -25,6 +26,7 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
 }) => {
   const { store, ledgerState } = useStore()
   const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
+  const meId = ledgerState.localPersonId || ''
 
   if (!isOpen || !itemId) return null
 
@@ -40,6 +42,10 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
     : undefined
 
   if (!expense && !settlement) return null
+
+  // Invariant INV-TRANSACTION-PRIVACY: If user is not a participant, prohibit viewing details
+  if (expense && !isExpenseParticipant(expense, meId, store.isMe)) return null
+  if (settlement && !isSettlementParticipant(settlement, meId, store.isMe)) return null
 
   // Format date helper
   const formatDate = (micros: number) => {
