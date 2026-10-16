@@ -123,6 +123,9 @@ export function encodeExpense(e: Expense): Record<string, unknown> {
     categoryEmoji: e.categoryEmoji,
     isTombstone: e.isTombstone,
     shares: e.shares.map(encodeShare),
+    isLoan: Boolean(e.isLoan),
+    loanType: e.loanType ?? null,
+    dueDateMicros: e.dueDateMicros ?? null,
   }
 }
 
@@ -141,6 +144,9 @@ export function decodeExpense(m: Record<string, unknown>): Expense {
     categoryEmoji: String(m.categoryEmoji ?? '🧾'),
     isTombstone: Boolean(m.isTombstone),
     shares: sharesRaw.map((s) => decodeShare(s as Record<string, unknown>)),
+    isLoan: Boolean(m.isLoan),
+    loanType: m.loanType === 'lent' || m.loanType === 'borrowed' ? m.loanType : undefined,
+    dueDateMicros: m.dueDateMicros ? parseIntegerMinor(m.dueDateMicros) : undefined,
   }
 }
 

@@ -4,6 +4,7 @@ import type {
   Expense,
   Group,
   GroupKind,
+  LoanType,
   Person,
   Settlement,
   SplitMode,
@@ -798,6 +799,77 @@ export class LedgerStore {
       ...params,
       createdAtMicros,
     })
+
+    const op = opAddExpense({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      expense,
+    })
+
+    await this.adapter.addExpense(expense, op)
+    const expenses = await this.adapter.getExpenses()
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ expenses, pendingOpsCount: pending.length })
+    this.notifyMutation()
+    return expense
+  }
+
+  async addLoanCredit(params: {
+    type: LoanType
+    friendId: string
+    amountMinor: number
+    currency: CurrencyCode
+    description?: string
+    dueDateMicros?: number
+    createdAtMicros?: number
+  }): Promise<Expense> {
+    const meId = this.state.localPersonId || this.me?.id
+    if (!meId) {
+      throw new Error('Local user profile not initialized.')
+    }
+    const friend = this.state.people.find((p) => p.id === params.friendId)
+    if (!friend) {
+      throw new Error(`Friend with id ${params.friendId} not found.`)
+    }
+
+    const isLent = params.type === 'lent'
+    const paidBy = isLent ? meId : params.friendId
+    const debtor = isLent ? params.friendId : meId
+    const creditor = paidBy
+
+    const expenseId = generateUlid()
+    const createdAtMicros = params.createdAtMicros ?? Date.now() * 1000
+
+    const defaultDesc = isLent
+      ? `Loan given to ${friend.name}`
+      : `Credit borrowed from ${friend.name}`
+
+    const expense: Expense = {
+      id: expenseId,
+      description: params.description?.trim() || defaultDesc,
+      totalMinor: params.amountMinor,
+      currency: params.currency,
+      paidBy,
+      groupId: null,
+      mode: 'exact',
+      createdAtMicros,
+      categoryEmoji: '💸',
+      isTombstone: false,
+      shares: [
+        {
+          id: `${expenseId}_s0`,
+          expenseId,
+          owedBy: debtor,
+          owedTo: creditor,
+          amountMinor: params.amountMinor,
+          groupId: null,
+        },
+      ],
+      isLoan: true,
+      loanType: params.type,
+      dueDateMicros: params.dueDateMicros,
+    }
 
     const op = opAddExpense({
       opId: generateUlid(),

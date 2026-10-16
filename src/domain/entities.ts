@@ -65,6 +65,8 @@ export interface ExpenseShare {
   groupId: string | null
 }
 
+export type LoanType = 'lent' | 'borrowed'
+
 export interface Expense {
   id: string
   description: string
@@ -77,6 +79,9 @@ export interface Expense {
   categoryEmoji: string
   isTombstone: boolean
   shares: ExpenseShare[]
+  isLoan?: boolean
+  loanType?: LoanType
+  dueDateMicros?: number
 }
 
 export interface Settlement {

@@ -3,11 +3,13 @@ import { useStore } from '../../ui/storeContext'
 import { calculateOverallBalance, breakdownFor } from '../../domain/balance'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { SourceChips } from '../../ui/components/SourceChips'
-import { BASE_CURRENCY, GroupKindInfo, personInitials } from '../../domain/entities'
+import { BASE_CURRENCY, GroupKindInfo, personInitials, type Expense, type Person } from '../../domain/entities'
 import { formatMoney, formatRelativeDate } from '../../domain/formatMoney'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import { CreateGroupModal } from '../groups/CreateGroupModal'
+import { ActivityDetailModal } from '../activity/ActivityDetailModal'
+import { FriendDetailModal } from '../friends/FriendDetailModal'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 
 interface DashboardViewProps {
@@ -30,6 +32,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState<number>(0)
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
+  const [selectedActivityIsSettlement, setSelectedActivityIsSettlement] = useState(false)
+  const [selectedFriendDetail, setSelectedFriendDetail] = useState<Person | null>(null)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
 
   const validFriends = ledgerState.people.filter(
     (p) =>
@@ -123,6 +129,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Quick Action Buttons */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('credit')}
+            className="btn-press flex-1 sm:flex-none px-3.5 py-2.5 bg-primary-subtle text-primary border border-primary-border font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 hover:bg-primary/20 transition-colors"
+          >
+            <Icon name="creditcard" size={15} />
+            <span>Lent / Credit</span>
+          </button>
           <button
             type="button"
             onClick={() => setShowAddExpense(true)}
@@ -311,17 +325,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {recentTransactions.map((tx, idx) => (
                   <div
                     key={tx.id}
-                    className="list-item-enter py-3.5 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-subtle)] -mx-2 px-2 rounded-xl transition-colors"
+                    onClick={() => {
+                      setSelectedActivityId(tx.id)
+                      setSelectedActivityIsSettlement(tx.isSettlement)
+                    }}
+                    className="list-item-enter py-3.5 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-subtle)] -mx-2 px-2.5 rounded-2xl transition-all cursor-pointer group hover:border hover:border-primary/20"
                     style={{ '--stagger-index': idx } as React.CSSProperties}
+                    title="Click to view full split breakdown"
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary shrink-0">
+                      <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform">
                         <CategoryIcon category={tx.emoji} size={20} />
                       </div>
                       <div className="overflow-hidden">
-                        <p className="font-semibold text-sm text-[var(--color-text)] truncate">
-                          {tx.title}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-sm text-[var(--color-text)] group-hover:text-primary transition-colors truncate">
+                            {tx.title}
+                          </p>
+                          <span className="text-[10px] text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline">
+                            · View Split →
+                          </span>
+                        </div>
                         <p className="text-xs text-[var(--color-text-muted)] truncate mt-0.5">
                           {store.isMe(tx.paidBy) ? 'You paid' : `${tx.paidByName} paid`} ·{' '}
                           {formatRelativeDate(tx.createdAtMicros)}
@@ -525,8 +549,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div className="flex items-center justify-between gap-2">
                       <div
                         className="flex items-center gap-2.5 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
-                        onClick={() => onSelectFriend(friend.id)}
-                        title={`View statement with ${friend.name}`}
+                        onClick={() => setSelectedFriendDetail(friend)}
+                        title={`View groupwise & individual split details with ${friend.name}`}
                       >
                         {/* Clear, readable avatar with primary subtle theme */}
                         <div className="w-9 h-9 rounded-full bg-primary-subtle text-primary border border-primary-border font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
@@ -612,6 +636,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         isOpen={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
         onCreated={(groupId) => onSelectGroup(groupId)}
+      />
+
+      {/* Activity Split Breakdown Modal */}
+      <ActivityDetailModal
+        isOpen={Boolean(selectedActivityId)}
+        onClose={() => setSelectedActivityId(null)}
+        itemId={selectedActivityId}
+        isSettlement={selectedActivityIsSettlement}
+        onEditExpense={(exp) => setEditingExpense(exp)}
+        onSettleUp={(fId, amount) => handleQuickSettle(fId, amount)}
+      />
+
+      {/* Friend Groupwise & Individual Breakdown Modal */}
+      <FriendDetailModal
+        isOpen={Boolean(selectedFriendDetail)}
+        onClose={() => setSelectedFriendDetail(null)}
+        friend={selectedFriendDetail}
+        onOpenSettleUp={(fId, amount) => handleQuickSettle(fId, amount)}
+        onNavigateToStatement={(fId) => onSelectFriend(fId)}
+        onSelectActivity={(actId, isSet) => {
+          setSelectedActivityId(actId)
+          setSelectedActivityIsSettlement(isSet)
+        }}
+      />
+
+      {/* Edit Expense Modal */}
+      <ExpenseEditorModal
+        isOpen={Boolean(editingExpense)}
+        onClose={() => setEditingExpense(null)}
+        expenseToEdit={editingExpense}
       />
     </div>
   )

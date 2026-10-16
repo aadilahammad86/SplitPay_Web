@@ -9,6 +9,7 @@ interface BottomNavProps {
 export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onNavigate }) => {
   const tabs: { id: string; label: string; icon: IconName }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+    { id: 'credit', label: 'Lent/Credit', icon: 'creditcard' },
     { id: 'friends', label: 'Friends', icon: 'user' },
     { id: 'groups', label: 'Groups', icon: 'users' },
     { id: 'activity', label: 'Activity', icon: 'receipt' },

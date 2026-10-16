@@ -8,6 +8,7 @@ import { DashboardView } from './features/dashboard/DashboardView'
 import { FriendsView } from './features/friends/FriendsView'
 import { GroupsView } from './features/groups/GroupsView'
 import { ActivityView } from './features/activity/ActivityView'
+import { CreditLentView } from './features/credit/CreditLentView'
 import { StatementsView } from './features/statements/StatementsView'
 import { SettingsView } from './features/settings/SettingsView'
 import { ExpenseEditorModal } from './features/expense/ExpenseEditorModal'
@@ -285,6 +286,10 @@ const AppContent: React.FC = () => {
           )}
 
           {currentTab === 'activity' && <ActivityView />}
+
+          {currentTab === 'credit' && (
+            <CreditLentView onNavigateToStatement={navigateToFriendStatement} />
+          )}
 
           {currentTab === 'statements' && (
             <StatementsView initialSubjectId={statementSubjectId} />

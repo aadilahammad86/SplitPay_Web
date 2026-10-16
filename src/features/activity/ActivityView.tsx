@@ -4,6 +4,7 @@ import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { BASE_CURRENCY, type Expense } from '../../domain/entities'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
+import { ActivityDetailModal } from './ActivityDetailModal'
 
 export const ActivityView: React.FC = () => {
   const { store, ledgerState } = useStore()
@@ -15,6 +16,8 @@ export const ActivityView: React.FC = () => {
   if (editingExpense && editingExpense !== cachedExpense) {
     setCachedExpense(editingExpense)
   }
+  const [selectedDetailItemId, setSelectedDetailItemId] = useState<string | null>(null)
+  const [selectedDetailIsSettlement, setSelectedDetailIsSettlement] = useState(false)
 
   const peopleMap = useMemo(
     () => new Map(ledgerState.people.map((p) => [p.id, p])),
@@ -357,15 +360,18 @@ export const ActivityView: React.FC = () => {
                 onClick={() => {
                   if (isSelectMode) {
                     handleToggleSelect(item.id)
+                  } else {
+                    setSelectedDetailItemId(item.id)
+                    setSelectedDetailIsSettlement(item.isSettlement)
                   }
                 }}
-                className={`p-4 bg-[var(--color-surface)] border rounded-2xl flex items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
+                className={`p-4 bg-[var(--color-surface)] border rounded-2xl flex items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${
                   item.isTombstone ? 'opacity-60 bg-[var(--color-surface-subtle)]' : 'card-hover'
                 } ${
                   isSelected
                     ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
                     : 'border-[var(--color-border)]'
-                } ${isSelectMode ? 'cursor-pointer' : ''}`}
+                }`}
               >
                 <div className="flex items-center gap-3.5 overflow-hidden">
                   {isSelectMode && (
@@ -511,6 +517,15 @@ export const ActivityView: React.FC = () => {
         isOpen={Boolean(editingExpense)}
         onClose={() => setEditingExpense(null)}
         expenseToEdit={editingExpense || cachedExpense}
+      />
+
+      {/* Activity Split Breakdown Modal */}
+      <ActivityDetailModal
+        isOpen={Boolean(selectedDetailItemId)}
+        onClose={() => setSelectedDetailItemId(null)}
+        itemId={selectedDetailItemId}
+        isSettlement={selectedDetailIsSettlement}
+        onEditExpense={(exp) => setEditingExpense(exp)}
       />
     </div>
   )

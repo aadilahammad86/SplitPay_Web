@@ -1,6 +1,6 @@
 import { stableSeed } from './stableSeed'
 import type { CurrencyCode } from './money'
-import type { Expense, ExpenseShare, SplitMode } from './entities'
+import type { Expense, ExpenseShare, LoanType, SplitMode } from './entities'
 
 export class ValidationFailure extends Error {
   constructor(message: string) {
@@ -269,6 +269,9 @@ export function buildExpense(params: {
   basisPoints?: number[]
   exactAmounts?: number[]
   adjustments?: number[]
+  isLoan?: boolean
+  loanType?: LoanType
+  dueDateMicros?: number
 }): Expense {
   const {
     id,
@@ -285,6 +288,9 @@ export function buildExpense(params: {
     basisPoints,
     exactAmounts,
     adjustments,
+    isLoan,
+    loanType,
+    dueDateMicros,
   } = params
 
   if (memberIds.length === 0) {
@@ -347,5 +353,8 @@ export function buildExpense(params: {
     categoryEmoji,
     isTombstone: false,
     shares: rows,
+    isLoan: Boolean(isLoan),
+    loanType,
+    dueDateMicros,
   }
 }

@@ -8,8 +8,10 @@ import { SettleUpModal } from '../settle/SettleUpModal'
 import { EditFriendModal } from './EditFriendModal'
 import { ContactSyncContent } from '../contacts/ContactSyncModal'
 import { isContactPickerSupported } from '../../services/contacts/contactMatchingService'
+import { FriendDetailModal } from './FriendDetailModal'
+import { ActivityDetailModal } from '../activity/ActivityDetailModal'
 import { BASE_CURRENCY, personInitials, type Person } from '../../domain/entities'
-import { Icon, CategoryIcon } from '../../ui/components/Icon'
+import { Icon } from '../../ui/components/Icon'
 import { getSupabaseClient } from '../../supabase/supabaseClient'
 
 interface FriendsViewProps {
@@ -32,6 +34,8 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const [showSettle, setShowSettle] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState(0)
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
+  const [selectedActivityIsSettlement, setSelectedActivityIsSettlement] = useState(false)
 
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedFriendIds, setSelectedFriendIds] = useState<Set<string>>(new Set())
@@ -149,70 +153,6 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
       // User cancelled contact picker
     }
   }
-
-  const [cachedFriend, setCachedFriend] = useState<Person | null>(selectedFriend)
-  if (selectedFriend && selectedFriend !== cachedFriend) {
-    setCachedFriend(selectedFriend)
-  }
-  const activeDetailFriend = selectedFriend || cachedFriend
-
-  const activeFriendBreakdown = activeDetailFriend
-    ? breakdownFor({
-        me: meId,
-        friend: activeDetailFriend.id,
-        expenses: ledgerState.expenses,
-        settlements: ledgerState.settlements,
-        isMe: (id) => store.isMe(id),
-      })
-    : null
-
-  // Mutual transactions with selected friend
-  const mutualTransactions = activeDetailFriend
-    ? [
-        ...ledgerState.expenses
-          .filter((e) =>
-            !e.isTombstone &&
-            e.shares.some(
-              (s) =>
-                (s.owedBy === activeDetailFriend.id && store.isMe(s.owedTo)) ||
-                (store.isMe(s.owedBy) && s.owedTo === activeDetailFriend.id)
-            )
-          )
-          .map((e) => {
-            const myShare = e.shares.find((s) => store.isMe(s.owedBy))?.amountMinor ?? 0
-            const friendShare = e.shares.find((s) => s.owedBy === activeDetailFriend.id)?.amountMinor ?? 0
-            return {
-              id: e.id,
-              title: e.description,
-              totalMinor: e.totalMinor,
-              relevantMinor: store.isMe(e.paidBy) ? friendShare : myShare,
-              currency: e.currency,
-              createdAtMicros: e.createdAtMicros,
-              emoji: e.categoryEmoji,
-              isSettlement: false,
-              paidByMe: store.isMe(e.paidBy),
-            }
-          }),
-        ...ledgerState.settlements
-          .filter(
-            (s) =>
-              !s.isTombstone &&
-              ((store.isMe(s.from) && s.to === activeDetailFriend.id) ||
-                (s.from === activeDetailFriend.id && store.isMe(s.to)))
-          )
-          .map((s) => ({
-            id: s.id,
-            title: store.isMe(s.from) ? `Payment to ${activeDetailFriend.name}` : `Payment from ${activeDetailFriend.name}`,
-            totalMinor: s.amountMinor,
-            relevantMinor: s.amountMinor,
-            currency: s.currency,
-            createdAtMicros: s.createdAtMicros,
-            emoji: '🤝',
-            isSettlement: true,
-            paidByMe: store.isMe(s.from),
-          })),
-      ].sort((a, b) => b.createdAtMicros - a.createdAtMicros)
-    : []
 
   const handleOpenSettle = (fId: string, amountMinor: number) => {
     setSettleFriendId(fId)
@@ -606,140 +546,28 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
       </Modal>
 
       {/* Friend Detail Modal */}
-      <Modal
+      <FriendDetailModal
         isOpen={Boolean(selectedFriend)}
         onClose={() => setSelectedFriend(null)}
-        title={activeDetailFriend ? `Balance with ${activeDetailFriend.name}` : ''}
-        maxWidth="max-w-xl"
-      >
-        {activeDetailFriend && activeFriendBreakdown ? (
-          <div className="space-y-5 text-sm">
-            {/* Top Balance Banner */}
-            <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-2xl flex items-center justify-between">
-              <div className="space-y-0.5">
-                <span className="text-xs text-[var(--color-text-muted)] font-medium">
-                  Net Balance Status
-                </span>
-                <div className="text-xl font-extrabold">
-                  <MoneyDisplay
-                    minor={activeFriendBreakdown.netMinor}
-                    currency={currentCurrency}
-                    size="lg"
-                    showSign={true}
-                  />
-                </div>
-              </div>
+        friend={selectedFriend}
+        onOpenSettleUp={(fId, amount) => handleOpenSettle(fId, amount)}
+        onNavigateToStatement={(fId) => onNavigateToStatement(fId)}
+        onEditFriend={(friend) => setEditingFriend(friend)}
+        onRemoveFriend={(friend) => handleRemoveSingleFriend(friend)}
+        onSelectActivity={(actId, isSet) => {
+          setSelectedActivityId(actId)
+          setSelectedActivityIsSettlement(isSet)
+        }}
+      />
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const toEdit = activeDetailFriend
-                    setSelectedFriend(null)
-                    setEditingFriend(toEdit)
-                  }}
-                  className="px-3.5 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Icon name="edit" size={14} />
-                  <span>Edit Profile</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const toRemove = activeDetailFriend
-                    setSelectedFriend(null)
-                    handleRemoveSingleFriend(toRemove)
-                  }}
-                  className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 font-semibold text-xs rounded-xl border border-rose-200 dark:border-rose-800 transition-all inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Icon name="delete" size={14} />
-                  <span>Remove</span>
-                </button>
-                {activeFriendBreakdown.netMinor !== 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const id = activeDetailFriend.id
-                      const net = activeFriendBreakdown.netMinor
-                      setSelectedFriend(null)
-                      handleOpenSettle(id, net)
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5"
-                  >
-                    <Icon name="moneyHand" size={14} />
-                    <span>Settle Up</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const id = activeDetailFriend.id
-                    setSelectedFriend(null)
-                    onNavigateToStatement(id)
-                  }}
-                  className="px-4 py-2 bg-[var(--color-surface)] hover:bg-[var(--color-border)] border border-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl transition-all inline-flex items-center gap-1.5"
-                >
-                  <Icon name="chart" size={14} />
-                  <span>Statement</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Source Chips Detail */}
-            {activeFriendBreakdown.slices.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                  Decomposed Balance Sources
-                </h4>
-                <SourceChips
-                  slices={activeFriendBreakdown.slices}
-                  groups={ledgerState.groups}
-                  defaultCurrency={currentCurrency}
-                />
-              </div>
-            )}
-
-            {/* Mutual Transactions Timeline */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                Shared Transactions ({mutualTransactions.length})
-              </h4>
-              {mutualTransactions.length === 0 ? (
-                <p className="text-xs text-[var(--color-text-muted)] py-4 text-center">
-                  No mutual expenses or payments yet.
-                </p>
-              ) : (
-                <div className="divide-y divide-[var(--color-border)] max-h-64 overflow-y-auto pr-1">
-                  {mutualTransactions.map((tx) => (
-                    <div key={tx.id} className="py-2.5 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-[var(--color-surface-subtle)] border border-[var(--color-border)] flex items-center justify-center text-primary">
-                          <CategoryIcon category={tx.emoji} size={15} />
-                        </div>
-                        <div>
-                          <p className="font-bold text-[var(--color-text)]">{tx.title}</p>
-                          <p className="text-[10px] text-[var(--color-text-muted)]">
-                            {new Date(Math.floor(tx.createdAtMicros / 1000)).toLocaleDateString()} ·{' '}
-                            {tx.paidByMe ? 'You paid' : `${activeDetailFriend.name} paid`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <MoneyDisplay
-                          minor={tx.relevantMinor}
-                          currency={tx.currency}
-                          size="sm"
-                          showSign={false}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+      {/* Activity Split Breakdown Modal */}
+      <ActivityDetailModal
+        isOpen={Boolean(selectedActivityId)}
+        onClose={() => setSelectedActivityId(null)}
+        itemId={selectedActivityId}
+        isSettlement={selectedActivityIsSettlement}
+        onSettleUp={(fId, amount) => handleOpenSettle(fId, amount)}
+      />
 
       {/* Settle Up Modal */}
       <SettleUpModal
