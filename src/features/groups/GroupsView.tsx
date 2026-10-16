@@ -109,15 +109,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
     ? simplifyDebts(
         groupNets({
           group: activeGroup,
-          expenses: ledgerState.expenses.filter((e) => isExpenseParticipant(e, meId, store.isMe)),
-          settlements: ledgerState.settlements.filter((s) => isSettlementParticipant(s, meId, store.isMe)),
+          expenses: ledgerState.expenses.filter((e) => isExpenseParticipant(e, meId, (id) => store.isMe(id))),
+          settlements: ledgerState.settlements.filter((s) => isSettlementParticipant(s, meId, (id) => store.isMe(id))),
         })
       ).filter((transfer) => store.isMe(transfer.from) || store.isMe(transfer.to))
     : []
 
   const groupExpenses = activeGroup
     ? ledgerState.expenses.filter(
-        (e) => !e.isTombstone && e.groupId === activeGroup.id && isExpenseParticipant(e, meId, store.isMe)
+        (e) => !e.isTombstone && e.groupId === activeGroup.id && isExpenseParticipant(e, meId, (id) => store.isMe(id))
       )
     : []
 
@@ -218,7 +218,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ onNavigateToGroupStateme
           {ledgerState.groups.map((group) => {
             const kindInfo = GroupKindInfo[group.kind]
             const totalGroupSpendMinor = ledgerState.expenses
-              .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, store.isMe))
+              .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, (id) => store.isMe(id)))
               .reduce((acc, e) => acc + e.totalMinor, 0)
             const isSelected = selectedGroupIds.has(group.id)
 

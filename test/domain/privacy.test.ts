@@ -306,4 +306,29 @@ describe('Invariant INV-TRANSACTION-PRIVACY: Group and 1-to-1 Transaction Privac
       expect(isExpenseParticipant(directLoan, charlie.id)).toBe(false)
     })
   })
+
+  describe('Exception Safety & Bound Store Predicates', () => {
+    it('does not throw when isMe throws or accesses undefined context', () => {
+      const brokenIsMe = () => {
+        throw new TypeError('can\'t access property "state", this is undefined')
+      }
+
+      expect(() => isExpenseParticipant(groupExpenseAC, 'unknown', brokenIsMe)).not.toThrow()
+      expect(isExpenseParticipant(groupExpenseAC, 'unknown', brokenIsMe)).toBe(false)
+
+      expect(() => isSettlementParticipant(groupSettlementCA, 'unknown', brokenIsMe)).not.toThrow()
+      expect(isSettlementParticipant(groupSettlementCA, 'unknown', brokenIsMe)).toBe(false)
+    })
+
+    it('works with LedgerStore instance even when detached', async () => {
+      const { LedgerStore } = await import('../../src/data/storage/ledgerStore')
+      const { MemoryStorageAdapter } = await import('../../src/data/storage/memoryStorageAdapter')
+      const store = new LedgerStore(new MemoryStorageAdapter())
+      await store.init()
+
+      const detachedIsMe = store.isMe
+      expect(() => detachedIsMe('test')).not.toThrow()
+      expect(isExpenseParticipant(groupExpenseAC, '', detachedIsMe)).toBe(false)
+    })
+  })
 })

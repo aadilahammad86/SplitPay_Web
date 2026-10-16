@@ -355,7 +355,7 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                 const slice = breakdown.groupSlices.find((s) => s.groupId === group.id)
                 const groupSliceAmount = slice?.amountMinor ?? 0
                 const totalGroupSpend = ledgerState.expenses
-                  .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, me?.id, store.isMe))
+                  .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, me?.id, (id) => store.isMe(id)))
                   .reduce((sum, e) => sum + e.totalMinor, 0)
 
                 return (

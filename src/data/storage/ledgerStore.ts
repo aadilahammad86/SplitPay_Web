@@ -46,6 +46,8 @@ export class LedgerStore {
 
   constructor(adapter: StorageAdapter) {
     this.adapter = adapter
+    this.isMe = this.isMe.bind(this)
+    this.getState = this.getState.bind(this)
     this.state = {
       people: [],
       groups: [],

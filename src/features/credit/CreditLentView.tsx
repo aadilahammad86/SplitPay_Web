@@ -157,7 +157,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
   // Recent Loan & Credit Ledger Entries
   const recentCreditEntries = useMemo(() => {
     return ledgerState.expenses
-      .filter((e) => !e.isTombstone && isExpenseParticipant(e, meId, store.isMe))
+      .filter((e) => !e.isTombstone && isExpenseParticipant(e, meId, (id) => store.isMe(id)))
       .map((e) => {
         const isLent = store.isMe(e.paidBy)
         return {

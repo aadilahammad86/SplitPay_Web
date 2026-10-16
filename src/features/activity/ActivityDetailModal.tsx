@@ -44,8 +44,8 @@ export const ActivityDetailModal: React.FC<ActivityDetailModalProps> = ({
   if (!expense && !settlement) return null
 
   // Invariant INV-TRANSACTION-PRIVACY: If user is not a participant, prohibit viewing details
-  if (expense && !isExpenseParticipant(expense, meId, store.isMe)) return null
-  if (settlement && !isSettlementParticipant(settlement, meId, store.isMe)) return null
+  if (expense && !isExpenseParticipant(expense, meId, (id) => store.isMe(id))) return null
+  if (settlement && !isSettlementParticipant(settlement, meId, (id) => store.isMe(id))) return null
 
   // Format date helper
   const formatDate = (micros: number) => {

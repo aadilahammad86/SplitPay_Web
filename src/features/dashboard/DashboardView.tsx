@@ -68,7 +68,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Invariant INV-TRANSACTION-PRIVACY: Filter strictly to transactions where the user participates
   const recentTransactions = [
     ...ledgerState.expenses
-      .filter((e) => !e.isTombstone && isExpenseParticipant(e, meId, store.isMe))
+      .filter((e) => !e.isTombstone && isExpenseParticipant(e, meId, (id) => store.isMe(id)))
       .map((e) => ({
         id: e.id,
         title: e.description,
@@ -83,7 +83,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         groupId: e.groupId,
       })),
     ...ledgerState.settlements
-      .filter((s) => !s.isTombstone && isSettlementParticipant(s, meId, store.isMe))
+      .filter((s) => !s.isTombstone && isSettlementParticipant(s, meId, (id) => store.isMe(id)))
       .map((s) => ({
         id: s.id,
         title: s.note ? `Payment: ${s.note}` : 'Payment recorded',
@@ -100,7 +100,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   ].sort((a, b) => b.createdAtMicros - a.createdAtMicros).slice(0, 6)
 
   const visibleExpensesCount = ledgerState.expenses.filter(
-    (e) => !e.isTombstone && isExpenseParticipant(e, meId, store.isMe)
+    (e) => !e.isTombstone && isExpenseParticipant(e, meId, (id) => store.isMe(id))
   ).length
 
   // Friends breakdown with non-zero balances
@@ -469,10 +469,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {ledgerState.groups.map((group) => {
                   const kind = GroupKindInfo[group.kind]
                   const groupExpensesCount = ledgerState.expenses.filter(
-                    (e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, store.isMe)
+                    (e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, (id) => store.isMe(id))
                   ).length
                   const totalGroupSpendMinor = ledgerState.expenses
-                    .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, store.isMe))
+                    .filter((e) => !e.isTombstone && e.groupId === group.id && isExpenseParticipant(e, meId, (id) => store.isMe(id)))
                     .reduce((acc, e) => acc + e.totalMinor, 0)
 
                   return (

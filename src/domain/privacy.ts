@@ -19,8 +19,18 @@ export function isExpenseParticipant(
   isMe?: (id: string) => boolean
 ): boolean {
   if (!userId && !isMe) return false
-  const match = (id?: string): boolean =>
-    Boolean(id && ((userId && id === userId) || (isMe ? isMe(id) : false)))
+  const match = (id?: string): boolean => {
+    if (!id) return false
+    if (userId && id === userId) return true
+    if (typeof isMe === 'function') {
+      try {
+        return Boolean(isMe(id))
+      } catch {
+        return false
+      }
+    }
+    return false
+  }
 
   if (match(expense.paidBy)) return true
   if (Array.isArray(expense.shares)) {
@@ -39,8 +49,18 @@ export function isSettlementParticipant(
   isMe?: (id: string) => boolean
 ): boolean {
   if (!userId && !isMe) return false
-  const match = (id?: string): boolean =>
-    Boolean(id && ((userId && id === userId) || (isMe ? isMe(id) : false)))
+  const match = (id?: string): boolean => {
+    if (!id) return false
+    if (userId && id === userId) return true
+    if (typeof isMe === 'function') {
+      try {
+        return Boolean(isMe(id))
+      } catch {
+        return false
+      }
+    }
+    return false
+  }
 
   return match(settlement.from) || match(settlement.to)
 }
@@ -57,8 +77,18 @@ export function isExpenseOpParticipant(
   isMe?: (id: string) => boolean
 ): boolean {
   if (!userId && !isMe) return false
-  const match = (id?: string): boolean =>
-    Boolean(id && ((userId && id === userId) || (isMe ? isMe(id) : false)))
+  const match = (id?: string): boolean => {
+    if (!id) return false
+    if (userId && id === userId) return true
+    if (typeof isMe === 'function') {
+      try {
+        return Boolean(isMe(id))
+      } catch {
+        return false
+      }
+    }
+    return false
+  }
 
   if (match(payload.paidBy)) return true
   if (Array.isArray(payload.shares)) {
@@ -79,8 +109,18 @@ export function isSettlementOpParticipant(
   isMe?: (id: string) => boolean
 ): boolean {
   if (!userId && !isMe) return false
-  const match = (id?: string): boolean =>
-    Boolean(id && ((userId && id === userId) || (isMe ? isMe(id) : false)))
+  const match = (id?: string): boolean => {
+    if (!id) return false
+    if (userId && id === userId) return true
+    if (typeof isMe === 'function') {
+      try {
+        return Boolean(isMe(id))
+      } catch {
+        return false
+      }
+    }
+    return false
+  }
 
   return match(payload.from) || match(payload.to)
 }

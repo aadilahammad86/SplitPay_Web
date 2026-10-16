@@ -12,6 +12,8 @@ import { ActivityView } from '../src/features/activity/ActivityView'
 import { StatementsView } from '../src/features/statements/StatementsView'
 import { SettingsView } from '../src/features/settings/SettingsView'
 import { SuperAdminView } from '../src/features/admin/SuperAdminView'
+import { CreditLentView } from '../src/features/credit/CreditLentView'
+import { Sidebar } from '../src/ui/components/Sidebar'
 import { OnboardingModal } from '../src/features/onboarding/OnboardingModal'
 import { EmailVerificationModal } from '../src/features/auth/EmailVerificationModal'
 import { PhoneLinkingModal } from '../src/features/auth/PhoneLinkingModal'
@@ -93,6 +95,26 @@ describe('Application & Views Render Tests', () => {
   it('renders SettingsView', () => {
     const html = renderToString(wrap(<SettingsView onOpenAdmin={() => {}} />))
     expect(html).toBeDefined()
+  })
+
+  it('renders CreditLentView', () => {
+    const html = renderToString(wrap(<CreditLentView onNavigateToStatement={() => {}} />))
+    expect(html).toBeDefined()
+  })
+
+  it('renders Sidebar', () => {
+    const html = renderToString(
+      wrap(
+        <Sidebar
+          currentTab="dashboard"
+          onNavigate={() => {}}
+          onAddExpense={() => {}}
+          onOpenInstall={() => {}}
+        />
+      )
+    )
+    expect(html).toBeDefined()
+    expect(html).toContain('Dashboard')
   })
 
   it('renders SuperAdminView', () => {

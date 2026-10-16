@@ -29,7 +29,7 @@ export const ActivityView: React.FC = () => {
   const allItems = useMemo(() => {
     return [
       ...ledgerState.expenses
-        .filter((e) => isExpenseParticipant(e, meId, store.isMe))
+        .filter((e) => isExpenseParticipant(e, meId, (id) => store.isMe(id)))
         .map((e) => ({
           id: e.id,
           title: e.description,
@@ -43,7 +43,7 @@ export const ActivityView: React.FC = () => {
           payerId: e.paidBy,
         })),
       ...ledgerState.settlements
-        .filter((s) => isSettlementParticipant(s, meId, store.isMe))
+        .filter((s) => isSettlementParticipant(s, meId, (id) => store.isMe(id)))
         .map((s) => ({
           id: s.id,
           title: s.note ? `Payment: ${s.note}` : 'Settlement payment',
