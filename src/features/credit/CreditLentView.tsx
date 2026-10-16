@@ -182,39 +182,45 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
 
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[var(--color-text)]">
+      {/* Top Header & Left-Aligned Hero Action Buttons */}
+      <div className="space-y-4 pb-2">
+        <div className="max-w-3xl">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--color-text)]">
               Lent & Credit
             </h1>
-            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+            <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
               Loans & Credit Ledger
             </span>
           </div>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+          <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-1 leading-relaxed">
             Track personal money lent to friends, credit borrowed, and Splitwise shared balances for respected individuals
           </p>
         </div>
 
-        {/* Quick Action Buttons */}
-        <div className="flex items-center gap-2.5">
+        {/* Big, Left-Aligned Primary Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3.5 pt-1">
           <button
             type="button"
             onClick={() => handleOpenAddModal('lent')}
-            className="btn-press px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+            className="btn-press px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-3 cursor-pointer transition-all hover:scale-[1.02]"
           >
-            <span>💸</span>
-            <span>+ Give Loan (Lent)</span>
+            <span className="text-xl">💸</span>
+            <div className="text-left">
+              <span className="block leading-none">+ Give Loan (Lent)</span>
+              <span className="text-[10px] text-slate-900/80 font-medium block mt-1">Record money lent to a friend</span>
+            </div>
           </button>
           <button
             type="button"
             onClick={() => handleOpenAddModal('borrowed')}
-            className="btn-press px-4 py-2.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 cursor-pointer"
+            className="btn-press px-6 py-3.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)] border border-[var(--color-border)] hover:border-emerald-500/50 font-extrabold text-sm rounded-2xl shadow-md flex items-center gap-3 cursor-pointer transition-all hover:scale-[1.02]"
           >
-            <span>📥</span>
-            <span>+ Take Credit (Borrowed)</span>
+            <span className="text-xl">📥</span>
+            <div className="text-left">
+              <span className="block leading-none">+ Take Credit (Borrowed)</span>
+              <span className="text-[10px] text-[var(--color-text-muted)] font-medium block mt-1">Record money borrowed from someone</span>
+            </div>
           </button>
         </div>
       </div>
