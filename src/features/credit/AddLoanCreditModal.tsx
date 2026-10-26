@@ -40,6 +40,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
 
   const validFriends = ledgerState.people.filter(
     (p) =>
+      !p.isTombstone &&
       !store.isMe(p.id) &&
       p.name !== 'You' &&
       p.name !== 'SplitPay Friend' &&

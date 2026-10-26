@@ -244,9 +244,10 @@ describe('Local Storage - MemoryStorageAdapter', () => {
     expect(store.getState().people.some((p) => p.id === friend.id)).toBe(true)
     expect(store.getState().groups[0]?.memberIds).toContain(friend.id)
 
-    // Remove friend
+    // Remove friend (tombstones friend and cleans up group membership)
     await store.removeFriend(friend.id)
-    expect(store.getState().people.some((p) => p.id === friend.id)).toBe(false)
+    expect(store.getState().people.some((p) => p.id === friend.id && !p.isTombstone)).toBe(false)
+    expect(store.getState().people.find((p) => p.id === friend.id)?.isTombstone).toBe(true)
     expect(store.getState().groups[0]?.memberIds).not.toContain(friend.id)
   })
 

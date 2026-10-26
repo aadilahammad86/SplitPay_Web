@@ -13,6 +13,8 @@ export const SYNC_OP_FORMAT_VERSION = 1
 
 export type OpKind =
   | 'addPerson'
+  | 'tombstonePerson'
+  | 'restorePerson'
   | 'addGroup'
   | 'addExpense'
   | 'tombstoneExpense'
@@ -48,7 +50,12 @@ export function emptyLedgerSnapshot(): LedgerSnapshot {
 // -- Serialization / Deserialization -----------------------------------------
 
 export function encodePerson(p: Person): Record<string, unknown> {
-  return { id: p.id, name: p.name, handle: p.handle ?? null }
+  return {
+    id: p.id,
+    name: p.name,
+    handle: p.handle ?? null,
+    isTombstone: p.isTombstone ?? false,
+  }
 }
 
 export function decodePerson(m: Record<string, unknown>): Person {
@@ -56,6 +63,7 @@ export function decodePerson(m: Record<string, unknown>): Person {
     id: String(m.id),
     name: String(m.name),
     handle: m.handle ? String(m.handle) : undefined,
+    isTombstone: Boolean(m.isTombstone),
   }
 }
 
@@ -273,6 +281,22 @@ export function opSetSettlementTombstone(params: {
   }
 }
 
+export function opSetPersonTombstone(params: {
+  opId: string
+  deviceId: string
+  atMicros: number
+  personId: string
+  tombstoned: boolean
+}): SyncOp {
+  return {
+    opId: params.opId,
+    deviceId: params.deviceId,
+    kind: params.tombstoned ? 'tombstonePerson' : 'restorePerson',
+    payload: { personId: params.personId, id: params.personId },
+    createdAtMicros: params.atMicros,
+  }
+}
+
 // -- Pure Idempotent Fold: applyOps ------------------------------------------
 
 /**
@@ -283,7 +307,7 @@ export function opSetSettlementTombstone(params: {
  *  2. Commutative: Sorted by opId before folding. Any devices observing the same
  *     set of ops produce the exact same ledger snapshot.
  *  3. Skew-proof: Tombstone/restore operations are evaluated in Pass 2
- *     using the highest opId among mutations for that expense or settlement.
+ *     using the highest opId among mutations for that person, expense, or settlement.
  */
 export function applyOps(base: LedgerSnapshot, ops: Iterable<SyncOp>): LedgerSnapshot {
   const people = new Map<string, Person>()
@@ -307,7 +331,8 @@ export function applyOps(base: LedgerSnapshot, ops: Iterable<SyncOp>): LedgerSna
   // Canonical sort by opId ascending
   const ordered = Array.from(unique.values()).sort((a, b) => a.opId.localeCompare(b.opId))
 
-  // Pass 2 state: winning tombstone decision per expenseId / settlementId: { opId, value }
+  // Pass 2 state: winning tombstone decision per personId / expenseId / settlementId: { opId, value }
+  const personTombstoneWinner = new Map<string, { opId: string; value: boolean }>()
   const expenseTombstoneWinner = new Map<string, { opId: string; value: boolean }>()
   const settlementTombstoneWinner = new Map<string, { opId: string; value: boolean }>()
 
@@ -332,6 +357,17 @@ export function applyOps(base: LedgerSnapshot, ops: Iterable<SyncOp>): LedgerSna
       case 'addSettlement': {
         const s = decodeSettlement(op.payload)
         settlements.set(s.id, s)
+        break
+      }
+      case 'tombstonePerson':
+      case 'restorePerson': {
+        const id = String(op.payload.personId || op.payload.person_id || op.payload.id || '')
+        if (!id) break
+        const value = op.kind === 'tombstonePerson'
+        const current = personTombstoneWinner.get(id)
+        if (!current || op.opId.localeCompare(current.opId) > 0) {
+          personTombstoneWinner.set(id, { opId: op.opId, value })
+        }
         break
       }
       case 'tombstoneExpense':
@@ -360,6 +396,12 @@ export function applyOps(base: LedgerSnapshot, ops: Iterable<SyncOp>): LedgerSna
   }
 
   // Pass 2: Reconcile tombstones
+  for (const [personId, winner] of personTombstoneWinner.entries()) {
+    const existing = people.get(personId)
+    if (!existing) continue // orphan tombstone; ignored until person lands
+    people.set(personId, { ...existing, isTombstone: winner.value })
+  }
+
   for (const [expenseId, winner] of expenseTombstoneWinner.entries()) {
     const existing = expenses.get(expenseId)
     if (!existing) continue // orphan tombstone; ignored until expense lands

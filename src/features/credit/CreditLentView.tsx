@@ -36,6 +36,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
   const validFriends = useMemo(() => {
     return ledgerState.people.filter(
       (p) =>
+        !p.isTombstone &&
         !store.isMe(p.id) &&
         p.name !== 'You' &&
         p.name !== 'SplitPay Friend' &&

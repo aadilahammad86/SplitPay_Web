@@ -104,7 +104,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
     } else if (initialFriendId) {
       return [meId, initialFriendId]
     }
-    return [meId, ...ledgerState.people.filter((p) => p.id !== meId).map((p) => p.id)]
+    return [meId, ...ledgerState.people.filter((p) => !p.isTombstone && p.id !== meId).map((p) => p.id)]
   })
 
   // Split-specific state
@@ -126,11 +126,11 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
   const totalMinor = Math.round((parseFloat(amountStr) || 0) * currency.scale)
 
   const candidatePeople: readonly Person[] = useMemo(() => {
-    if (!groupId) return ledgerState.people
+    if (!groupId) return ledgerState.people.filter((p) => !p.isTombstone || selectedMemberIds.includes(p.id))
     const grp = ledgerState.groups.find((g) => g.id === groupId)
-    if (!grp) return ledgerState.people
-    return ledgerState.people.filter((p: Person) => grp.memberIds.includes(p.id))
-  }, [groupId, ledgerState.groups, ledgerState.people])
+    if (!grp) return ledgerState.people.filter((p) => !p.isTombstone || selectedMemberIds.includes(p.id))
+    return ledgerState.people.filter((p: Person) => grp.memberIds.includes(p.id) && (!p.isTombstone || selectedMemberIds.includes(p.id)))
+  }, [groupId, ledgerState.groups, ledgerState.people, selectedMemberIds])
 
   const handleToggleMember = (id: string) => {
     if (selectedMemberIds.includes(id)) {

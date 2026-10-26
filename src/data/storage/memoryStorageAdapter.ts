@@ -82,6 +82,22 @@ export class MemoryStorageAdapter implements StorageAdapter {
     this.ops.set(op.opId, { ...op, synced: 0 })
   }
 
+  async tombstonePerson(personId: string, op: SyncOp): Promise<void> {
+    const current = this.people.get(personId)
+    if (current) {
+      this.people.set(personId, { ...current, isTombstone: true })
+    }
+    this.ops.set(op.opId, { ...op, synced: 0 })
+  }
+
+  async restorePerson(personId: string, op: SyncOp): Promise<void> {
+    const current = this.people.get(personId)
+    if (current) {
+      this.people.set(personId, { ...current, isTombstone: false })
+    }
+    this.ops.set(op.opId, { ...op, synced: 0 })
+  }
+
   async removePerson(personId: string): Promise<void> {
     this.people.delete(personId)
   }
@@ -183,6 +199,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
     // Comprehensive tombstone reconciliation across ALL historical ops in this.ops
     const expenseTombstones = new Map<string, { opId: string; value: boolean }>()
     const settlementTombstones = new Map<string, { opId: string; value: boolean }>()
+    const personTombstones = new Map<string, { opId: string; value: boolean }>()
 
     for (const o of this.ops.values()) {
       if (o.kind === 'tombstoneExpense' || o.kind === 'restoreExpense') {
@@ -201,6 +218,14 @@ export class MemoryStorageAdapter implements StorageAdapter {
             settlementTombstones.set(setId, { opId: o.opId, value: o.kind === 'tombstoneSettlement' })
           }
         }
+      } else if (o.kind === 'tombstonePerson' || o.kind === 'restorePerson') {
+        const personId = String(o.payload?.personId || o.payload?.person_id || o.payload?.id || '')
+        if (personId) {
+          const cur = personTombstones.get(personId)
+          if (!cur || o.opId.localeCompare(cur.opId) > 0) {
+            personTombstones.set(personId, { opId: o.opId, value: o.kind === 'tombstonePerson' })
+          }
+        }
       }
     }
 
@@ -215,6 +240,13 @@ export class MemoryStorageAdapter implements StorageAdapter {
       const existing = this.settlements.get(setId)
       if (existing) {
         this.settlements.set(setId, { ...existing, isTombstone: winner.value })
+      }
+    }
+
+    for (const [personId, winner] of personTombstones.entries()) {
+      const existing = this.people.get(personId)
+      if (existing) {
+        this.people.set(personId, { ...existing, isTombstone: winner.value })
       }
     }
   }

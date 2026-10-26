@@ -211,6 +211,50 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
     return this.atomicWrite('people', person, op)
   }
 
+  async tombstonePerson(personId: string, op: SyncOp): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction(['people', 'ops'], 'readwrite')
+      const peopleStore = tx.objectStore('people')
+      const opsStore = tx.objectStore('ops')
+
+      const getReq = peopleStore.get(personId)
+      getReq.onsuccess = () => {
+        const person = getReq.result as Person | undefined
+        if (person) {
+          peopleStore.put({ ...person, isTombstone: true })
+        }
+      }
+
+      const storedOp: StoredOp = { ...op, synced: 0 }
+      opsStore.put(storedOp)
+
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
+  async restorePerson(personId: string, op: SyncOp): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = this.getDatabase().transaction(['people', 'ops'], 'readwrite')
+      const peopleStore = tx.objectStore('people')
+      const opsStore = tx.objectStore('ops')
+
+      const getReq = peopleStore.get(personId)
+      getReq.onsuccess = () => {
+        const person = getReq.result as Person | undefined
+        if (person) {
+          peopleStore.put({ ...person, isTombstone: false })
+        }
+      }
+
+      const storedOp: StoredOp = { ...op, synced: 0 }
+      opsStore.put(storedOp)
+
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
   async addGroup(group: Group, op: SyncOp): Promise<void> {
     return this.atomicWrite('groups', group, op)
   }
@@ -417,15 +461,24 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
 
       // Comprehensive tombstone reconciliation across ALL historical ops in opsStore
       // Guarantees skew-proof consistency: tombstones arriving before, during, or after
-      // an expense/settlement will always prevail if the latest op is a tombstone.
+      // an entity will always prevail if the latest op is a tombstone.
       const allOpsReq = opsStore.getAll()
       allOpsReq.onsuccess = () => {
         const allStoredOps = (allOpsReq.result || []) as SyncOp[]
+        const personTombstones = new Map<string, { opId: string; value: boolean }>()
         const expenseTombstones = new Map<string, { opId: string; value: boolean }>()
         const settlementTombstones = new Map<string, { opId: string; value: boolean }>()
 
         for (const o of allStoredOps) {
-          if (o.kind === 'tombstoneExpense' || o.kind === 'restoreExpense') {
+          if (o.kind === 'tombstonePerson' || o.kind === 'restorePerson') {
+            const pId = String(o.payload?.personId || o.payload?.person_id || o.payload?.id || '')
+            if (pId) {
+              const cur = personTombstones.get(pId)
+              if (!cur || o.opId.localeCompare(cur.opId) > 0) {
+                personTombstones.set(pId, { opId: o.opId, value: o.kind === 'tombstonePerson' })
+              }
+            }
+          } else if (o.kind === 'tombstoneExpense' || o.kind === 'restoreExpense') {
             const expId = String(o.payload?.expenseId || o.payload?.expense_id || o.payload?.id || '')
             if (expId) {
               const cur = expenseTombstones.get(expId)
@@ -440,6 +493,16 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
               if (!cur || o.opId.localeCompare(cur.opId) > 0) {
                 settlementTombstones.set(setId, { opId: o.opId, value: o.kind === 'tombstoneSettlement' })
               }
+            }
+          }
+        }
+
+        for (const [pId, winner] of personTombstones.entries()) {
+          const getReq = peopleStore.get(pId)
+          getReq.onsuccess = () => {
+            const person = getReq.result as Person | undefined
+            if (person && person.isTombstone !== winner.value) {
+              peopleStore.put({ ...person, isTombstone: winner.value })
             }
           }
         }

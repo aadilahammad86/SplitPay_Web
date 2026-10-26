@@ -105,7 +105,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
     if (!phoneSearchQuery.trim()) return
 
     setSearchingPhone(true)
-    const existingFriendIds = ledgerState.people.filter((p) => p.id !== meId).map((p) => p.id)
+    const existingFriendIds = ledgerState.people.filter((p) => !p.isTombstone && p.id !== meId).map((p) => p.id)
 
     const res = await lookupPersonByPhone({
       phoneInput: phoneSearchQuery.trim(),
@@ -149,7 +149,7 @@ export const ContactSyncContent: React.FC<ContactSyncContentProps> = ({
         phones: c.tel || [],
       }))
 
-      const existingFriendIds = ledgerState.people.filter((p) => p.id !== meId).map((p) => p.id)
+      const existingFriendIds = ledgerState.people.filter((p) => !p.isTombstone && p.id !== meId).map((p) => p.id)
 
       const result = matchContactsAgainstDirectory({
         candidates,

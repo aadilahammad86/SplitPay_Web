@@ -11,6 +11,7 @@ import { isContactPickerSupported } from '../../services/contacts/contactMatchin
 import { FriendDetailModal } from './FriendDetailModal'
 import { ActivityDetailModal } from '../activity/ActivityDetailModal'
 import { BASE_CURRENCY, personInitials, type Person } from '../../domain/entities'
+import { formatMoney } from '../../domain/formatMoney'
 import { Icon } from '../../ui/components/Icon'
 import { getSupabaseClient } from '../../supabase/supabaseClient'
 
@@ -43,6 +44,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
 
   const friends = ledgerState.people.filter(
     (p) =>
+      !p.isTombstone &&
       !store.isMe(p.id) &&
       p.name !== 'You' &&
       p.name !== 'SplitPay Friend' &&
@@ -73,7 +75,20 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   }
 
   const handleRemoveSingleFriend = async (friend: Person) => {
-    if (confirm(`Are you sure you want to remove "${friend.name}" from your friends list?`)) {
+    const breakdown = breakdownFor({
+      me: meId,
+      friend: friend.id,
+      expenses: ledgerState.expenses,
+      settlements: ledgerState.settlements,
+      isMe: (id) => store.isMe(id),
+    })
+    let confirmMsg = `Are you sure you want to remove "${friend.name}" from your friends list?`
+    if (breakdown.netMinor !== 0) {
+      const formattedBalance = `${breakdown.netMinor > 0 ? '+' : '-'}${formatMoney(Math.abs(breakdown.netMinor), currentCurrency)}`
+      const direction = breakdown.netMinor > 0 ? 'owes you' : 'you owe them'
+      confirmMsg = `Warning: "${friend.name}" has an unsettled balance with you (${direction} ${formattedBalance}).\n\nRemoving them will hide them from your friends list across all devices, but past expense records will remain in your history.\n\nDo you want to proceed and remove them?`
+    }
+    if (confirm(confirmMsg)) {
       await store.removeFriend(friend.id)
       setSelectedFriendIds((prev) => {
         const next = new Set(prev)
@@ -85,7 +100,25 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
 
   const handleRemoveSelectedFriends = async () => {
     if (selectedFriendIds.size === 0) return
-    if (confirm(`Are you sure you want to remove ${selectedFriendIds.size} selected friend(s)?`)) {
+    const unsettledFriends = Array.from(selectedFriendIds)
+      .map((id) => {
+        const friend = friends.find((f) => f.id === id)
+        const breakdown = breakdownFor({
+          me: meId,
+          friend: id,
+          expenses: ledgerState.expenses,
+          settlements: ledgerState.settlements,
+          isMe: (id) => store.isMe(id),
+        })
+        return { friend, breakdown }
+      })
+      .filter((item) => item.friend && item.breakdown.netMinor !== 0)
+
+    let confirmMsg = `Are you sure you want to remove ${selectedFriendIds.size} selected friend(s)?`
+    if (unsettledFriends.length > 0) {
+      confirmMsg = `Warning: ${unsettledFriends.length} of the selected friend(s) have unsettled balances.\n\nRemoving them will hide them across all devices, while keeping historical expense records.\n\nDo you want to proceed?`
+    }
+    if (confirm(confirmMsg)) {
       await store.removeFriends(Array.from(selectedFriendIds))
       setSelectedFriendIds(new Set())
       setIsSelectMode(false)

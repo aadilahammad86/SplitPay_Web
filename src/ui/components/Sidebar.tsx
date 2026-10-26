@@ -26,7 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: { id: string; label: string; icon: IconName; count: number | null }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'home', count: null },
     { id: 'credit', label: 'Lent / Credit', icon: 'creditcard', count: null },
-    { id: 'friends', label: 'Friends', icon: 'user', count: ledgerState.people.filter((p) => p.id !== me?.id).length },
+    { id: 'friends', label: 'Friends', icon: 'user', count: ledgerState.people.filter((p) => !p.isTombstone && p.id !== me?.id && p.name !== 'You' && p.name !== 'SplitPay Friend' && p.name !== 'Guest User' && !p.id.startsWith('invited_') && p.name.trim() !== '').length },
     { id: 'groups', label: 'Groups', icon: 'users', count: ledgerState.groups.length },
     { id: 'activity', label: 'Activity', icon: 'receipt', count: ledgerState.expenses.filter((e) => !e.isTombstone && isExpenseParticipant(e, me?.id, (id) => store.isMe(id))).length },
     { id: 'statements', label: 'Statements', icon: 'chart', count: null },

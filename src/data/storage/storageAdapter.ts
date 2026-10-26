@@ -38,6 +38,8 @@ export interface StorageAdapter {
 
   // Atomic local mutations (Entity write + SyncOp outbox in one transaction)
   addPerson(person: Person, op: SyncOp): Promise<void>
+  tombstonePerson(personId: string, op: SyncOp): Promise<void>
+  restorePerson(personId: string, op: SyncOp): Promise<void>
   removePerson(personId: string): Promise<void>
   addGroup(group: Group, op: SyncOp): Promise<void>
   removeGroup(groupId: string): Promise<void>

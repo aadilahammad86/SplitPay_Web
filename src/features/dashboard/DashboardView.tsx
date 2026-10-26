@@ -45,6 +45,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const validFriends = ledgerState.people.filter(
     (p) =>
+      !p.isTombstone &&
       !store.isMe(p.id) &&
       p.name !== 'You' &&
       p.name !== 'SplitPay Friend' &&
@@ -267,7 +268,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {ledgerState.groups.length}
               </span>
               <span className="text-xs text-[var(--color-text-muted)] font-medium">
-                groups · {ledgerState.people.filter((p) => p.id !== meId).length} friends
+                groups · {validFriends.length} friends
               </span>
             </div>
             <p className="text-xs text-[var(--color-text-muted)]">
@@ -534,7 +535,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)]">
               <div>
                 <h3 className="font-bold text-base text-[var(--color-text)]">
-                  Friends ({ledgerState.people.filter((p) => p.id !== meId).length})
+                  Friends ({validFriends.length})
                 </h3>
                 <p className="text-xs text-[var(--color-text-muted)]">
                   Who owes who with source chips

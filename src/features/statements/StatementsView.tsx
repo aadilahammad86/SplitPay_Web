@@ -30,7 +30,7 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
 
-  const friends = ledgerState.people.filter((p) => p.id !== meId)
+  const friends = ledgerState.people.filter((p) => (!p.isTombstone || p.id === selectedId) && p.id !== meId)
   const groups = ledgerState.groups
 
   const [currentDate] = useState(() => new Date())

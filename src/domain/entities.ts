@@ -32,6 +32,7 @@ export interface Person {
   phoneVerified?: boolean
   discoverableByPhone?: boolean
   inviteCode?: string
+  isTombstone?: boolean
 }
 
 export function personInitials(name: string): string {

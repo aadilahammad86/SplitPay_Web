@@ -17,6 +17,7 @@ import {
   opAddSettlement,
   opSetTombstone,
   opSetSettlementTombstone,
+  opSetPersonTombstone,
   type SyncOp,
 } from '../../domain/syncOp'
 import { generateUlid } from '../../domain/ulid'
@@ -570,9 +571,16 @@ export class LedgerStore {
       (p) => p.id === friendId || (extra?.phone && p.phone === extra.phone)
     )
     if (existing) {
-      if ((extra?.phone && !existing.phone) || (extra?.inviteCode && !existing.inviteCode) || (handle && !existing.handle)) {
+      if (
+        existing.isTombstone ||
+        (extra?.phone && !existing.phone) ||
+        (extra?.inviteCode && !existing.inviteCode) ||
+        (handle && !existing.handle)
+      ) {
         const updated: Person = {
           ...existing,
+          isTombstone: false,
+          name: name.trim() || existing.name,
           handle: existing.handle || handle?.trim() || undefined,
           phone: existing.phone || extra?.phone,
           phoneVerified: existing.phoneVerified ?? extra?.phoneVerified,
@@ -586,7 +594,8 @@ export class LedgerStore {
         })
         await this.adapter.addPerson(updated, op)
         const people = await this.adapter.getPeople()
-        this.setState({ people })
+        const pending = await this.adapter.getPendingOps()
+        this.setState({ people, pendingOpsCount: pending.length })
         this.notifyMutation()
         return updated
       }
@@ -619,7 +628,15 @@ export class LedgerStore {
     if (friendId === this.state.localPersonId) {
       throw new Error('Cannot remove your own user profile.')
     }
-    await this.adapter.removePerson(friendId)
+    const op = opSetPersonTombstone({
+      opId: generateUlid(),
+      deviceId: this.state.deviceId,
+      atMicros: Date.now() * 1000,
+      personId: friendId,
+      tombstoned: true,
+    })
+    await this.adapter.tombstonePerson(friendId, op)
+
     // Remove this friend from any groups they were part of
     for (const group of this.state.groups) {
       if (group.memberIds.includes(friendId)) {
@@ -627,18 +644,19 @@ export class LedgerStore {
           ...group,
           memberIds: group.memberIds.filter((id) => id !== friendId),
         }
-        const op = opAddGroup({
+        const groupOp = opAddGroup({
           opId: generateUlid(),
           deviceId: this.state.deviceId,
           atMicros: Date.now() * 1000,
           group: updatedGroup,
         })
-        await this.adapter.addGroup(updatedGroup, op)
+        await this.adapter.addGroup(updatedGroup, groupOp)
       }
     }
     const people = await this.adapter.getPeople()
     const groups = await this.adapter.getGroups()
-    this.setState({ people, groups })
+    const pending = await this.adapter.getPendingOps()
+    this.setState({ people, groups, pendingOpsCount: pending.length })
     this.notifyMutation()
   }
 
