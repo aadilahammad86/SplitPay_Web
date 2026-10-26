@@ -1,6 +1,11 @@
 import React, { useState } from 'react'
 import { useStore } from '../../ui/storeContext'
-import { calculateOverallBalance, breakdownFor } from '../../domain/balance'
+import {
+  calculateOverallBalance,
+  breakdownFor,
+  getUserExpensePosition,
+  getUserSettlementPosition,
+} from '../../domain/balance'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { SourceChips } from '../../ui/components/SourceChips'
 import { BASE_CURRENCY, GroupKindInfo, personInitials, type Expense, type Person } from '../../domain/entities'
@@ -64,39 +69,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .filter((e) => !e.isTombstone && store.isMe(e.paidBy))
     .reduce((sum, e) => sum + e.totalMinor, 0)
 
+  const peopleMap = new Map(ledgerState.people.map((p) => [p.id, p]))
+
   // Recent transactions (expenses + settlements combined, reverse chronological)
   // Invariant INV-TRANSACTION-PRIVACY: Filter strictly to transactions where the user participates
   const recentTransactions = [
     ...ledgerState.expenses
       .filter((e) => !e.isTombstone && isExpenseParticipant(e, meId, (id) => store.isMe(id)))
-      .map((e) => ({
-        id: e.id,
-        title: e.description,
-        totalMinor: e.totalMinor,
-        currency: e.currency,
-        paidBy: e.paidBy,
-        paidByName: store.isMe(e.paidBy) ? 'You' : (ledgerState.people.find((p) => p.id === e.paidBy)?.name || 'Someone'),
-        myShareMinor: e.shares.find((s) => store.isMe(s.owedBy))?.amountMinor || 0,
-        createdAtMicros: e.createdAtMicros,
-        emoji: e.categoryEmoji || '🧾',
-        isSettlement: false,
-        groupId: e.groupId,
-      })),
+      .map((e) =>
+        getUserExpensePosition({
+          expense: e,
+          meId,
+          isMe: (id) => store.isMe(id),
+          getPayerName: (id) => peopleMap.get(id)?.name || 'Someone',
+        })
+      ),
     ...ledgerState.settlements
       .filter((s) => !s.isTombstone && isSettlementParticipant(s, meId, (id) => store.isMe(id)))
-      .map((s) => ({
-        id: s.id,
-        title: s.note ? `Payment: ${s.note}` : 'Payment recorded',
-        totalMinor: s.amountMinor,
-        currency: s.currency,
-        paidBy: s.from,
-        paidByName: store.isMe(s.from) ? 'You' : (ledgerState.people.find((p) => p.id === s.from)?.name || 'Someone'),
-        myShareMinor: 0,
-        createdAtMicros: s.createdAtMicros,
-        emoji: '🤝',
-        isSettlement: true,
-        groupId: s.groupId,
-      })),
+      .map((s) =>
+        getUserSettlementPosition({
+          settlement: s,
+          meId,
+          isMe: (id) => store.isMe(id),
+          getPersonName: (id) => peopleMap.get(id)?.name || 'Someone',
+        })
+      ),
   ].sort((a, b) => b.createdAtMicros - a.createdAtMicros).slice(0, 6)
 
   const visibleExpensesCount = ledgerState.expenses.filter(
@@ -357,8 +354,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           </span>
                         </div>
                         <p className="text-xs text-[var(--color-text-muted)] truncate mt-0.5">
-                          {store.isMe(tx.paidBy) ? 'You paid' : `${tx.paidByName} paid`} ·{' '}
-                          {formatRelativeDate(tx.createdAtMicros)}
+                          {tx.isSettlement
+                            ? tx.isPayer
+                              ? 'Payment sent'
+                              : 'Payment received'
+                            : `${tx.isPayer ? 'You' : tx.paidByName} paid ${formatMoney(tx.totalMinor, tx.currency)}`}{' '}
+                          · {formatRelativeDate(tx.createdAtMicros)}
                         </p>
                       </div>
                     </div>
@@ -370,12 +371,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         )}
                         <span
                           className={`font-money text-sm font-bold ${
-                            store.isMe(tx.paidBy) ? 'text-owed' : 'text-owe'
+                            tx.netImpactMinor > 0
+                              ? 'text-owed'
+                              : tx.netImpactMinor < 0
+                              ? 'text-owe'
+                              : 'text-[var(--color-text-muted)]'
                           }`}
                         >
-                          {store.isMe(tx.paidBy) ? '+' : '\u2212'}
+                          {tx.netImpactMinor > 0 ? '+' : tx.netImpactMinor < 0 ? '\u2212' : ''}
                           <MoneyDisplay
-                            minor={tx.totalMinor}
+                            minor={Math.abs(tx.netImpactMinor)}
                             currency={tx.currency}
                             size="sm"
                             showSign={false}
@@ -383,8 +388,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           />
                         </span>
                       </div>
-                      <span className="block text-[10px] font-semibold text-[var(--color-text-muted)] mt-0.5">
-                        {store.isMe(tx.paidBy) ? 'you lent' : 'you borrowed'}
+                      <span
+                        className={`block text-[10px] font-semibold mt-0.5 ${
+                          tx.status === 'lent' || tx.status === 'received'
+                            ? 'text-owed'
+                            : tx.status === 'borrowed' || tx.status === 'sent'
+                            ? 'text-owe'
+                            : 'text-[var(--color-text-muted)]'
+                        }`}
+                      >
+                        {tx.status === 'lent' && 'you lent'}
+                        {tx.status === 'borrowed' && 'you borrowed'}
+                        {tx.status === 'sent' && 'payment sent'}
+                        {tx.status === 'received' && 'payment received'}
+                        {tx.status === 'settled' && 'settled'}
+                        {tx.status === 'not_involved' && 'not involved'}
                       </span>
                     </div>
                   </div>

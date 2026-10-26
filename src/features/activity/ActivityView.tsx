@@ -2,6 +2,11 @@ import React, { useState, useMemo } from 'react'
 import { useStore } from '../../ui/storeContext'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { BASE_CURRENCY, type Expense } from '../../domain/entities'
+import { formatMoney } from '../../domain/formatMoney'
+import {
+  getUserExpensePosition,
+  getUserSettlementPosition,
+} from '../../domain/balance'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
 import { ExpenseEditorModal } from '../expense/ExpenseEditorModal'
 import { ActivityDetailModal } from './ActivityDetailModal'
@@ -30,34 +35,38 @@ export const ActivityView: React.FC = () => {
     return [
       ...ledgerState.expenses
         .filter((e) => isExpenseParticipant(e, meId, (id) => store.isMe(id)))
-        .map((e) => ({
-          id: e.id,
-          title: e.description,
-          amountMinor: e.totalMinor,
-          currency: e.currency || currentCurrency,
-          createdAtMicros: e.createdAtMicros,
-          emoji: e.categoryEmoji,
-          isSettlement: false,
-          isTombstone: e.isTombstone,
-          paidByName: store.isMe(e.paidBy) ? 'You' : peopleMap.get(e.paidBy)?.name || 'Unknown',
-          payerId: e.paidBy,
-        })),
+        .map((e) => {
+          const pos = getUserExpensePosition({
+            expense: e,
+            meId,
+            isMe: (id) => store.isMe(id),
+            getPayerName: (id) => peopleMap.get(id)?.name || 'Unknown',
+          })
+          return {
+            ...pos,
+            amountMinor: e.totalMinor,
+            isTombstone: e.isTombstone,
+            payerId: e.paidBy,
+          }
+        }),
       ...ledgerState.settlements
         .filter((s) => isSettlementParticipant(s, meId, (id) => store.isMe(id)))
-        .map((s) => ({
-          id: s.id,
-          title: s.note ? `Payment: ${s.note}` : 'Settlement payment',
-          amountMinor: s.amountMinor,
-          currency: s.currency || currentCurrency,
-          createdAtMicros: s.createdAtMicros,
-          emoji: '🤝',
-          isSettlement: true,
-          isTombstone: Boolean(s.isTombstone),
-          paidByName: store.isMe(s.from) ? 'You' : peopleMap.get(s.from)?.name || 'Unknown',
-          payerId: s.from,
-        })),
+        .map((s) => {
+          const pos = getUserSettlementPosition({
+            settlement: s,
+            meId,
+            isMe: (id) => store.isMe(id),
+            getPersonName: (id) => peopleMap.get(id)?.name || 'Unknown',
+          })
+          return {
+            ...pos,
+            amountMinor: s.amountMinor,
+            isTombstone: Boolean(s.isTombstone),
+            payerId: s.from,
+          }
+        }),
     ].sort((a, b) => b.createdAtMicros - a.createdAtMicros)
-  }, [ledgerState.expenses, ledgerState.settlements, currentCurrency, peopleMap, store, meId])
+  }, [ledgerState.expenses, ledgerState.settlements, peopleMap, store, meId])
 
   const [showDeleted, setShowDeleted] = useState(false)
 
@@ -408,7 +417,12 @@ export const ActivityView: React.FC = () => {
                       )}
                     </div>
                     <span className="text-[11px] text-[var(--color-text-muted)] block truncate">
-                      Paid by {item.paidByName} ·{' '}
+                      {item.isSettlement
+                        ? item.isPayer
+                          ? 'Payment sent'
+                          : 'Payment received'
+                        : `${item.isPayer ? 'You' : item.paidByName} paid ${formatMoney(item.totalMinor, item.currency || currentCurrency)}`}{' '}
+                      ·{' '}
                       {new Date(Math.floor(item.createdAtMicros / 1000)).toLocaleDateString(
                         undefined,
                         {
@@ -423,15 +437,44 @@ export const ActivityView: React.FC = () => {
 
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="text-right">
-                    <MoneyDisplay
-                      minor={item.amountMinor}
-                      currency={item.currency || currentCurrency}
-                      size="sm"
-                      showSign={false}
-                      showColor={false}
-                    />
-                    <span className="block text-[10px] text-[var(--color-text-muted)] font-medium">
-                      {item.isSettlement ? 'settled' : 'total'}
+                    <div className="flex items-center justify-end gap-1.5">
+                      {item.currency.code !== currentCurrency.code && (
+                        <span className="currency-badge">{item.currency.code}</span>
+                      )}
+                      <span
+                        className={`font-money text-sm font-bold ${
+                          item.netImpactMinor > 0
+                            ? 'text-owed'
+                            : item.netImpactMinor < 0
+                            ? 'text-owe'
+                            : 'text-[var(--color-text-muted)]'
+                        }`}
+                      >
+                        {item.netImpactMinor > 0 ? '+' : item.netImpactMinor < 0 ? '\u2212' : ''}
+                        <MoneyDisplay
+                          minor={Math.abs(item.netImpactMinor)}
+                          currency={item.currency || currentCurrency}
+                          size="sm"
+                          showSign={false}
+                          showColor={false}
+                        />
+                      </span>
+                    </div>
+                    <span
+                      className={`block text-[10px] font-semibold mt-0.5 ${
+                        item.status === 'lent' || item.status === 'received'
+                          ? 'text-owed'
+                          : item.status === 'borrowed' || item.status === 'sent'
+                          ? 'text-owe'
+                          : 'text-[var(--color-text-muted)]'
+                      }`}
+                    >
+                      {item.status === 'lent' && 'you lent'}
+                      {item.status === 'borrowed' && 'you borrowed'}
+                      {item.status === 'sent' && 'payment sent'}
+                      {item.status === 'received' && 'payment received'}
+                      {item.status === 'settled' && 'settled'}
+                      {item.status === 'not_involved' && 'not involved'}
                     </span>
                   </div>
 

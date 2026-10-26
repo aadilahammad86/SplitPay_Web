@@ -1,4 +1,5 @@
 import type { Expense, Group, Settlement } from './entities'
+import type { CurrencyCode } from './money'
 
 export interface BalanceSlice {
   groupId: string | null
@@ -162,5 +163,130 @@ export function calculateOverallBalance(params: {
     totalOwedToYouMinor,
     totalYouOweMinor,
     netMinor: totalOwedToYouMinor - totalYouOweMinor,
+  }
+}
+
+export type TransactionUserStatus =
+  | 'lent'
+  | 'borrowed'
+  | 'sent'
+  | 'received'
+  | 'settled'
+  | 'not_involved'
+
+export interface UserTransactionPosition {
+  id: string
+  title: string
+  totalMinor: number
+  currency: CurrencyCode
+  createdAtMicros: number
+  emoji: string
+  isSettlement: boolean
+  groupId: string | null
+  paidBy: string
+  paidByName: string
+  isPayer: boolean
+  userShareMinor: number
+  netImpactMinor: number
+  status: TransactionUserStatus
+}
+
+export function getUserExpensePosition(params: {
+  expense: Expense
+  meId: string
+  isMe?: (id: string) => boolean
+  getPayerName?: (id: string) => string
+}): UserTransactionPosition {
+  const { expense, meId, isMe, getPayerName } = params
+  const isMeFn = isMe ?? ((id: string) => id === meId)
+  const isPayer = isMeFn(expense.paidBy)
+  const paidByName = isPayer ? 'You' : (getPayerName ? getPayerName(expense.paidBy) : 'Someone')
+
+  // Sum what others owe the payer on this expense
+  const sumOthersOwedMinor = expense.shares
+    .filter((s) => s.owedTo === expense.paidBy && !isMeFn(s.owedBy))
+    .reduce((sum, s) => sum + s.amountMinor, 0)
+
+  const myShareRow = expense.shares.find((s) => isMeFn(s.owedBy))
+  const userShareMinor = isPayer
+    ? Math.max(0, expense.totalMinor - sumOthersOwedMinor)
+    : myShareRow?.amountMinor || 0
+
+  let netImpactMinor = 0
+  let status: TransactionUserStatus = 'not_involved'
+
+  if (isPayer) {
+    netImpactMinor = sumOthersOwedMinor
+    status = netImpactMinor > 0 ? 'lent' : 'settled'
+  } else if (myShareRow) {
+    netImpactMinor = -myShareRow.amountMinor
+    status = 'borrowed'
+  }
+
+  return {
+    id: expense.id,
+    title: expense.description,
+    totalMinor: expense.totalMinor,
+    currency: expense.currency,
+    createdAtMicros: expense.createdAtMicros,
+    emoji: expense.categoryEmoji || '🧾',
+    isSettlement: false,
+    groupId: expense.groupId,
+    paidBy: expense.paidBy,
+    paidByName,
+    isPayer,
+    userShareMinor,
+    netImpactMinor,
+    status,
+  }
+}
+
+export function getUserSettlementPosition(params: {
+  settlement: Settlement
+  meId: string
+  isMe?: (id: string) => boolean
+  getPersonName?: (id: string) => string
+}): UserTransactionPosition {
+  const { settlement, meId, isMe, getPersonName } = params
+  const isMeFn = isMe ?? ((id: string) => id === meId)
+  const isSender = isMeFn(settlement.from)
+  const isReceiver = isMeFn(settlement.to)
+  const fromName = isSender ? 'You' : (getPersonName ? getPersonName(settlement.from) : 'Someone')
+  const toName = isReceiver ? 'You' : (getPersonName ? getPersonName(settlement.to) : 'Someone')
+
+  let netImpactMinor = 0
+  let status: TransactionUserStatus = 'not_involved'
+
+  if (isSender) {
+    netImpactMinor = -settlement.amountMinor
+    status = 'sent'
+  } else if (isReceiver) {
+    netImpactMinor = settlement.amountMinor
+    status = 'received'
+  }
+
+  const title = settlement.note
+    ? `Payment: ${settlement.note}`
+    : isSender
+    ? `Payment to ${toName}`
+    : isReceiver
+    ? `Payment from ${fromName}`
+    : `Payment from ${fromName} to ${toName}`
+
+  return {
+    id: settlement.id,
+    title,
+    totalMinor: settlement.amountMinor,
+    currency: settlement.currency,
+    createdAtMicros: settlement.createdAtMicros,
+    emoji: '🤝',
+    isSettlement: true,
+    groupId: settlement.groupId,
+    paidBy: settlement.from,
+    paidByName: fromName,
+    isPayer: isSender,
+    userShareMinor: 0,
+    netImpactMinor,
+    status,
   }
 }
