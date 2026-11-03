@@ -34,6 +34,7 @@ export interface Person {
   inviteCode?: string
   isTombstone?: boolean
   addedBy?: string
+  defaultCurrency?: string
 }
 
 export function personInitials(name: string): string {

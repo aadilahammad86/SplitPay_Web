@@ -362,4 +362,43 @@ describe('Local Storage - MemoryStorageAdapter', () => {
     expect(state.people[0]?.id).toBe(me.id)
     expect(store.me?.id).toBe(me.id)
   })
+
+  it('synchronizes account-scoped default currency across devices via CRDT ops', async () => {
+    // Device A setup
+    const adapterA = new MemoryStorageAdapter()
+    const storeA = new LedgerStore(adapterA)
+    await storeA.init()
+    const meA = storeA.me!
+
+    // Initial default is INR
+    expect(storeA.getState().defaultCurrency?.code).toBe('INR')
+
+    // Device A changes currency to AED
+    await storeA.setDefaultCurrency(Currencies.AED)
+    expect(storeA.getState().defaultCurrency?.code).toBe('AED')
+    expect(storeA.me?.defaultCurrency).toBe('AED')
+
+    // Find the opAddPerson generated for meA
+    const pendingOpsA = await adapterA.getPendingOps()
+    const currencyOp = pendingOpsA.find(
+      (op) => op.kind === 'addPerson' && (op.payload as any).id === meA.id && (op.payload as any).defaultCurrency === 'AED'
+    )
+    expect(currencyOp).toBeDefined()
+
+    // Device B setup (same user account)
+    const adapterB = new MemoryStorageAdapter()
+    // Seed Device B's local person ID to match meA.id
+    await adapterB.setMeta('local_person_id', meA.id)
+    const storeB = new LedgerStore(adapterB)
+    await storeB.init()
+
+    expect(storeB.getState().defaultCurrency?.code).toBe('INR')
+
+    // Apply remote ops from Device A to Device B
+    await storeB.applyRemoteOps([currencyOp!])
+
+    // Device B now immediately reflects AED!
+    expect(storeB.getState().defaultCurrency?.code).toBe('AED')
+    expect(storeB.me?.defaultCurrency).toBe('AED')
+  })
 })

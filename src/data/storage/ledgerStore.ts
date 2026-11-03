@@ -210,9 +210,11 @@ export class LedgerStore {
     const expenses = await this.adapter.getExpenses()
     const settlements = await this.adapter.getSettlements()
     const pendingOps = await this.adapter.getPendingOps()
+    const mePerson = people.find((p) => p.id === localPersonId)
     const savedCurrencyCode = await this.adapter.getMeta('default_currency')
+    const activeCurrencyCode = mePerson?.defaultCurrency || savedCurrencyCode
     const defaultCurrency =
-      SupportedCurrencies.find((c) => c.code === savedCurrencyCode) || Currencies.INR
+      SupportedCurrencies.find((c) => c.code === activeCurrencyCode) || Currencies.INR
 
     this.setState({
       people,
@@ -249,7 +251,21 @@ export class LedgerStore {
 
   async setDefaultCurrency(currency: CurrencyCode): Promise<void> {
     await this.adapter.setMeta('default_currency', currency.code)
-    this.setState({ defaultCurrency: currency })
+    const currentMe = this.me
+    if (currentMe) {
+      const updatedMe: Person = { ...currentMe, defaultCurrency: currency.code }
+      const op = opAddPerson({
+        opId: generateUlid(),
+        deviceId: this.state.deviceId,
+        atMicros: Date.now() * 1000,
+        person: updatedMe,
+      })
+      await this.adapter.addPerson(updatedMe, op)
+      const updatedPeople = this.state.people.map((p) => (p.id === updatedMe.id ? updatedMe : p))
+      this.setState({ defaultCurrency: currency, people: updatedPeople })
+    } else {
+      this.setState({ defaultCurrency: currency })
+    }
     this.notifyMutation()
   }
 
@@ -1194,12 +1210,24 @@ export class LedgerStore {
     const settlements = await this.adapter.getSettlements()
     const currentPending = await this.adapter.getPendingOps()
 
+    // Account-scoped default currency synchronization across all devices
+    const mePerson = people.find((p) => p.id === this.state.localPersonId)
+    let updatedCurrency = this.state.defaultCurrency
+    if (mePerson?.defaultCurrency) {
+      const match = SupportedCurrencies.find((c) => c.code === mePerson.defaultCurrency)
+      if (match && match.code !== this.state.defaultCurrency?.code) {
+        updatedCurrency = match
+        await this.adapter.setMeta('default_currency', match.code).catch(() => {})
+      }
+    }
+
     this.setState({
       people,
       groups,
       expenses,
       settlements,
       pendingOpsCount: currentPending.length,
+      defaultCurrency: updatedCurrency,
     })
 
     // Reconcile aliases immediately

@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import { Modal } from '../../ui/components/Modal'
+import { Select } from '../../ui/components/Select'
 import { useStore } from '../../ui/storeContext'
 import { BASE_CURRENCY, type LoanType } from '../../domain/entities'
+import { SupportedCurrencies, type CurrencyCode } from '../../domain/money'
 import { Icon } from '../../ui/components/Icon'
 import { isFriendOfUser } from '../../domain/privacy'
 
@@ -19,9 +21,10 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
   initialFriendId = null,
 }) => {
   const { store, ledgerState } = useStore()
-  const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
+  const defaultCur = ledgerState.defaultCurrency || BASE_CURRENCY
 
   const [loanType, setLoanType] = useState<LoanType>(initialType)
+  const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(defaultCur)
   const [selectedFriendId, setSelectedFriendId] = useState<string>(initialFriendId || '')
   const [amountStr, setAmountStr] = useState<string>('')
   const [description, setDescription] = useState<string>('')
@@ -35,6 +38,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
     if (isOpen) {
       setLoanType(initialType)
       setSelectedFriendId(initialFriendId || '')
+      setSelectedCurrency(ledgerState.defaultCurrency || BASE_CURRENCY)
       setError(null)
     }
   }
@@ -65,7 +69,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
       return
     }
 
-    const scale = currentCurrency.scale || 100
+    const scale = selectedCurrency.scale || 100
     const amountMinor = Math.round(floatVal * scale)
 
     let dueDateMicros: number | undefined
@@ -82,7 +86,7 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
         type: loanType,
         friendId: selectedFriendId,
         amountMinor,
-        currency: currentCurrency,
+        currency: selectedCurrency,
         description: description.trim() || undefined,
         dueDateMicros,
       })
@@ -184,25 +188,43 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
           </select>
         </div>
 
-        {/* Amount Input */}
-        <div>
-          <label className="block text-xs font-bold text-[var(--color-text)] mb-1">
-            Amount ({currentCurrency.code})
-          </label>
-          <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-sm text-[var(--color-text-muted)]">
-              {currentCurrency.symbol}
-            </span>
-            <input
-              type="number"
-              step="any"
-              required
-              min="0.01"
-              placeholder="0.00"
-              value={amountStr}
-              onChange={(e) => setAmountStr(e.target.value)}
-              className="w-full pl-9 pr-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-base font-bold text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
+        {/* Currency & Amount */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-1">
+            <label className="block text-xs font-bold text-[var(--color-text)] mb-1">
+              Currency
+            </label>
+            <Select
+              value={selectedCurrency.code}
+              onChange={(code) => {
+                const found = SupportedCurrencies.find((c) => c.code === code)
+                if (found) setSelectedCurrency(found)
+              }}
+              options={SupportedCurrencies.map((c) => ({
+                value: c.code,
+                label: `${c.code} (${c.symbol})`,
+              }))}
             />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-bold text-[var(--color-text)] mb-1">
+              Amount ({selectedCurrency.code})
+            </label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-sm text-[var(--color-text-muted)]">
+                {selectedCurrency.symbol}
+              </span>
+              <input
+                type="number"
+                step={selectedCurrency.digits === 0 ? '1' : selectedCurrency.digits === 3 ? '0.001' : '0.01'}
+                required
+                min={selectedCurrency.digits === 0 ? '1' : '0.01'}
+                placeholder="0.00"
+                value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value)}
+                className="w-full pl-9 pr-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-mono text-base font-bold text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
           </div>
         </div>
 

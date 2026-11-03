@@ -397,6 +397,7 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
 
   async applyRemoteOps(ops: SyncOp[]): Promise<void> {
     if (ops.length === 0) return
+    const localPersonId = await this.getMeta('local_person_id')
 
     return new Promise((resolve, reject) => {
       const tx = this.getDatabase().transaction(
@@ -423,6 +424,7 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
             const person = decodePerson(op.payload)
             // Never persist anonymous dummy placeholders or test users from other devices
             if (
+              person.id !== localPersonId && (
               person.name === 'You' ||
               person.name === 'SplitPay Friend' ||
               person.name === 'Guest User' ||
@@ -432,7 +434,7 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
               person.id === 'test_p' ||
               person.id.startsWith('invited_') ||
               !person.name.trim()
-            ) {
+            )) {
               if (person.id) {
                 peopleStore.delete(person.id)
               }

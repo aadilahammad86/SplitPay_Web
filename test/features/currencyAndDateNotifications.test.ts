@@ -4,7 +4,7 @@ import { LedgerStore } from '../../src/data/storage/ledgerStore'
 import { Currencies } from '../../src/domain/money'
 import { NotificationService } from '../../src/services/notifications/notificationService'
 import { opAddExpense } from '../../src/domain/syncOp'
-import { buildExpense } from '../../src/domain/splitEngine'
+import { buildExpense, splitEqual } from '../../src/domain/splitEngine'
 
 describe('Default Currency, Expense Date Selection, Permanent Delete & Notifications', () => {
   let adapter: MemoryStorageAdapter
@@ -273,6 +273,60 @@ describe('Default Currency, Expense Date Selection, Permanent Delete & Notificat
       expect(received.length).toBe(1)
       expect(received[0].title).toBe('New Expense Added')
       expect(received[0].body).toContain('Pizza Party')
+    })
+  })
+
+  describe('Loan / Credit Custom Currency Support', () => {
+    it('records a loan given with user-selected currency (AED)', async () => {
+      const friend = await store.addFriend('Faris')
+      const loanExpense = await store.addLoanCredit({
+        type: 'lent',
+        friendId: friend.id,
+        amountMinor: 50000, // 500.00 AED
+        currency: Currencies.AED,
+        description: 'Rent deposit loan',
+      })
+
+      expect(loanExpense.currency.code).toBe('AED')
+      expect(loanExpense.totalMinor).toBe(50000)
+      expect(loanExpense.shares.length).toBe(1)
+      expect(loanExpense.shares[0]?.owedTo).toBe(store.me?.id)
+      expect(loanExpense.shares[0]?.owedBy).toBe(friend.id)
+      expect(loanExpense.shares[0]?.amountMinor).toBe(50000)
+    })
+
+    it('records credit taken with user-selected currency (USD)', async () => {
+      const friend = await store.addFriend('Bilal')
+      const creditExpense = await store.addLoanCredit({
+        type: 'credit',
+        friendId: friend.id,
+        amountMinor: 15000, // 150.00 USD
+        currency: Currencies.USD,
+        description: 'Emergency cash borrowed',
+      })
+
+      expect(creditExpense.currency.code).toBe('USD')
+      expect(creditExpense.totalMinor).toBe(15000)
+      expect(creditExpense.shares.length).toBe(1)
+      expect(creditExpense.shares[0]?.owedTo).toBe(friend.id)
+      expect(creditExpense.shares[0]?.owedBy).toBe(store.me?.id)
+      expect(creditExpense.shares[0]?.amountMinor).toBe(15000)
+    })
+  })
+
+  describe('Auto Money Allocation for Exact Splits', () => {
+    it('splits totalMinor deterministically without penny drift among participants', () => {
+      // 10000 minor units (100.00 AED) among 3 members: 3334, 3333, 3333
+      const shares = splitEqual({
+        totalMinor: 10000,
+        memberIds: ['m1', 'm2', 'm3'],
+        expenseId: 'exp_test_split',
+      })
+
+      expect(shares.length).toBe(3)
+      const sum = shares.reduce((a: number, b: number) => a + b, 0)
+      expect(sum).toBe(10000)
+      expect(shares).toEqual([3333, 3333, 3334])
     })
   })
 })

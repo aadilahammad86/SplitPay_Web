@@ -162,6 +162,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
   }
 
   async applyRemoteOps(ops: SyncOp[]): Promise<void> {
+    const localPersonId = this.meta.get('local_person_id')
     for (const op of ops) {
       this.ops.set(op.opId, { ...op, synced: 1 })
     }
@@ -173,12 +174,13 @@ export class MemoryStorageAdapter implements StorageAdapter {
         case 'addPerson': {
           const person = decodePerson(op.payload)
           if (
+            person.id !== localPersonId && (
             person.name === 'You' ||
             person.name === 'SplitPay Friend' ||
             person.name === 'Guest User' ||
             person.id.startsWith('invited_') ||
             !person.name.trim()
-          ) {
+          )) {
             break
           }
           this.people.set(op.payload.id as string, person)

@@ -14,6 +14,7 @@ import {
 } from '../../domain/entities'
 import { Icon } from '../../ui/components/Icon'
 import { isFriendOfUser } from '../../domain/privacy'
+import { splitEqual } from '../../domain/splitEngine'
 
 interface ExpenseEditorModalProps {
   isOpen: boolean
@@ -179,6 +180,34 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
   const [error, setError] = useState<string | null>(null)
   const totalMinor = Math.round((parseFloat(amountStr) || 0) * currency.scale)
 
+  // Auto-allocate totalMinor equally among specified (or all selected) members in exact mode
+  const autoAllocateExact = (membersToAllocate: string[] = selectedMemberIds) => {
+    if (totalMinor <= 0 || membersToAllocate.length === 0) return
+    const amounts = splitEqual({
+      totalMinor,
+      memberIds: membersToAllocate,
+      expenseId: expenseToEdit?.id || 'temp',
+    })
+    const newExact: Record<string, string> = { ...exactAmounts }
+    membersToAllocate.forEach((mId, index) => {
+      const minor = amounts[index] ?? 0
+      newExact[mId] = (minor / currency.scale).toFixed(currency.digits)
+    })
+    setExactAmounts(newExact)
+  }
+
+  const handleSelectExactMode = () => {
+    setMode('exact')
+    // If no exact amounts entered or all are 0 or empty, automatically allocate equally
+    const currentSum = selectedMemberIds.reduce((sum, id) => {
+      const val = parseFloat(exactAmounts[id] || '0') || 0
+      return sum + Math.round(val * currency.scale)
+    }, 0)
+    if (currentSum === 0 && totalMinor > 0) {
+      autoAllocateExact(selectedMemberIds)
+    }
+  }
+
   // Handle group change: adjust candidates and reset selected members
   const handleGroupChange = (val: string) => {
     const groupVal = val || null
@@ -222,7 +251,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
     }
   }
 
-  // Calculate sum of exact amounts entered
+  // Calculate sum of exact amounts entered and live balance
   const sumExactMinor = useMemo(() => {
     if (mode !== 'exact') return 0
     return selectedMemberIds.reduce((sum, id) => {
@@ -230,6 +259,8 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
       return sum + Math.round(val * currency.scale)
     }, 0)
   }, [mode, selectedMemberIds, exactAmounts, currency.scale])
+
+  const balanceMinor = totalMinor - sumExactMinor
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -261,12 +292,16 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
         )
         const sum = exactList.reduce((a, b) => a + b, 0)
         if (sum !== totalMinor) {
-          setError(
-            `Exact amounts sum to ${new Money(sum, currency).plain()} but total is ${new Money(
-              totalMinor,
-              currency
-            ).plain()}`
-          )
+          const diff = totalMinor - sum
+          if (diff > 0) {
+            setError(
+              `Please allocate all funds before saving. Remaining balance to allocate: ${new Money(diff, currency).plain()}`
+            )
+          } else {
+            setError(
+              `Amounts are overallocated by ${new Money(Math.abs(diff), currency).plain()}. Please reduce amounts to match total.`
+            )
+          }
           return
         }
       }
@@ -488,7 +523,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setMode('exact')}
+            onClick={handleSelectExactMode}
             className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               mode === 'exact'
                 ? 'bg-primary text-white shadow-sm'
@@ -501,23 +536,71 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
       </div>
 
       {/* 6. Participants based on Group selection */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <label className="block text-xs font-semibold text-[var(--color-text-muted)]">
             Split Between ({selectedMemberIds.length} {selectedMemberIds.length === 1 ? 'person' : 'people'})
           </label>
           {mode === 'exact' && totalMinor > 0 && (
-            <span
-              className={`text-xs font-bold ${
-                sumExactMinor === totalMinor
-                  ? 'text-emerald-500'
-                  : 'text-amber-500'
-              }`}
+            <button
+              type="button"
+              onClick={() => autoAllocateExact(selectedMemberIds)}
+              className="text-[11px] font-bold text-primary hover:text-primary-hover inline-flex items-center gap-1 cursor-pointer transition-colors"
             >
-              Allocated: {new Money(sumExactMinor, currency).plain()} / {new Money(totalMinor, currency).plain()}
-            </span>
+              <Icon name="reload" size={12} />
+              <span>Distribute Equally</span>
+            </button>
           )}
         </div>
+
+        {/* Real-time Allocation Balance Banner */}
+        {mode === 'exact' && totalMinor > 0 && (
+          <div>
+            {balanceMinor > 0 ? (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold">
+                <div className="flex items-center gap-1.5">
+                  <Icon name="alert" size={14} />
+                  <span>
+                    Allocated: <strong>{new Money(sumExactMinor, currency).plain()}</strong> · Balance to allocate: <strong className="underline decoration-amber-400">{new Money(balanceMinor, currency).plain()}</strong>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => autoAllocateExact(selectedMemberIds)}
+                  className="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 transition-colors cursor-pointer"
+                >
+                  Distribute equally
+                </button>
+              </div>
+            ) : balanceMinor < 0 ? (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                <div className="flex items-center gap-1.5">
+                  <Icon name="alert" size={14} />
+                  <span>
+                    ⚠️ Overallocated by: <strong className="underline decoration-rose-400">{new Money(Math.abs(balanceMinor), currency).plain()}</strong> ({new Money(sumExactMinor, currency).plain()} / {new Money(totalMinor, currency).plain()})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => autoAllocateExact(selectedMemberIds)}
+                  className="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 transition-colors cursor-pointer"
+                >
+                  Distribute equally
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
+                <div className="flex items-center gap-1.5">
+                  <Icon name="check" size={14} />
+                  <span>✓ All funds allocated ({new Money(totalMinor, currency).plain()})</span>
+                </div>
+                <span className="text-[10px] font-bold opacity-80 uppercase tracking-wide">
+                  Balanced
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2 max-h-52 overflow-y-auto p-2 bg-[var(--color-surface-subtle)]/50 border border-[var(--color-border)] rounded-xl">
           {candidatePeople.map((person) => {
@@ -566,21 +649,41 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
                       </span>
                     )}
                     {mode === 'exact' && (
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] font-bold text-[var(--color-text-muted)]">
-                          {currency.symbol}
-                        </span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          step={currency.digits === 0 ? '1' : currency.digits === 3 ? '0.001' : '0.01'}
-                          placeholder="0.00"
-                          value={exactAmounts[person.id] || ''}
-                          onChange={(e) =>
-                            setExactAmounts({ ...exactAmounts, [person.id]: e.target.value })
-                          }
-                          className="w-24 px-2 py-1 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-surface-subtle)] font-bold text-right text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
+                      <div className="flex items-center gap-1.5">
+                        {balanceMinor > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentVal = parseFloat(exactAmounts[person.id] || '0') || 0
+                              const currentPersonMinor = Math.round(currentVal * currency.scale)
+                              const newPersonMinor = currentPersonMinor + balanceMinor
+                              setExactAmounts({
+                                ...exactAmounts,
+                                [person.id]: (newPersonMinor / currency.scale).toFixed(currency.digits),
+                              })
+                            }}
+                            className="px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors cursor-pointer whitespace-nowrap"
+                            title={`Add remaining ${new Money(balanceMinor, currency).plain()} to ${person.id === meId ? 'You' : person.name}`}
+                          >
+                            +{new Money(balanceMinor, currency).plain()} Fill
+                          </button>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] font-bold text-[var(--color-text-muted)]">
+                            {currency.symbol}
+                          </span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step={currency.digits === 0 ? '1' : currency.digits === 3 ? '0.001' : '0.01'}
+                            placeholder="0.00"
+                            value={exactAmounts[person.id] || ''}
+                            onChange={(e) =>
+                              setExactAmounts({ ...exactAmounts, [person.id]: e.target.value })
+                            }
+                            className="w-24 px-2 py-1 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-surface-subtle)] font-bold text-right text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
