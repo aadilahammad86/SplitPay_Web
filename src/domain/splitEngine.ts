@@ -296,9 +296,6 @@ export function buildExpense(params: {
   if (memberIds.length === 0) {
     throw new ValidationFailure('an expense needs at least one participant')
   }
-  if (!memberIds.includes(paidBy)) {
-    throw new ValidationFailure('the payer must be one of the participants')
-  }
 
   let allocatedShares: number[]
   switch (mode) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { Select } from '../../ui/components/Select'
 import { useStore } from '../../ui/storeContext'
@@ -9,12 +9,10 @@ import {
   Money,
 } from '../../domain/money'
 import {
-  type SplitMode,
-  SplitModeLabels,
   type Expense,
   type Person,
 } from '../../domain/entities'
-import { Icon, CategoryIcon } from '../../ui/components/Icon'
+import { Icon } from '../../ui/components/Icon'
 import { isFriendOfUser } from '../../domain/privacy'
 
 interface ExpenseEditorModalProps {
@@ -62,7 +60,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
 }) => {
   const { store, ledgerState } = useStore()
   const me = store.me
-  const meId = ledgerState.localPersonId || ''
+  const meId = ledgerState.localPersonId || me?.id || ''
 
   const [description, setDescription] = useState(() => expenseToEdit?.description || '')
   const [amountStr, setAmountStr] = useState(() =>
@@ -88,16 +86,57 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
   const [groupId, setGroupId] = useState<string | null>(
     () => expenseToEdit?.groupId ?? initialGroupId
   )
-  const [mode, setMode] = useState<SplitMode>(() => expenseToEdit?.mode || 'equal')
+  // Only 2 split modes: 'equal' or 'exact'
+  const [mode, setMode] = useState<'equal' | 'exact'>(() =>
+    expenseToEdit?.mode === 'exact' ? 'exact' : 'equal'
+  )
   const [categoryEmoji, setCategoryEmoji] = useState(
     () => expenseToEdit?.categoryEmoji || '🧾'
   )
   const [showCategoryPicker, setShowCategoryPicker] = useState(false)
+
+  // Candidate people scoped strictly by group selection
+  const candidatePeople: readonly Person[] = useMemo(() => {
+    if (!groupId) {
+      const friends = ledgerState.people.filter((p) =>
+        isFriendOfUser({
+          person: p,
+          meId,
+          expenses: ledgerState.expenses,
+          settlements: ledgerState.settlements,
+          groups: ledgerState.groups,
+          isMe: (id) => store.isMe(id),
+        })
+      )
+      return me ? [me, ...friends] : friends
+    }
+    const grp = ledgerState.groups.find((g) => g.id === groupId)
+    if (!grp) {
+      const friends = ledgerState.people.filter((p) =>
+        isFriendOfUser({
+          person: p,
+          meId,
+          expenses: ledgerState.expenses,
+          settlements: ledgerState.settlements,
+          groups: ledgerState.groups,
+          isMe: (id) => store.isMe(id),
+        })
+      )
+      return me ? [me, ...friends] : friends
+    }
+    return ledgerState.people.filter(
+      (p: Person) => grp.memberIds.includes(p.id) && !p.isTombstone
+    )
+  }, [groupId, ledgerState.groups, ledgerState.people, ledgerState.expenses, ledgerState.settlements, meId, me, store])
+
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(() => {
     if (expenseToEdit) {
-      return Array.from(
-        new Set([expenseToEdit.paidBy, ...expenseToEdit.shares.map((s) => s.owedBy)])
-      )
+      const debtorIds = expenseToEdit.shares.map((s) => s.owedBy)
+      const sumOwed = expenseToEdit.shares.reduce((acc, s) => acc + s.amountMinor, 0)
+      if (sumOwed < expenseToEdit.totalMinor) {
+        return Array.from(new Set([expenseToEdit.paidBy, ...debtorIds]))
+      }
+      return debtorIds.length > 0 ? debtorIds : [expenseToEdit.paidBy]
     }
     if (initialGroupId) {
       const group = ledgerState.groups.find((g) => g.id === initialGroupId)
@@ -105,91 +144,92 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
     } else if (initialFriendId) {
       return [meId, initialFriendId]
     }
-    return [
-      meId,
-      ...ledgerState.people
-        .filter((p) =>
-          isFriendOfUser({
-            person: p,
-            meId,
-            expenses: ledgerState.expenses,
-            settlements: ledgerState.settlements,
-            groups: ledgerState.groups,
-            isMe: (id) => store.isMe(id),
-          })
-        )
-        .map((p) => p.id),
-    ]
+    const friends = ledgerState.people.filter((p) =>
+      isFriendOfUser({
+        person: p,
+        meId,
+        expenses: ledgerState.expenses,
+        settlements: ledgerState.settlements,
+        groups: ledgerState.groups,
+        isMe: (id) => store.isMe(id),
+      })
+    )
+    return [meId, ...friends.map((p) => p.id)]
   })
 
-  // Split-specific state
+  // Exact amounts state
   const [exactAmounts, setExactAmounts] = useState<Record<string, string>>(() => {
     if (expenseToEdit?.shares && expenseToEdit.shares.length > 0) {
       const exactObj: Record<string, string> = {}
       for (const s of expenseToEdit.shares) {
         exactObj[s.owedBy] = (s.amountMinor / expenseToEdit.currency.scale).toString()
       }
+      const sumOwed = expenseToEdit.shares.reduce((acc, s) => acc + s.amountMinor, 0)
+      if (sumOwed < expenseToEdit.totalMinor) {
+        exactObj[expenseToEdit.paidBy] = (
+          (expenseToEdit.totalMinor - sumOwed) /
+          expenseToEdit.currency.scale
+        ).toString()
+      }
       return exactObj
     }
     return {}
   })
-  const [percentages, setPercentages] = useState<Record<string, string>>({})
-  const [weights, setWeights] = useState<Record<string, string>>({})
-  const [adjustments, setAdjustments] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
 
+  const [error, setError] = useState<string | null>(null)
   const totalMinor = Math.round((parseFloat(amountStr) || 0) * currency.scale)
 
-  const candidatePeople: readonly Person[] = useMemo(() => {
-    if (!groupId) {
-      return ledgerState.people.filter(
-        (p) =>
-          p.id === meId ||
-          selectedMemberIds.includes(p.id) ||
-          isFriendOfUser({
-            person: p,
-            meId,
-            expenses: ledgerState.expenses,
-            settlements: ledgerState.settlements,
-            groups: ledgerState.groups,
-            isMe: (id) => store.isMe(id),
-          })
-      )
-    }
-    const grp = ledgerState.groups.find((g) => g.id === groupId)
-    if (!grp) {
-      return ledgerState.people.filter(
-        (p) =>
-          p.id === meId ||
-          selectedMemberIds.includes(p.id) ||
-          isFriendOfUser({
-            person: p,
-            meId,
-            expenses: ledgerState.expenses,
-            settlements: ledgerState.settlements,
-            groups: ledgerState.groups,
-            isMe: (id) => store.isMe(id),
-          })
-      )
-    }
-    return ledgerState.people.filter(
-      (p: Person) => grp.memberIds.includes(p.id) && (!p.isTombstone || selectedMemberIds.includes(p.id))
-    )
-  }, [groupId, ledgerState.groups, ledgerState.people, ledgerState.expenses, ledgerState.settlements, selectedMemberIds, meId, store])
+  // Handle group change: adjust candidates and reset selected members
+  const handleGroupChange = (val: string) => {
+    const groupVal = val || null
+    setGroupId(groupVal)
+    setError(null)
 
+    if (groupVal) {
+      const grp = ledgerState.groups.find((g) => g.id === groupVal)
+      if (grp) {
+        setCurrency(grp.currency)
+        setSelectedMemberIds([...grp.memberIds])
+        // If current paidBy is not in the group, switch to me or first member
+        if (!grp.memberIds.includes(paidBy)) {
+          setPaidBy(grp.memberIds.includes(meId) ? meId : grp.memberIds[0] || meId)
+        }
+      }
+    } else {
+      // Switched to No Group (Direct 1:1 / multi-friend)
+      const friends = ledgerState.people.filter((p) =>
+        isFriendOfUser({
+          person: p,
+          meId,
+          expenses: ledgerState.expenses,
+          settlements: ledgerState.settlements,
+          groups: ledgerState.groups,
+          isMe: (id) => store.isMe(id),
+        })
+      )
+      setSelectedMemberIds([meId, ...friends.map((p) => p.id)])
+    }
+  }
+
+  // Toggling members in the split checklist must NEVER alter the paidBy selection
   const handleToggleMember = (id: string) => {
     if (selectedMemberIds.includes(id)) {
       if (selectedMemberIds.length > 1) {
-        const next = selectedMemberIds.filter((m) => m !== id)
-        setSelectedMemberIds(next)
-        if (paidBy === id) {
-          setPaidBy(next[0] || meId)
-        }
+        setSelectedMemberIds(selectedMemberIds.filter((m) => m !== id))
       }
     } else {
       setSelectedMemberIds([...selectedMemberIds, id])
     }
   }
+
+  // Calculate sum of exact amounts entered
+  const sumExactMinor = useMemo(() => {
+    if (mode !== 'exact') return 0
+    return selectedMemberIds.reduce((sum, id) => {
+      const val = parseFloat(exactAmounts[id] || '0') || 0
+      return sum + Math.round(val * currency.scale)
+    }, 0)
+  }, [mode, selectedMemberIds, exactAmounts, currency.scale])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -203,16 +243,17 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
       setError('Please enter a valid amount greater than zero.')
       return
     }
-    if (!paidBy || !selectedMemberIds.includes(paidBy)) {
-      setError('The payer must be one of the participants.')
+    if (!paidBy) {
+      setError('Please select who paid for this expense.')
+      return
+    }
+    if (selectedMemberIds.length === 0) {
+      setError('Please select at least one person to split between.')
       return
     }
 
     try {
       let exactList: number[] | undefined
-      let bpList: number[] | undefined
-      let weightsList: number[] | undefined
-      let adjList: number[] | undefined
 
       if (mode === 'exact') {
         exactList = selectedMemberIds.map((m) =>
@@ -228,23 +269,6 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
           )
           return
         }
-      } else if (mode === 'percentage') {
-        bpList = selectedMemberIds.map((m) =>
-          Math.round((parseFloat(percentages[m] || '0') || 0) * 100)
-        )
-        const sum = bpList.reduce((a, b) => a + b, 0)
-        if (sum !== 10000) {
-          setError(
-            `Percentages must total 100.00%, current sum is ${(sum / 100).toFixed(2)}%`
-          )
-          return
-        }
-      } else if (mode === 'shares') {
-        weightsList = selectedMemberIds.map((m) => parseInt(weights[m] || '1', 10) || 1)
-      } else if (mode === 'adjustment') {
-        adjList = selectedMemberIds.map((m) =>
-          Math.round((parseFloat(adjustments[m] || '0') || 0) * currency.scale)
-        )
       }
 
       // Parse date to createdAtMicros preserving current time within day
@@ -279,9 +303,6 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
           categoryEmoji,
           createdAtMicros,
           exactAmounts: exactList,
-          basisPoints: bpList,
-          weights: weightsList,
-          adjustments: adjList,
         })
       } else {
         await store.addExpense({
@@ -295,9 +316,6 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
           categoryEmoji,
           createdAtMicros,
           exactAmounts: exactList,
-          basisPoints: bpList,
-          weights: weightsList,
-          adjustments: adjList,
         })
       }
 
@@ -311,7 +329,6 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
     }
   }
 
-  const peopleMap = new Map(ledgerState.people.map((p) => [p.id, p]))
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 text-sm">
@@ -321,59 +338,56 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
         </div>
       )}
 
-      {/* Category Picker and Description */}
-      <div className="flex gap-2">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowCategoryPicker(!showCategoryPicker)}
-            className="h-11 px-3 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] border border-[var(--color-border)] rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Select category icon"
-          >
-            <CategoryIcon category={categoryEmoji} size={22} className="text-primary" />
-            <Icon name="chevronDown" size={14} className="text-[var(--color-text-muted)]" />
-          </button>
+      {/* 1. Icon & Description */}
+      <div>
+        <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+          Description
+        </label>
+        <div className="flex gap-2 items-center">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+              className="w-12 h-10 rounded-xl bg-[var(--color-surface-subtle)] border border-[var(--color-border)] hover:bg-[var(--color-surface)] flex items-center justify-center text-xl transition-all cursor-pointer shadow-sm"
+              title="Select expense category icon"
+            >
+              <span>{categoryEmoji}</span>
+            </button>
 
-          {showCategoryPicker && (
-            <div className="absolute left-0 top-12 z-30 w-64 p-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl shadow-xl grid grid-cols-4 gap-1.5 animate-slide-up">
-              {CATEGORIES.map((cat) => {
-                const isSelected = categoryEmoji === cat.key
-                return (
+            {showCategoryPicker && (
+              <div className="absolute left-0 top-12 z-50 p-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl shadow-xl grid grid-cols-4 gap-2 w-56 animate-fade-in">
+                {CATEGORIES.map((c) => (
                   <button
-                    key={cat.key}
+                    key={c.key}
                     type="button"
                     onClick={() => {
-                      setCategoryEmoji(cat.key)
+                      setCategoryEmoji(c.key)
                       setShowCategoryPicker(false)
                     }}
-                    title={cat.label}
-                    className={`p-2 rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
-                      isSelected
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'hover:bg-[var(--color-surface-subtle)] text-[var(--color-text)]'
+                    className={`h-10 rounded-xl flex items-center justify-center text-xl hover:bg-primary/10 transition-colors cursor-pointer ${
+                      categoryEmoji === c.key ? 'bg-primary/15 ring-2 ring-primary' : ''
                     }`}
+                    title={c.label}
                   >
-                    <CategoryIcon category={cat.key} size={20} />
-                    <span className="text-[9px] font-medium truncate max-w-full">
-                      {cat.label.split('/')[0].trim()}
-                    </span>
+                    <span>{c.key}</span>
                   </button>
-                )
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
+
+          <input
+            type="text"
+            required
+            placeholder="What was this expense for?"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="flex-1 px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-primary text-[var(--color-text)]"
+          />
         </div>
-        <input
-          type="text"
-          required
-          placeholder="What was this expense for?"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="flex-1 px-3.5 py-2.5 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-primary"
-        />
       </div>
 
-      {/* Amount, Currency & Date Picker */}
+      {/* 2. Currency, Amount & Date */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <div className="flex gap-2">
           <div className="w-28 shrink-0">
@@ -406,9 +420,6 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
         </div>
 
         <div>
-          <label className="block text-[11px] font-semibold text-[var(--color-text-muted)] mb-1 sm:hidden">
-            Expense Date
-          </label>
           <div className="relative flex items-center">
             <input
               type="date"
@@ -422,43 +433,15 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
         </div>
       </div>
 
-      {/* Paid By and Group Attribution */}
+      {/* 3. Group Attribution (First) & 4. Paid by (Second) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
-            Paid by
-          </label>
-          <Select
-            value={paidBy}
-            onChange={(val) => setPaidBy(val)}
-            options={selectedMemberIds.map((id) => ({
-              value: id,
-              label: id === me?.id ? 'You' : peopleMap.get(id)?.name ?? 'Unknown',
-            }))}
-            ariaLabel="Paid by"
-          />
-        </div>
-
         <div>
           <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
             Group (Optional)
           </label>
           <Select
             value={groupId ?? ''}
-            onChange={(val) => {
-              const groupVal = val || null
-              setGroupId(groupVal)
-              if (groupVal) {
-                const grp = ledgerState.groups.find((g) => g.id === groupVal)
-                if (grp) {
-                  setCurrency(grp.currency)
-                  setSelectedMemberIds([...grp.memberIds])
-                  if (!grp.memberIds.includes(paidBy)) {
-                    setPaidBy(grp.memberIds.includes(meId) ? meId : grp.memberIds[0] || meId)
-                  }
-                }
-              }
-            }}
+            onChange={handleGroupChange}
             options={[
               { value: '', label: 'No Group (Direct 1:1)' },
               ...ledgerState.groups.map((g) => ({
@@ -469,115 +452,136 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
             ariaLabel="Group (Optional)"
           />
         </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+            Paid by
+          </label>
+          <Select
+            value={paidBy}
+            onChange={(val) => setPaidBy(val)}
+            options={candidatePeople.map((p) => ({
+              value: p.id,
+              label: p.id === meId ? 'You' : p.name,
+            }))}
+            ariaLabel="Paid by"
+          />
+        </div>
       </div>
 
-      {/* Split Mode Selector */}
+      {/* 5. Split Mode Selector (Equally vs Exact amounts only) */}
       <div>
         <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
           Split Mode
         </label>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 p-1 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl">
-          {(['equal', 'exact', 'percentage', 'shares', 'adjustment'] as SplitMode[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMode(m)}
-              className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                mode === m
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-              }`}
-            >
-              {SplitModeLabels[m]}
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-1.5 p-1 bg-[var(--color-surface-subtle)] border border-[var(--color-border)] rounded-xl">
+          <button
+            type="button"
+            onClick={() => setMode('equal')}
+            className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              mode === 'equal'
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            Equally
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('exact')}
+            className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              mode === 'exact'
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            Exact amounts
+          </button>
         </div>
       </div>
 
-      {/* Participants & Share breakdown inputs */}
+      {/* 6. Participants based on Group selection */}
       <div>
-        <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-2">
-          Split Between ({selectedMemberIds.length} people)
-        </label>
-        <div className="space-y-2 max-h-48 overflow-y-auto p-2 bg-[var(--color-surface-subtle)]/50 border border-[var(--color-border)] rounded-xl">
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-xs font-semibold text-[var(--color-text-muted)]">
+            Split Between ({selectedMemberIds.length} {selectedMemberIds.length === 1 ? 'person' : 'people'})
+          </label>
+          {mode === 'exact' && totalMinor > 0 && (
+            <span
+              className={`text-xs font-bold ${
+                sumExactMinor === totalMinor
+                  ? 'text-emerald-500'
+                  : 'text-amber-500'
+              }`}
+            >
+              Allocated: {new Money(sumExactMinor, currency).plain()} / {new Money(totalMinor, currency).plain()}
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-2 max-h-52 overflow-y-auto p-2 bg-[var(--color-surface-subtle)]/50 border border-[var(--color-border)] rounded-xl">
           {candidatePeople.map((person) => {
             const isSelected = selectedMemberIds.includes(person.id)
+            const isPayer = person.id === paidBy
+
+            // Calculated equal share preview
+            const equalSharePreview =
+              isSelected && selectedMemberIds.length > 0 && totalMinor > 0
+                ? new Money(Math.round(totalMinor / selectedMemberIds.length), currency).plain()
+                : null
+
             return (
               <div
                 key={person.id}
-                className="flex items-center justify-between p-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]"
+                className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${
+                  isSelected
+                    ? 'bg-[var(--color-surface)] border-[var(--color-border)] shadow-xs'
+                    : 'bg-transparent border-transparent opacity-60'
+                }`}
               >
-                <label className="flex items-center gap-2.5 cursor-pointer">
+                <label className="flex items-center gap-2.5 cursor-pointer flex-1 select-none">
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => handleToggleMember(person.id)}
-                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                    className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
                   />
-                  <span className="font-semibold text-xs">
-                    {person.id === me?.id ? 'You' : person.name}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-xs text-[var(--color-text)]">
+                      {person.id === meId ? 'You' : person.name}
+                    </span>
+                    {isPayer && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-primary/10 text-primary">
+                        Payer
+                      </span>
+                    )}
+                  </div>
                 </label>
 
                 {isSelected && (
                   <div className="flex items-center gap-2">
-                    {mode === 'exact' && (
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
-                        placeholder="Amount"
-                        value={exactAmounts[person.id] || ''}
-                        onChange={(e) =>
-                          setExactAmounts({ ...exactAmounts, [person.id]: e.target.value })
-                        }
-                        className="w-24 px-2 py-1 text-xs border rounded bg-[var(--color-surface-subtle)] font-bold text-right"
-                      />
+                    {mode === 'equal' && equalSharePreview && (
+                      <span className="text-[11px] font-bold text-[var(--color-text-muted)] bg-[var(--color-surface-subtle)] px-2 py-1 rounded-md">
+                        {equalSharePreview}
+                      </span>
                     )}
-                    {mode === 'percentage' && (
+                    {mode === 'exact' && (
                       <div className="flex items-center gap-1">
+                        <span className="text-[11px] font-bold text-[var(--color-text-muted)]">
+                          {currency.symbol}
+                        </span>
                         <input
                           type="number"
                           inputMode="decimal"
-                          step="0.01"
-                          placeholder="%"
-                          value={percentages[person.id] || ''}
+                          step={currency.digits === 0 ? '1' : currency.digits === 3 ? '0.001' : '0.01'}
+                          placeholder="0.00"
+                          value={exactAmounts[person.id] || ''}
                           onChange={(e) =>
-                            setPercentages({ ...percentages, [person.id]: e.target.value })
+                            setExactAmounts({ ...exactAmounts, [person.id]: e.target.value })
                           }
-                          className="w-16 px-2 py-1 text-xs border rounded bg-[var(--color-surface-subtle)] font-bold text-right"
+                          className="w-24 px-2 py-1 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-surface-subtle)] font-bold text-right text-[var(--color-text)] focus:outline-none focus:ring-1 focus:ring-primary"
                         />
-                        <span className="text-xs font-bold">%</span>
                       </div>
-                    )}
-                    {mode === 'shares' && (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min="1"
-                          placeholder="1"
-                          value={weights[person.id] || '1'}
-                          onChange={(e) =>
-                            setWeights({ ...weights, [person.id]: e.target.value })
-                          }
-                          className="w-14 px-2 py-1 text-xs border rounded bg-[var(--color-surface-subtle)] font-bold text-right"
-                        />
-                        <span className="text-xs text-[var(--color-text-muted)]">share(s)</span>
-                      </div>
-                    )}
-                    {mode === 'adjustment' && (
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
-                        placeholder="+/- 0"
-                        value={adjustments[person.id] || '0'}
-                        onChange={(e) =>
-                          setAdjustments({ ...adjustments, [person.id]: e.target.value })
-                        }
-                        className="w-20 px-2 py-1 text-xs border rounded bg-[var(--color-surface-subtle)] font-bold text-right"
-                      />
                     )}
                   </div>
                 )}
@@ -592,7 +596,7 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] transition-colors cursor-pointer"
+          className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] transition-colors cursor-pointer text-[var(--color-text)]"
         >
           Cancel
         </button>
@@ -611,43 +615,23 @@ const ExpenseEditorForm: React.FC<ExpenseEditorFormProps> = ({
 export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
   isOpen,
   onClose,
-  initialGroupId = null,
-  initialFriendId = null,
-  expenseToEdit = null,
+  initialGroupId,
+  initialFriendId,
+  expenseToEdit,
 }) => {
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
-  const [shouldRenderForm, setShouldRenderForm] = useState(isOpen)
-
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen)
-    if (isOpen) {
-      setShouldRenderForm(true)
-    }
-  }
-
-  useEffect(() => {
-    if (!isOpen && shouldRenderForm) {
-      const timer = setTimeout(() => setShouldRenderForm(false), 250)
-      return () => clearTimeout(timer)
-    }
-  }, [isOpen, shouldRenderForm])
-
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={expenseToEdit ? 'Edit Expense' : 'Add Expense'}
-      maxWidth="max-w-xl"
+      maxWidth="max-w-md"
     >
-      {(isOpen || shouldRenderForm) && (
-        <ExpenseEditorForm
-          key={expenseToEdit?.id ?? 'new_expense'}
-          onClose={onClose}
-          initialGroupId={initialGroupId}
-          initialFriendId={initialFriendId}
-          expenseToEdit={expenseToEdit}
-        />
-      )}
+      <ExpenseEditorForm
+        onClose={onClose}
+        initialGroupId={initialGroupId}
+        initialFriendId={initialFriendId}
+        expenseToEdit={expenseToEdit}
+      />
     </Modal>
   )
 }

@@ -144,6 +144,45 @@ describe('Domain - User Transaction Position (Proposal 1 & Exact Share Accountin
       expect(aadilView.netImpactMinor).toBe(0)
       expect(aadilView.status).toBe('settled')
     })
+    it('correctly handles expense where payer is NOT in the split participants (payer pays for others)', () => {
+      const userHashim = 'user_hashim'
+      // Aadil pays 200 AED, split equally only between Nabeel and Hashim
+      const paidForOthers = buildExpense({
+        id: 'exp_paid_for_others',
+        description: 'Dinner for friends',
+        totalMinor: 20000,
+        currency: Currencies.AED,
+        paidBy: userAadil,
+        groupId: null,
+        memberIds: [userNabeel, userHashim], // Aadil is NOT in memberIds!
+        mode: 'equal',
+        createdAtMicros: 4000000,
+      })
+
+      // Payer's view (Aadil): consumed 0, lent 200 AED
+      const aadilView = getUserExpensePosition({
+        expense: paidForOthers,
+        meId: userAadil,
+        isMe: (id) => id === userAadil,
+        getPayerName: getPersonName,
+      })
+      expect(aadilView.isPayer).toBe(true)
+      expect(aadilView.userShareMinor).toBe(0)
+      expect(aadilView.netImpactMinor).toBe(20000)
+      expect(aadilView.status).toBe('lent')
+
+      // Debtor's view (Nabeel): consumed 100 AED, owes 100 AED
+      const nabeelView = getUserExpensePosition({
+        expense: paidForOthers,
+        meId: userNabeel,
+        isMe: (id) => id === userNabeel,
+        getPayerName: getPersonName,
+      })
+      expect(nabeelView.isPayer).toBe(false)
+      expect(nabeelView.userShareMinor).toBe(10000)
+      expect(nabeelView.netImpactMinor).toBe(-10000)
+      expect(nabeelView.status).toBe('borrowed')
+    })
   })
 
   describe('getUserSettlementPosition', () => {
