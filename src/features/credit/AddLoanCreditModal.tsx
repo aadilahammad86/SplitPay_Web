@@ -3,6 +3,7 @@ import { Modal } from '../../ui/components/Modal'
 import { useStore } from '../../ui/storeContext'
 import { BASE_CURRENCY, type LoanType } from '../../domain/entities'
 import { Icon } from '../../ui/components/Icon'
+import { isFriendOfUser } from '../../domain/privacy'
 
 interface AddLoanCreditModalProps {
   isOpen: boolean
@@ -38,15 +39,15 @@ export const AddLoanCreditModal: React.FC<AddLoanCreditModalProps> = ({
     }
   }
 
-  const validFriends = ledgerState.people.filter(
-    (p) =>
-      !p.isTombstone &&
-      !store.isMe(p.id) &&
-      p.name !== 'You' &&
-      p.name !== 'SplitPay Friend' &&
-      p.name !== 'Guest User' &&
-      !p.id.startsWith('invited_') &&
-      p.name.trim() !== ''
+  const validFriends = ledgerState.people.filter((p) =>
+    isFriendOfUser({
+      person: p,
+      meId: store.me?.id,
+      expenses: ledgerState.expenses,
+      settlements: ledgerState.settlements,
+      groups: ledgerState.groups,
+      isMe: (id) => store.isMe(id),
+    })
   )
 
   const handleSubmit = async (e: React.FormEvent) => {

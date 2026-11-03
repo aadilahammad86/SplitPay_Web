@@ -33,6 +33,7 @@ export interface Person {
   discoverableByPhone?: boolean
   inviteCode?: string
   isTombstone?: boolean
+  addedBy?: string
 }
 
 export function personInitials(name: string): string {

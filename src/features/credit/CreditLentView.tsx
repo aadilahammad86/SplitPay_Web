@@ -8,7 +8,7 @@ import { FriendDetailModal } from '../friends/FriendDetailModal'
 import { ActivityDetailModal } from '../activity/ActivityDetailModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import { CategoryIcon, Icon } from '../../ui/components/Icon'
-import { isExpenseParticipant } from '../../domain/privacy'
+import { isExpenseParticipant, isFriendOfUser } from '../../domain/privacy'
 
 interface CreditLentViewProps {
   onNavigateToStatement: (friendId: string) => void
@@ -34,17 +34,17 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
   const [settleAmountMinor, setSettleAmountMinor] = useState(0)
 
   const validFriends = useMemo(() => {
-    return ledgerState.people.filter(
-      (p) =>
-        !p.isTombstone &&
-        !store.isMe(p.id) &&
-        p.name !== 'You' &&
-        p.name !== 'SplitPay Friend' &&
-        p.name !== 'Guest User' &&
-        !p.id.startsWith('invited_') &&
-        p.name.trim() !== ''
+    return ledgerState.people.filter((p) =>
+      isFriendOfUser({
+        person: p,
+        meId,
+        expenses: ledgerState.expenses,
+        settlements: ledgerState.settlements,
+        groups: ledgerState.groups,
+        isMe: (id) => store.isMe(id),
+      })
     )
-  }, [ledgerState.people, store])
+  }, [ledgerState.people, ledgerState.expenses, ledgerState.settlements, ledgerState.groups, meId, store])
 
   // Compute breakdown for each friend
   const friendSummaries = useMemo(() => {

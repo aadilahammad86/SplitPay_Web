@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useStore } from '../../ui/storeContext'
 import { breakdownFor } from '../../domain/balance'
+import { isFriendOfUser } from '../../domain/privacy'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { SourceChips } from '../../ui/components/SourceChips'
 import { Modal } from '../../ui/components/Modal'
@@ -42,15 +43,15 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const [selectedFriendIds, setSelectedFriendIds] = useState<Set<string>>(new Set())
   const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
 
-  const friends = ledgerState.people.filter(
-    (p) =>
-      !p.isTombstone &&
-      !store.isMe(p.id) &&
-      p.name !== 'You' &&
-      p.name !== 'SplitPay Friend' &&
-      p.name !== 'Guest User' &&
-      !p.id.startsWith('invited_') &&
-      p.name.trim() !== ''
+  const friends = ledgerState.people.filter((p) =>
+    isFriendOfUser({
+      person: p,
+      meId,
+      expenses: ledgerState.expenses,
+      settlements: ledgerState.settlements,
+      groups: ledgerState.groups,
+      isMe: (id) => store.isMe(id),
+    })
   )
   const filtered = friends.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()) ||

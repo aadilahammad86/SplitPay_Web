@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { Select } from '../../ui/components/Select'
 import { useStore } from '../../ui/storeContext'
@@ -7,6 +7,7 @@ import { SupportedCurrencies } from '../../domain/money'
 import { BASE_CURRENCY } from '../../domain/entities'
 import { Icon } from '../../ui/components/Icon'
 import { SettleSuccess } from './SettleSuccess'
+import { isFriendOfUser } from '../../domain/privacy'
 
 interface SettleUpModalProps {
   isOpen: boolean
@@ -67,6 +68,21 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
     currency: CurrencyCode
     friendName: string
   } | null>(null)
+
+  const selectablePeople = useMemo(() => {
+    return ledgerState.people.filter(
+      (p) =>
+        p.id === me?.id ||
+        isFriendOfUser({
+          person: p,
+          meId,
+          expenses: ledgerState.expenses,
+          settlements: ledgerState.settlements,
+          groups: ledgerState.groups,
+          isMe: (id) => store.isMe(id),
+        })
+    )
+  }, [ledgerState.people, ledgerState.expenses, ledgerState.settlements, ledgerState.groups, me?.id, meId, store])
 
   const handleModalClose = () => {
     onClose()
@@ -171,7 +187,7 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
             <Select
               value={from}
               onChange={(val) => setFrom(val)}
-              options={ledgerState.people.map((p) => ({
+              options={selectablePeople.map((p) => ({
                 value: p.id,
                 label: p.id === me?.id ? 'You' : p.name,
               }))}
@@ -186,7 +202,7 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
             <Select
               value={to}
               onChange={(val) => setTo(val)}
-              options={ledgerState.people.map((p) => ({
+              options={selectablePeople.map((p) => ({
                 value: p.id,
                 label: p.id === me?.id ? 'You' : p.name,
               }))}

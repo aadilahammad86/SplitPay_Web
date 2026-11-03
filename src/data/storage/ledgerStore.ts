@@ -585,6 +585,7 @@ export class LedgerStore {
           phone: existing.phone || extra?.phone,
           phoneVerified: existing.phoneVerified ?? extra?.phoneVerified,
           inviteCode: existing.inviteCode || extra?.inviteCode,
+          addedBy: existing.addedBy || this.state.localPersonId || this.me?.id || undefined,
         }
         const op = opAddPerson({
           opId: generateUlid(),
@@ -609,6 +610,7 @@ export class LedgerStore {
       phone: extra?.phone,
       phoneVerified: extra?.phoneVerified,
       inviteCode: extra?.inviteCode,
+      addedBy: this.state.localPersonId || this.me?.id || undefined,
     }
     const op = opAddPerson({
       opId: generateUlid(),

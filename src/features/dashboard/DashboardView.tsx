@@ -16,7 +16,7 @@ import { CreateGroupModal } from '../groups/CreateGroupModal'
 import { ActivityDetailModal } from '../activity/ActivityDetailModal'
 import { FriendDetailModal } from '../friends/FriendDetailModal'
 import { Icon, CategoryIcon } from '../../ui/components/Icon'
-import { isExpenseParticipant, isSettlementParticipant } from '../../domain/privacy'
+import { isExpenseParticipant, isSettlementParticipant, isFriendOfUser } from '../../domain/privacy'
 
 interface DashboardViewProps {
   onNavigate: (tab: string) => void
@@ -43,15 +43,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [selectedFriendDetail, setSelectedFriendDetail] = useState<Person | null>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
 
-  const validFriends = ledgerState.people.filter(
-    (p) =>
-      !p.isTombstone &&
-      !store.isMe(p.id) &&
-      p.name !== 'You' &&
-      p.name !== 'SplitPay Friend' &&
-      p.name !== 'Guest User' &&
-      !p.id.startsWith('invited_') &&
-      p.name.trim() !== ''
+  const validFriends = ledgerState.people.filter((p) =>
+    isFriendOfUser({
+      person: p,
+      meId,
+      expenses: ledgerState.expenses,
+      settlements: ledgerState.settlements,
+      groups: ledgerState.groups,
+      isMe: (id) => store.isMe(id),
+    })
   )
   const friendIds = validFriends.map((p) => p.id)
 

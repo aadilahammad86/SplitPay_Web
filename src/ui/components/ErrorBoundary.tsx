@@ -28,7 +28,17 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ errorInfo })
   }
 
-  private handleReload = () => {
+  private handleReload = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        for (const reg of registrations) {
+          await reg.update().catch(() => {})
+        }
+      }
+    } catch {
+      // Ignore
+    }
     window.location.reload()
   }
 

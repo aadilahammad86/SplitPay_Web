@@ -4,6 +4,7 @@ import {
   isSettlementParticipant,
   isExpenseOpParticipant,
   isSettlementOpParticipant,
+  isFriendOfUser,
 } from '../../src/domain/privacy'
 import { Currencies } from '../../src/domain/money'
 import type { Expense, Group, Person, Settlement } from '../../src/domain/entities'
@@ -331,4 +332,120 @@ describe('Invariant INV-TRANSACTION-PRIVACY: Group and 1-to-1 Transaction Privac
       expect(isExpenseParticipant(groupExpenseAC, '', detachedIsMe)).toBe(false)
     })
   })
+
+  describe('Invariant INV-FRIEND-PRIVACY: Friend Visibility Scoping', () => {
+    const aadil: Person = { id: 'user_aadil', name: 'Aadil' }
+    const hashim: Person = { id: 'user_hashim', name: 'Hashim', handle: '9526638234', addedBy: 'user_aadil' }
+    const nabeel: Person = { id: 'user_nabeel', name: 'Nabeel' }
+    const abhijith: Person = { id: 'user_abhijith', name: 'Abhijith' }
+
+    const loanExpense: Expense = {
+      id: 'loan_aadil_hashim',
+      description: 'Loan given to Hashim',
+      totalMinor: 200000,
+      currency: Currencies.AED,
+      paidBy: aadil.id,
+      splitMode: 'exact',
+      shares: [
+        {
+          id: 'share_hashim',
+          expenseId: 'loan_aadil_hashim',
+          owedBy: hashim.id,
+          owedTo: aadil.id,
+          amountMinor: 200000,
+        },
+      ],
+      createdAtMicros: 1000,
+    }
+
+    it('shows Hashim to Aadil because Aadil added Hashim and shares an expense with him', () => {
+      const visibleToAadil = isFriendOfUser({
+        person: hashim,
+        meId: aadil.id,
+        expenses: [loanExpense],
+        settlements: [],
+        groups: [],
+      })
+      expect(visibleToAadil).toBe(true)
+    })
+
+    it('hides Hashim from Nabeel and Abhijith who have no mutual transactions or groups with Hashim', () => {
+      const visibleToNabeel = isFriendOfUser({
+        person: hashim,
+        meId: nabeel.id,
+        expenses: [loanExpense],
+        settlements: [],
+        groups: [],
+      })
+      expect(visibleToNabeel).toBe(false)
+
+      const visibleToAbhijith = isFriendOfUser({
+        person: hashim,
+        meId: abhijith.id,
+        expenses: [loanExpense],
+        settlements: [],
+        groups: [],
+      })
+      expect(visibleToAbhijith).toBe(false)
+    })
+
+    it('shows manually added friend without transactions ONLY to creator', () => {
+      const newFriend: Person = { id: 'user_new', name: 'New Friend', addedBy: aadil.id }
+
+      // Visible to Aadil (creator)
+      expect(isFriendOfUser({ person: newFriend, meId: aadil.id, expenses: [], settlements: [], groups: [] })).toBe(true)
+
+      // Hidden from Nabeel
+      expect(isFriendOfUser({ person: newFriend, meId: nabeel.id, expenses: [], settlements: [], groups: [] })).toBe(false)
+    })
+
+    it('shows friend to other user if they join a mutual group', () => {
+      const groupFriend: Person = { id: 'user_group_friend', name: 'Group Friend' }
+      const mutualGroup: Group = {
+        id: 'group_work',
+        name: 'Work Trip',
+        kind: 'trip',
+        memberIds: [nabeel.id, groupFriend.id],
+        currency: Currencies.AED,
+      }
+
+      // Visible to Nabeel because of mutual group membership
+      expect(
+        isFriendOfUser({
+          person: groupFriend,
+          meId: nabeel.id,
+          expenses: [],
+          settlements: [],
+          groups: [mutualGroup],
+        })
+      ).toBe(true)
+
+      // Hidden from Abhijith who is not in the group
+      expect(
+        isFriendOfUser({
+          person: groupFriend,
+          meId: abhijith.id,
+          expenses: [],
+          settlements: [],
+          groups: [mutualGroup],
+        })
+      ).toBe(false)
+    })
+
+    it('never shows self as a friend of self', () => {
+      expect(isFriendOfUser({ person: aadil, meId: aadil.id })).toBe(false)
+    })
+
+    it('never shows tombstoned persons or system placeholders', () => {
+      const tombstoned: Person = { id: 'user_tomb', name: 'Deleted', isTombstone: true, addedBy: aadil.id }
+      expect(isFriendOfUser({ person: tombstoned, meId: aadil.id })).toBe(false)
+
+      const placeholderYou: Person = { id: 'user_you', name: 'You', addedBy: aadil.id }
+      expect(isFriendOfUser({ person: placeholderYou, meId: aadil.id })).toBe(false)
+
+      const invitedUser: Person = { id: 'invited_12345', name: 'Invited Friend' }
+      expect(isFriendOfUser({ person: invitedUser, meId: aadil.id })).toBe(false)
+    })
+  })
+
 })

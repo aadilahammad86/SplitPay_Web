@@ -55,6 +55,7 @@ export function encodePerson(p: Person): Record<string, unknown> {
     name: p.name,
     handle: p.handle ?? null,
     isTombstone: p.isTombstone ?? false,
+    addedBy: p.addedBy ?? null,
   }
 }
 
@@ -64,6 +65,7 @@ export function decodePerson(m: Record<string, unknown>): Person {
     name: String(m.name),
     handle: m.handle ? String(m.handle) : undefined,
     isTombstone: Boolean(m.isTombstone),
+    addedBy: m.addedBy ? String(m.addedBy) : undefined,
   }
 }
 
