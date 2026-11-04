@@ -1,4 +1,4 @@
-const CACHE_NAME = 'splitpay-v5'
+const CACHE_NAME = 'splitpay-v6'
 const STATIC_ASSETS = [
   '/',
   '/index.html',

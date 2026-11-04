@@ -10,6 +10,9 @@ interface ModalProps {
   maxWidth?: string
 }
 
+// Global modal lock counter to prevent nested modals from capturing and locking 'hidden' overflow
+let activeModalCount = 0
+
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
@@ -64,18 +67,16 @@ export const Modal: React.FC<ModalProps> = ({
   useEffect(() => {
     if (!isOpen || typeof document === 'undefined') return
 
-    const originalOverflow = document.body.style.overflow
-    const originalPaddingRight = document.body.style.paddingRight
-    const originalTouchAction = document.body.style.touchAction
-
-    // Compensate for desktop scrollbar disappearance to prevent layout shift
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`
+    activeModalCount++
+    if (activeModalCount === 1) {
+      // Compensate for desktop scrollbar disappearance to prevent layout shift
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`
+      }
+      document.body.style.overflow = 'hidden'
+      document.body.style.touchAction = 'none'
     }
-
-    document.body.style.overflow = 'hidden'
-    document.body.style.touchAction = 'none'
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') handleRequestClose()
@@ -83,9 +84,12 @@ export const Modal: React.FC<ModalProps> = ({
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      document.body.style.overflow = originalOverflow
-      document.body.style.paddingRight = originalPaddingRight
-      document.body.style.touchAction = originalTouchAction
+      activeModalCount = Math.max(0, activeModalCount - 1)
+      if (activeModalCount === 0) {
+        document.body.style.overflow = ''
+        document.body.style.paddingRight = ''
+        document.body.style.touchAction = ''
+      }
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen, handleRequestClose])

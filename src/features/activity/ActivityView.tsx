@@ -213,7 +213,7 @@ export const ActivityView: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in touch-pan-y">
       {/* Header and Filter pills */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pb-1">
         <div>
@@ -365,7 +365,7 @@ export const ActivityView: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 touch-pan-y">
           {filteredItems.map((item) => {
             const isSelected = selectedItemIds.has(item.id)
 
@@ -380,7 +380,7 @@ export const ActivityView: React.FC = () => {
                     setSelectedDetailIsSettlement(item.isSettlement)
                   }
                 }}
-                className={`p-4 card-glow rounded-2xl flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                className={`p-4 card-glow rounded-2xl flex items-center justify-between gap-3 transition-all cursor-pointer touch-pan-y ${
                   item.isTombstone ? 'opacity-60 bg-[var(--color-surface-subtle)]' : 'card-hover'
                 } ${
                   isSelected

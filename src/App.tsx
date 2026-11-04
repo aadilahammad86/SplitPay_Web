@@ -263,12 +263,12 @@ const AppContent: React.FC = () => {
       />
 
       {/* Main Area: Top Mobile Header + Scrollable Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
         {/* Mobile Top Header */}
         <Navbar currentTab={currentTab} onNavigate={handleNavigate} />
 
         {/* Main Responsive View Container (Dynamic Centered Area) */}
-        <main className="flex-1 w-full max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 pb-32 md:pb-10">
+        <main className="flex-1 w-full max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 pb-32 md:pb-10 touch-pan-y">
           {currentTab === 'dashboard' && (
             <DashboardView
               onNavigate={handleNavigate}
