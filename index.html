@@ -44,6 +44,12 @@
               }).catch(function() {});
             }
           } else if (window.location.protocol.startsWith('http')) {
+            var refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', function() {
+              if (refreshing) return;
+              refreshing = true;
+              window.location.reload();
+            });
             window.addEventListener('load', function() {
               navigator.serviceWorker.register('/sw.js').then(function(reg) { reg.update().catch(function() {}); }).catch(function() {});
             });

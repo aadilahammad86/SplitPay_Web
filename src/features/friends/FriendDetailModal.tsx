@@ -1,8 +1,8 @@
 import React from 'react'
 import { Modal } from '../../ui/components/Modal'
 import { useStore } from '../../ui/storeContext'
-import { breakdownFor } from '../../domain/balance'
-import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
+import { breakdownFor, multiCurrencyBreakdownFor } from '../../domain/balance'
+import type { CurrencyCode } from '../../domain/money'
 import { CategoryIcon, Icon } from '../../ui/components/Icon'
 import { BASE_CURRENCY, GroupKindInfo, personInitials, type Person } from '../../domain/entities'
 import { formatMoney } from '../../domain/formatMoney'
@@ -12,7 +12,7 @@ interface FriendDetailModalProps {
   isOpen: boolean
   onClose: () => void
   friend: Person | null
-  onOpenSettleUp: (friendId: string, amountMinor: number) => void
+  onOpenSettleUp: (friendId: string, amountMinor: number, currency?: CurrencyCode) => void
   onNavigateToStatement: (friendId: string) => void
   onEditFriend?: (friend: Person) => void
   onRemoveFriend?: (friend: Person) => void
@@ -41,10 +41,21 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
     friend: friend.id,
     expenses: ledgerState.expenses,
     settlements: ledgerState.settlements,
-    isMe: (id) => store.isMe(id),
+        isMe: (id) => store.isMe(id),
   })
 
-  // 1. Individual Splits: Non-group direct 1:1 transactions
+  // Multi-currency balances strictly isolating minor units per currency
+  const currMap = multiCurrencyBreakdownFor({
+    me: meId,
+    friend: friend.id,
+    expenses: ledgerState.expenses,
+    settlements: ledgerState.settlements,
+    isMe: (id) => store.isMe(id),
+  })
+  const balances = Array.from(currMap.values())
+  const activeBalances = balances.filter((b) => b.netMinor !== 0)
+
+  // Direct bills & direct loans grouped by currency
   const directExpenses = ledgerState.expenses.filter(
     (e) =>
       !e.isTombstone &&
@@ -59,21 +70,31 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
   const directBills = directExpenses.filter((e) => !e.isLoan)
   const directLoans = directExpenses.filter((e) => e.isLoan)
 
-  // Direct bills net
-  let directBillsNet = 0
+  const directBillsMap = new Map<string, { currency: CurrencyCode; net: number }>()
   for (const e of directBills) {
+    const cur = e.currency || currentCurrency
+    let entry = directBillsMap.get(cur.code)
+    if (!entry) {
+      entry = { currency: cur, net: 0 }
+      directBillsMap.set(cur.code, entry)
+    }
     for (const s of e.shares) {
-      if (s.owedBy === friend.id && store.isMe(s.owedTo)) directBillsNet += s.amountMinor
-      if (store.isMe(s.owedBy) && s.owedTo === friend.id) directBillsNet -= s.amountMinor
+      if (s.owedBy === friend.id && store.isMe(s.owedTo)) entry.net += s.amountMinor
+      if (store.isMe(s.owedBy) && s.owedTo === friend.id) entry.net -= s.amountMinor
     }
   }
 
-  // Direct loans net
-  let directLoansNet = 0
+  const directLoansMap = new Map<string, { currency: CurrencyCode; net: number }>()
   for (const e of directLoans) {
+    const cur = e.currency || currentCurrency
+    let entry = directLoansMap.get(cur.code)
+    if (!entry) {
+      entry = { currency: cur, net: 0 }
+      directLoansMap.set(cur.code, entry)
+    }
     for (const s of e.shares) {
-      if (s.owedBy === friend.id && store.isMe(s.owedTo)) directLoansNet += s.amountMinor
-      if (store.isMe(s.owedBy) && s.owedTo === friend.id) directLoansNet -= s.amountMinor
+      if (s.owedBy === friend.id && store.isMe(s.owedTo)) entry.net += s.amountMinor
+      if (store.isMe(s.owedBy) && s.owedTo === friend.id) entry.net -= s.amountMinor
     }
   }
 
@@ -86,11 +107,19 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
         (s.from === friend.id && store.isMe(s.to)))
   )
   for (const st of directSettlements) {
-    if (st.from === friend.id && store.isMe(st.to)) directBillsNet -= st.amountMinor
-    if (store.isMe(st.from) && st.to === friend.id) directBillsNet += st.amountMinor
+    const cur = st.currency || currentCurrency
+    let entry = directBillsMap.get(cur.code)
+    if (!entry) {
+      entry = { currency: cur, net: 0 }
+      directBillsMap.set(cur.code, entry)
+    }
+    if (st.from === friend.id && store.isMe(st.to)) entry.net -= st.amountMinor
+    if (store.isMe(st.from) && st.to === friend.id) entry.net += st.amountMinor
   }
 
-  const directTotalNet = breakdown.direct?.amountMinor ?? (directBillsNet + directLoansNet)
+  const directBillsByCurrency = Array.from(directBillsMap.values())
+  const directLoansByCurrency = Array.from(directLoansMap.values())
+  const directTotalNet = breakdown.direct?.amountMinor ?? 0
 
   // 2. Groupwise Splits: Shared groups between me and this friend
   const sharedGroups = ledgerState.groups.filter((g) =>
@@ -185,49 +214,53 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                   <span className="text-xs text-[var(--color-text-muted)]">@{friend.handle}</span>
                 )}
               </div>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-mono text-2xl font-black">
-                  <MoneyDisplay
-                    minor={breakdown.netMinor}
-                    currency={currentCurrency}
-                    size="lg"
-                    showSign={true}
-                  />
-                </span>
-                <span
-                  className={`text-xs font-bold ${
-                    breakdown.netMinor > 0
-                      ? 'text-owed'
-                      : breakdown.netMinor < 0
-                      ? 'text-owe'
-                      : 'text-[var(--color-text-muted)]'
-                  }`}
-                >
-                  {breakdown.netMinor > 0
-                    ? 'owes you overall'
-                    : breakdown.netMinor < 0
-                    ? 'you owe overall'
-                    : 'all settled square'}
-                </span>
+              <div className="flex flex-col gap-1 mt-1">
+                {activeBalances.length === 0 ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-2xl font-black">
+                      {formatMoney(0, currentCurrency)}
+                    </span>
+                    <span className="text-xs font-bold text-[var(--color-text-muted)]">
+                      all settled square
+                    </span>
+                  </div>
+                ) : (
+                  activeBalances.map((b) => (
+                    <div key={b.currency.code} className="flex items-baseline gap-2">
+                      <span className={`font-mono text-xl sm:text-2xl font-black ${
+                        b.netMinor > 0 ? 'text-owed' : b.netMinor < 0 ? 'text-owe' : 'text-[var(--color-text-muted)]'
+                      }`}>
+                        {b.netMinor > 0 ? '+' : b.netMinor < 0 ? '\u2212' : ''}
+                        {formatMoney(Math.abs(b.netMinor), b.currency)}
+                      </span>
+                      <span className={`text-xs font-bold ${
+                        b.netMinor > 0 ? 'text-owed' : b.netMinor < 0 ? 'text-owe' : 'text-[var(--color-text-muted)]'
+                      }`}>
+                        {b.netMinor > 0 ? 'owes you' : 'you owe'} ({b.currency.code})
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
 
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {breakdown.netMinor !== 0 && (
+            {activeBalances.map((b) => (
               <button
+                key={b.currency.code}
                 type="button"
                 onClick={() => {
                   onClose()
-                  onOpenSettleUp(friend.id, breakdown.netMinor)
+                  onOpenSettleUp(friend.id, b.netMinor, b.currency)
                 }}
-                className="btn-press px-4 py-2 btn-glow font-extrabold text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                className="btn-press px-4 py-2 btn-glow font-extrabold text-xs rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
                 <Icon name="moneyHand" size={15} />
-                <span>Settle Up</span>
+                <span>Settle {b.currency.code}</span>
               </button>
-            )}
+            ))}
 
             <button
               type="button"
@@ -279,6 +312,7 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
           </div>
 
           <div className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl space-y-2.5">
+            {/* Direct 1:1 Shared Bills */}
             <div className="flex items-center justify-between text-xs pb-2 border-b border-[var(--color-border-subtle)]">
               <div className="flex items-center gap-2">
                 <Icon name="receipt" size={15} strokeWidth={2} className="text-primary" />
@@ -286,20 +320,25 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                   Direct 1:1 Shared Bills ({directBills.length} items)
                 </span>
               </div>
-              <span
-                className={`font-mono font-bold ${
-                  directBillsNet > 0
-                    ? 'text-owed'
-                    : directBillsNet < 0
-                    ? 'text-owe'
-                    : 'text-[var(--color-text-muted)]'
-                }`}
-              >
-                {directBillsNet > 0 ? '+' : ''}
-                {formatMoney(directBillsNet, currentCurrency)}
-              </span>
+              <div className="text-right">
+                {directBillsByCurrency.length === 0 ? (
+                  <span className="font-mono font-bold text-[var(--color-text-muted)]">
+                    {formatMoney(0, currentCurrency)}
+                  </span>
+                ) : (
+                  directBillsByCurrency.map((item) => (
+                    <div key={item.currency.code} className={`font-mono font-bold ${
+                      item.net > 0 ? 'text-owed' : item.net < 0 ? 'text-owe' : 'text-[var(--color-text-muted)]'
+                    }`}>
+                      {item.net > 0 ? '+' : item.net < 0 ? '\u2212' : ''}
+                      {formatMoney(Math.abs(item.net), item.currency)}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
+            {/* Direct Personal Loans & Credit */}
             <div className="flex items-center justify-between text-xs pb-2 border-b border-[var(--color-border-subtle)]">
               <div className="flex items-center gap-2">
                 <Icon name="moneyHand" size={15} strokeWidth={2} className="text-primary" />
@@ -307,26 +346,22 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                   Direct Personal Loans & Credit ({directLoans.length} entries)
                 </span>
               </div>
-              <span
-                className={`font-mono font-bold ${
-                  directLoansNet > 0
-                    ? 'text-owed'
-                    : directLoansNet < 0
-                    ? 'text-owe'
-                    : 'text-[var(--color-text-muted)]'
-                }`}
-              >
-                {directLoansNet > 0 ? '+' : ''}
-                {formatMoney(directLoansNet, currentCurrency)}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-[var(--color-text-muted)] pt-1">
-              <span>Subtotal from Individual Non-Group Transactions:</span>
-              <span className="font-mono font-extrabold text-[var(--color-text)]">
-                {directTotalNet > 0 ? '+' : ''}
-                {formatMoney(directTotalNet, currentCurrency)}
-              </span>
+              <div className="text-right">
+                {directLoansByCurrency.length === 0 ? (
+                  <span className="font-mono font-bold text-[var(--color-text-muted)]">
+                    {formatMoney(0, currentCurrency)}
+                  </span>
+                ) : (
+                  directLoansByCurrency.map((item) => (
+                    <div key={item.currency.code} className={`font-mono font-bold ${
+                      item.net > 0 ? 'text-owed' : item.net < 0 ? 'text-owe' : 'text-[var(--color-text-muted)]'
+                    }`}>
+                      {item.net > 0 ? '+' : item.net < 0 ? '\u2212' : ''}
+                      {formatMoney(Math.abs(item.net), item.currency)}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import type { Expense, Group, Settlement } from './entities'
-import type { CurrencyCode } from './money'
+import { Currencies, type CurrencyCode } from './money'
 
 export interface BalanceSlice {
   groupId: string | null
@@ -21,6 +21,25 @@ export interface BalanceBreakdown {
   theyOweYou: boolean
   direct: BalanceSlice | null
   groupSlices: BalanceSlice[]
+}
+
+export interface CurrencyBalanceSlice {
+  groupId: string | null
+  amountMinor: number
+  isDirect: boolean
+  currency: CurrencyCode
+}
+
+export interface FriendCurrencyBalance {
+  currency: CurrencyCode
+  netMinor: number
+  splitwiseNet: number
+  directLoanNet: number
+  slices: CurrencyBalanceSlice[]
+  direct: CurrencyBalanceSlice | null
+  groupSlices: CurrencyBalanceSlice[]
+  theyOweYou: boolean
+  isSettled: boolean
 }
 
 export function breakdownFor(params: {
@@ -100,6 +119,127 @@ export function breakdownFor(params: {
 }
 
 /**
+ * Computes multi-currency balance breakdown between [me] and [friend].
+ * Invariant: Never mixes minor units of different currencies together!
+ */
+export function multiCurrencyBreakdownFor(params: {
+  me: string
+  friend: string
+  expenses: readonly Expense[]
+  settlements: readonly Settlement[]
+  isMe?: (id: string) => boolean
+  isFriend?: (id: string) => boolean
+}): Map<string, FriendCurrencyBalance> {
+  const { me, friend, expenses, settlements, isMe, isFriend } = params
+  const isMeFn = isMe ?? ((id: string) => id === me)
+  const isFriendFn = isFriend ?? ((id: string) => id === friend)
+
+  const currMap = new Map<string, {
+    currency: CurrencyCode
+    byGroup: Map<string | null, number>
+    splitwiseNet: number
+    directLoanNet: number
+  }>()
+
+  const getOrCreate = (curr: CurrencyCode) => {
+    let entry = currMap.get(curr.code)
+    if (!entry) {
+      entry = {
+        currency: curr,
+        byGroup: new Map(),
+        splitwiseNet: 0,
+        directLoanNet: 0,
+      }
+      currMap.set(curr.code, entry)
+    }
+    return entry
+  }
+
+  for (const e of expenses) {
+    if (e.isTombstone) continue
+    const curr = e.currency || Currencies.INR
+    const entry = getOrCreate(curr)
+
+    for (const s of e.shares) {
+      if (isFriendFn(s.owedBy) && isMeFn(s.owedTo)) {
+        const cur = entry.byGroup.get(s.groupId) ?? 0
+        entry.byGroup.set(s.groupId, cur + s.amountMinor)
+        if (e.isLoan) entry.directLoanNet += s.amountMinor
+        else entry.splitwiseNet += s.amountMinor
+      } else if (isMeFn(s.owedBy) && isFriendFn(s.owedTo)) {
+        const cur = entry.byGroup.get(s.groupId) ?? 0
+        entry.byGroup.set(s.groupId, cur - s.amountMinor)
+        if (e.isLoan) entry.directLoanNet -= s.amountMinor
+        else entry.splitwiseNet -= s.amountMinor
+      }
+    }
+  }
+
+  for (const st of settlements) {
+    if (st.isTombstone) continue
+    const curr = st.currency || Currencies.INR
+    const entry = getOrCreate(curr)
+
+    if (isFriendFn(st.from) && isMeFn(st.to)) {
+      const cur = entry.byGroup.get(st.groupId) ?? 0
+      entry.byGroup.set(st.groupId, cur - st.amountMinor)
+      entry.splitwiseNet -= st.amountMinor
+    } else if (isMeFn(st.from) && isFriendFn(st.to)) {
+      const cur = entry.byGroup.get(st.groupId) ?? 0
+      entry.byGroup.set(st.groupId, cur + st.amountMinor)
+      entry.splitwiseNet += st.amountMinor
+    }
+  }
+
+  const result = new Map<string, FriendCurrencyBalance>()
+
+  for (const [code, entry] of currMap.entries()) {
+    // Clean settled slices
+    for (const [k, v] of entry.byGroup.entries()) {
+      if (v === 0) {
+        entry.byGroup.delete(k)
+      }
+    }
+
+    const keys = Array.from(entry.byGroup.keys()).sort((a, b) => {
+      if (a === null) return -1
+      if (b === null) return 1
+      return a.localeCompare(b)
+    })
+
+    let net = 0
+    const slices: CurrencyBalanceSlice[] = []
+    for (const k of keys) {
+      const v = entry.byGroup.get(k)!
+      net += v
+      slices.push({
+        groupId: k,
+        amountMinor: v,
+        isDirect: k === null,
+        currency: entry.currency,
+      })
+    }
+
+    const directSlice = slices.find((s) => s.isDirect) ?? null
+    const groupSlices = slices.filter((s) => !s.isDirect)
+
+    result.set(code, {
+      currency: entry.currency,
+      netMinor: net,
+      splitwiseNet: entry.splitwiseNet,
+      directLoanNet: entry.directLoanNet,
+      slices,
+      direct: directSlice,
+      groupSlices,
+      theyOweYou: net > 0,
+      isSettled: net === 0,
+    })
+  }
+
+  return result
+}
+
+/**
  * Net position of each member in a group: (paid - owed) in minor units.
  * Used for debt simplification.
  */
@@ -164,6 +304,74 @@ export function calculateOverallBalance(params: {
     totalYouOweMinor,
     netMinor: totalOwedToYouMinor - totalYouOweMinor,
   }
+}
+
+export interface MultiCurrencyOverallBalance {
+  byCurrency: Map<string, {
+    currency: CurrencyCode
+    totalOwedToYouMinor: number
+    totalYouOweMinor: number
+    netMinor: number
+  }>
+  currencies: Array<{
+    currency: CurrencyCode
+    totalOwedToYouMinor: number
+    totalYouOweMinor: number
+    netMinor: number
+  }>
+}
+
+export function calculateMultiCurrencyOverallBalance(params: {
+  me: string
+  friendIds: readonly string[]
+  expenses: readonly Expense[]
+  settlements: readonly Settlement[]
+  isMe?: (id: string) => boolean
+}): MultiCurrencyOverallBalance {
+  const { me, friendIds, expenses, settlements, isMe } = params
+  const byCurrency = new Map<string, {
+    currency: CurrencyCode
+    totalOwedToYouMinor: number
+    totalYouOweMinor: number
+    netMinor: number
+  }>()
+
+  for (const fId of friendIds) {
+    if (fId === me || (isMe && isMe(fId))) continue
+    const currMap = multiCurrencyBreakdownFor({
+      me,
+      friend: fId,
+      expenses,
+      settlements,
+      isMe,
+    })
+
+    for (const [code, b] of currMap.entries()) {
+      let entry = byCurrency.get(code)
+      if (!entry) {
+        entry = {
+          currency: b.currency,
+          totalOwedToYouMinor: 0,
+          totalYouOweMinor: 0,
+          netMinor: 0,
+        }
+        byCurrency.set(code, entry)
+      }
+
+      if (b.netMinor > 0) {
+        entry.totalOwedToYouMinor += b.netMinor
+      } else if (b.netMinor < 0) {
+        entry.totalYouOweMinor += Math.abs(b.netMinor)
+      }
+      entry.netMinor = entry.totalOwedToYouMinor - entry.totalYouOweMinor
+    }
+  }
+
+  const currencies = Array.from(byCurrency.values()).filter(
+    (c) => c.totalOwedToYouMinor !== 0 || c.totalYouOweMinor !== 0
+  )
+
+  return { byCurrency, currencies }
 }
 
 export type TransactionUserStatus =

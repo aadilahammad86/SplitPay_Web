@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useStore } from '../../ui/storeContext'
-import { breakdownFor } from '../../domain/balance'
+import { breakdownFor, multiCurrencyBreakdownFor } from '../../domain/balance'
+import type { CurrencyCode } from '../../domain/money'
 import { isFriendOfUser } from '../../domain/privacy'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { SourceChips } from '../../ui/components/SourceChips'
@@ -36,6 +37,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   const [showSettle, setShowSettle] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState(0)
+  const [settleCurrency, setSettleCurrency] = useState<CurrencyCode | undefined>(undefined)
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
   const [selectedActivityIsSettlement, setSelectedActivityIsSettlement] = useState(false)
 
@@ -188,7 +190,8 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
     }
   }
 
-  const handleOpenSettle = (fId: string, amountMinor: number) => {
+  const handleOpenSettle = (fId: string, amountMinor: number, currency?: CurrencyCode) => {
+    setSettleCurrency(currency)
     setSettleFriendId(fId)
     setSettleAmountMinor(amountMinor)
     setShowSettle(true)
@@ -316,6 +319,15 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
               settlements: ledgerState.settlements,
               isMe: (id) => store.isMe(id),
             })
+            const currMap = multiCurrencyBreakdownFor({
+              me: meId,
+              friend: friend.id,
+              expenses: ledgerState.expenses,
+              settlements: ledgerState.settlements,
+              isMe: (id) => store.isMe(id),
+            })
+            const balances = Array.from(currMap.values())
+            const activeBalances = balances.filter((b) => b.netMinor !== 0)
             const isSelected = selectedFriendIds.has(friend.id)
 
             return (
@@ -362,25 +374,45 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                     </div>
 
                     <div className="text-right shrink-0">
-                      <MoneyDisplay
-                        minor={breakdown.netMinor}
-                        currency={currentCurrency}
-                        size="md"
-                        showSign={true}
-                      />
-                      <span className={`block text-[11px] font-semibold mt-0.5 ${
-                        breakdown.netMinor > 0
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : breakdown.netMinor < 0
-                          ? 'text-rose-500 dark:text-rose-400'
-                          : 'text-[var(--color-text-muted)]'
-                      }`}>
-                        {breakdown.netMinor > 0
-                          ? 'owes you'
-                          : breakdown.netMinor < 0
-                          ? 'you owe'
-                          : 'all square'}
-                      </span>
+                      {activeBalances.length <= 1 ? (
+                        <>
+                          <MoneyDisplay
+                            minor={activeBalances[0]?.netMinor ?? 0}
+                            currency={activeBalances[0]?.currency ?? currentCurrency}
+                            size="md"
+                            showSign={true}
+                          />
+                          <span className={`block text-[11px] font-semibold mt-0.5 ${
+                            (activeBalances[0]?.netMinor ?? 0) > 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : (activeBalances[0]?.netMinor ?? 0) < 0
+                              ? 'text-rose-500 dark:text-rose-400'
+                              : 'text-[var(--color-text-muted)]'
+                          }`}>
+                            {(activeBalances[0]?.netMinor ?? 0) > 0
+                              ? 'owes you'
+                              : (activeBalances[0]?.netMinor ?? 0) < 0
+                              ? 'you owe'
+                              : 'all square'}
+                          </span>
+                        </>
+                      ) : (
+                        <div className="space-y-1">
+                          {activeBalances.map((b) => (
+                            <div key={b.currency.code} className="text-right">
+                              <span className={`font-mono text-xs font-extrabold ${
+                                b.netMinor > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'
+                              }`}>
+                                {b.netMinor > 0 ? '+' : '\u2212'}
+                                {b.currency.symbol}{Math.abs(b.netMinor / b.currency.scale).toFixed(b.currency.digits)} {b.currency.code}
+                              </span>
+                              <span className="block text-[9px] text-[var(--color-text-muted)]">
+                                {b.netMinor > 0 ? 'owes you' : 'you owe'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -408,16 +440,17 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                       <Icon name="edit" size={13} />
                       <span>Edit</span>
                     </button>
-                    {breakdown.netMinor !== 0 && (
+                    {activeBalances.map((b) => (
                       <button
+                        key={b.currency.code}
                         type="button"
-                        onClick={() => handleOpenSettle(friend.id, breakdown.netMinor)}
-                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors inline-flex items-center gap-1"
+                        onClick={() => handleOpenSettle(friend.id, b.netMinor, b.currency)}
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors inline-flex items-center gap-1 whitespace-nowrap"
                       >
                         <Icon name="moneyHand" size={13} />
-                        <span>Settle</span>
+                        <span>Settle {activeBalances.length > 1 ? b.currency.code : ''}</span>
                       </button>
-                    )}
+                    ))}
                     <button
                       type="button"
                       onClick={() => onNavigateToStatement(friend.id)}
@@ -584,7 +617,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
         isOpen={Boolean(selectedFriend)}
         onClose={() => setSelectedFriend(null)}
         friend={selectedFriend}
-        onOpenSettleUp={(fId, amount) => handleOpenSettle(fId, amount)}
+        onOpenSettleUp={(fId, amount, cur) => handleOpenSettle(fId, amount, cur)}
         onNavigateToStatement={(fId) => onNavigateToStatement(fId)}
         onEditFriend={(friend) => setEditingFriend(friend)}
         onRemoveFriend={(friend) => handleRemoveSingleFriend(friend)}
@@ -609,6 +642,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
         onClose={() => setShowSettle(false)}
         initialFriendId={settleFriendId}
         initialAmountMinor={settleAmountMinor}
+        initialCurrency={settleCurrency}
       />
 
       {/* Edit Friend Modal */}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'splitpay-v4'
+const CACHE_NAME = 'splitpay-v5'
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -75,10 +75,13 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(event.request)
         .then((networkResponse) => {
+          // Do not cache SPA fallback HTML responses for static assets
+          const isHtml = networkResponse.headers.get('content-type')?.includes('text/html');
           if (
             !networkResponse ||
             networkResponse.status !== 200 ||
-            networkResponse.type !== 'basic'
+            networkResponse.type !== 'basic' ||
+            (isHtml && url.pathname.startsWith('/assets/'))
           ) {
             return networkResponse
           }

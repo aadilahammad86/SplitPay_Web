@@ -14,6 +14,7 @@ interface SettleUpModalProps {
   onClose: () => void
   initialFriendId?: string | null
   initialAmountMinor?: number
+  initialCurrency?: CurrencyCode
   initialGroupId?: string | null
   initialFromId?: string | null
   initialToId?: string | null
@@ -24,6 +25,7 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
   onClose,
   initialFriendId = null,
   initialAmountMinor = 0,
+  initialCurrency,
   initialGroupId = null,
   initialFromId = null,
   initialToId = null,
@@ -32,6 +34,7 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
   const me = store.me
 
   const meId = ledgerState.localPersonId || ''
+  const activeInitialCur = initialCurrency || ledgerState.defaultCurrency || BASE_CURRENCY
 
   const [from, setFrom] = useState(() => {
     if (initialFromId) return initialFromId
@@ -52,14 +55,12 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
 
   const [amountStr, setAmountStr] = useState(() => {
     if (initialAmountMinor !== 0) {
-      return (Math.abs(initialAmountMinor) / 100).toFixed(2)
+      return (Math.abs(initialAmountMinor) / activeInitialCur.scale).toFixed(activeInitialCur.digits)
     }
     return ''
   })
 
-  const [currency, setCurrency] = useState<CurrencyCode>(
-    () => ledgerState.defaultCurrency || BASE_CURRENCY
-  )
+  const [currency, setCurrency] = useState<CurrencyCode>(activeInitialCur)
   const [groupId, setGroupId] = useState<string | null>(initialGroupId)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -89,14 +90,31 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
   }
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      if (initialFromId) setFrom(initialFromId)
+      else if (initialFriendId) setFrom(initialAmountMinor < 0 ? meId : initialFriendId)
+      else setFrom(meId)
+
+      if (initialToId) setTo(initialToId)
+      else if (initialFriendId) setTo(initialAmountMinor < 0 ? initialFriendId : meId)
+
+      const activeCur = initialCurrency || ledgerState.defaultCurrency || BASE_CURRENCY
+      setCurrency(activeCur)
+
+      if (initialAmountMinor !== 0) {
+        setAmountStr((Math.abs(initialAmountMinor) / activeCur.scale).toFixed(activeCur.digits))
+      } else {
+        setAmountStr('')
+      }
+      setGroupId(initialGroupId)
+    } else {
       const timer = setTimeout(() => {
         setSettledInfo(null)
         setError(null)
       }, 250)
       return () => clearTimeout(timer)
     }
-  }, [isOpen])
+  }, [isOpen, initialFriendId, initialAmountMinor, initialCurrency, initialGroupId, initialFromId, initialToId, meId, ledgerState.defaultCurrency])
 
   const totalMinor = Math.round((parseFloat(amountStr) || 0) * currency.scale)
 

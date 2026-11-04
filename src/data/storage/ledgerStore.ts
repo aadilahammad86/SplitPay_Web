@@ -49,6 +49,19 @@ export class LedgerStore {
     this.adapter = adapter
     this.isMe = this.isMe.bind(this)
     this.getState = this.getState.bind(this)
+    this.resolvePersonId = this.resolvePersonId.bind(this)
+    this.reconcileAliases = this.reconcileAliases.bind(this)
+    this.setDefaultCurrency = this.setDefaultCurrency.bind(this)
+    this.syncMyProfileToCloud = this.syncMyProfileToCloud.bind(this)
+    this.updateLocalProfile = this.updateLocalProfile.bind(this)
+    this.addFriend = this.addFriend.bind(this)
+    this.removeFriend = this.removeFriend.bind(this)
+    this.addExpense = this.addExpense.bind(this)
+    this.updateExpense = this.updateExpense.bind(this)
+    this.deleteExpense = this.deleteExpense.bind(this)
+    this.addSettlement = this.addSettlement.bind(this)
+    this.addLoanCredit = this.addLoanCredit.bind(this)
+    this.createGroup = this.createGroup.bind(this)
     this.state = {
       people: [],
       groups: [],

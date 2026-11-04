@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useStore } from '../../ui/storeContext'
-import { breakdownFor } from '../../domain/balance'
+import { multiCurrencyBreakdownFor } from '../../domain/balance'
 import { BASE_CURRENCY, personInitials, type Person } from '../../domain/entities'
 import { formatMoney, formatRelativeDate } from '../../domain/formatMoney'
 import { AddLoanCreditModal } from './AddLoanCreditModal'
@@ -9,6 +9,7 @@ import { ActivityDetailModal } from '../activity/ActivityDetailModal'
 import { SettleUpModal } from '../settle/SettleUpModal'
 import { CategoryIcon, Icon } from '../../ui/components/Icon'
 import { isExpenseParticipant, isFriendOfUser } from '../../domain/privacy'
+import type { CurrencyCode } from '../../domain/money'
 
 interface CreditLentViewProps {
   onNavigateToStatement: (friendId: string) => void
@@ -32,6 +33,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
   const [showSettleModal, setShowSettleModal] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState(0)
+  const [settleCurrency, setSettleCurrency] = useState<CurrencyCode | undefined>(undefined)
 
   const validFriends = useMemo(() => {
     return ledgerState.people.filter((p) =>
@@ -46,10 +48,10 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
     )
   }, [ledgerState.people, ledgerState.expenses, ledgerState.settlements, ledgerState.groups, meId, store])
 
-  // Compute breakdown for each friend
+  // Compute multi-currency breakdown for each friend
   const friendSummaries = useMemo(() => {
     return validFriends.map((friend) => {
-      const breakdown = breakdownFor({
+      const currMap = multiCurrencyBreakdownFor({
         me: meId,
         friend: friend.id,
         expenses: ledgerState.expenses,
@@ -57,36 +59,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         isMe: (id) => store.isMe(id),
       })
 
-      // Separate Splitwise shares from Direct Loan shares
-      let splitwiseNet = 0
-      let directLoanNet = 0
-
-      for (const e of ledgerState.expenses) {
-        if (e.isTombstone) continue
-        for (const s of e.shares) {
-          const isFriendOwesMe = s.owedBy === friend.id && store.isMe(s.owedTo)
-          const isMeOwesFriend = store.isMe(s.owedBy) && s.owedTo === friend.id
-
-          if (isFriendOwesMe) {
-            if (e.isLoan) directLoanNet += s.amountMinor
-            else splitwiseNet += s.amountMinor
-          } else if (isMeOwesFriend) {
-            if (e.isLoan) directLoanNet -= s.amountMinor
-            else splitwiseNet -= s.amountMinor
-          }
-        }
-      }
-
-      // Settlements adjust splitwise first
-      for (const st of ledgerState.settlements) {
-        if (st.isTombstone) continue
-        if (st.from === friend.id && store.isMe(st.to)) {
-          splitwiseNet -= st.amountMinor
-        } else if (store.isMe(st.from) && st.to === friend.id) {
-          splitwiseNet += st.amountMinor
-        }
-      }
-
+      const balances = Array.from(currMap.values())
       const activeLoansCount = ledgerState.expenses.filter(
         (e) =>
           !e.isTombstone &&
@@ -111,46 +84,82 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
 
       return {
         friend,
-        breakdown,
-        splitwiseNet,
-        directLoanNet,
-        combinedNet: breakdown.netMinor,
+        currMap,
+        balances,
         activeLoansCount,
         sharedBillsCount,
       }
     })
   }, [validFriends, ledgerState.expenses, ledgerState.settlements, meId, store])
 
-  // Overall totals across all friends
-  const totals = useMemo(() => {
-    let totalLent = 0
-    let totalCredit = 0
-    let splitwiseTotal = 0
-    let directLoanTotal = 0
+  // Overall totals grouped strictly by currency (never illegally adding cross-currency minor units)
+  const totalsByCurrency = useMemo(() => {
+    const map = new Map<string, {
+      currency: CurrencyCode
+      totalLent: number
+      totalCredit: number
+      netPosition: number
+      splitwiseTotal: number
+      directLoanTotal: number
+    }>()
 
     for (const item of friendSummaries) {
-      if (item.combinedNet > 0) totalLent += item.combinedNet
-      else if (item.combinedNet < 0) totalCredit += Math.abs(item.combinedNet)
+      for (const b of item.balances) {
+        let entry = map.get(b.currency.code)
+        if (!entry) {
+          entry = {
+            currency: b.currency,
+            totalLent: 0,
+            totalCredit: 0,
+            netPosition: 0,
+            splitwiseTotal: 0,
+            directLoanTotal: 0,
+          }
+          map.set(b.currency.code, entry)
+        }
 
-      if (item.splitwiseNet > 0) splitwiseTotal += item.splitwiseNet
-      if (item.directLoanNet > 0) directLoanTotal += item.directLoanNet
+        if (b.netMinor > 0) entry.totalLent += b.netMinor
+        else if (b.netMinor < 0) entry.totalCredit += Math.abs(b.netMinor)
+
+        if (b.splitwiseNet > 0) entry.splitwiseTotal += b.splitwiseNet
+        if (b.directLoanNet > 0) entry.directLoanTotal += b.directLoanNet
+
+        entry.netPosition = entry.totalLent - entry.totalCredit
+      }
     }
 
-    return {
-      totalLent,
-      totalCredit,
-      netPosition: totalLent - totalCredit,
-      splitwiseTotal,
-      directLoanTotal,
+    // Ensure default currency is represented even if 0
+    if (!map.has(currentCurrency.code)) {
+      map.set(currentCurrency.code, {
+        currency: currentCurrency,
+        totalLent: 0,
+        totalCredit: 0,
+        netPosition: 0,
+        splitwiseTotal: 0,
+        directLoanTotal: 0,
+      })
     }
-  }, [friendSummaries])
+
+    const list = Array.from(map.values())
+    list.sort((a, b) => {
+      if (a.currency.code === currentCurrency.code) return -1
+      if (b.currency.code === currentCurrency.code) return 1
+      return a.currency.code.localeCompare(b.currency.code)
+    })
+
+    return { map, list }
+  }, [friendSummaries, currentCurrency])
 
   // Filtered friends
   const filteredSummaries = useMemo(() => {
     return friendSummaries.filter((item) => {
-      if (filter === 'lent') return item.combinedNet > 0
-      if (filter === 'credit') return item.combinedNet < 0
-      if (filter === 'splitwise') return item.splitwiseNet !== 0
+      const anyLent = item.balances.some((b) => b.netMinor > 0)
+      const anyCredit = item.balances.some((b) => b.netMinor < 0)
+      const anySplitwise = item.balances.some((b) => b.splitwiseNet !== 0)
+
+      if (filter === 'lent') return anyLent
+      if (filter === 'credit') return anyCredit
+      if (filter === 'splitwise') return anySplitwise
       return true
     })
   }, [friendSummaries, filter])
@@ -184,11 +193,18 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
     setShowAddLoanModal(true)
   }
 
-  const handleOpenSettle = (friendId: string, amountMinor: number) => {
+  const handleOpenSettle = (friendId: string, amountMinor: number, currency?: CurrencyCode) => {
     setSettleFriendId(friendId)
     setSettleAmountMinor(amountMinor)
+    setSettleCurrency(currency)
     setShowSettleModal(true)
   }
+
+  // Check if multiple currencies exist in the ledger
+  const activeCurrenciesWithTotals = totalsByCurrency.list.filter(
+    (c) => c.totalLent > 0 || c.totalCredit > 0 || c.currency.code === currentCurrency.code
+  )
+  const isMultiCurrency = totalsByCurrency.list.filter((c) => c.totalLent > 0 || c.totalCredit > 0).length > 1
 
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
@@ -202,9 +218,14 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
             <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary-subtle text-primary border border-primary-border">
               Loans & Credit Ledger
             </span>
+            {isMultiCurrency && (
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                Multi-Currency Active
+              </span>
+            )}
           </div>
           <p className="text-xs sm:text-sm text-[var(--color-text-muted)] mt-1 leading-relaxed">
-            Track personal money lent to friends, credit borrowed, and Splitwise shared balances for respected individuals
+            Track personal money lent to friends, credit borrowed, and Splitwise shared balances isolated by currency.
           </p>
         </div>
 
@@ -235,7 +256,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         </div>
       </div>
 
-      {/* 3 KPI Balance Cards with Glowing Aesthetics */}
+      {/* 3 KPI Balance Cards with Multi-Currency Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Card 1: Total Lent (Receivables) */}
         <div className="card-glow rounded-3xl p-6 flex flex-col justify-between">
@@ -247,21 +268,34 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
               <Icon name="arrowUp" size={16} strokeWidth={2} />
             </div>
           </div>
-          <div className="my-2">
-            <div className="text-3xl font-extrabold text-owed font-mono">
-              +{formatMoney(totals.totalLent, currentCurrency)}
-            </div>
+          <div className="my-2 space-y-1.5">
+            {activeCurrenciesWithTotals.map((c) => (
+              <div key={c.currency.code} className="flex items-baseline justify-between">
+                <div className="text-2xl sm:text-3xl font-extrabold text-owed font-mono">
+                  +{formatMoney(c.totalLent, c.currency)}
+                </div>
+                {activeCurrenciesWithTotals.length > 1 && (
+                  <span className="text-xs font-bold text-[var(--color-text-muted)] uppercase">
+                    {c.currency.code}
+                  </span>
+                )}
+              </div>
+            ))}
             <p className="text-xs text-[var(--color-text-muted)] mt-1">
               Total money friends owe you (Splitwise + Direct loans)
             </p>
           </div>
-          <div className="pt-3 border-t border-[var(--color-border-subtle)] flex items-center justify-between text-xs text-[var(--color-text-muted)]">
-            <span>
-              Splitwise: <strong className="text-[var(--color-text)] font-mono">{formatMoney(totals.splitwiseTotal, currentCurrency)}</strong>
-            </span>
-            <span>
-              Loans: <strong className="text-owed font-mono">{formatMoney(totals.directLoanTotal, currentCurrency)}</strong>
-            </span>
+          <div className="pt-3 border-t border-[var(--color-border-subtle)] space-y-1 text-xs text-[var(--color-text-muted)]">
+            {activeCurrenciesWithTotals.map((c) => (
+              <div key={c.currency.code} className="flex items-center justify-between">
+                <span>
+                  Splitwise: <strong className="text-[var(--color-text)] font-mono">{formatMoney(c.splitwiseTotal, c.currency)}</strong>
+                </span>
+                <span>
+                  Loans: <strong className="text-owed font-mono">{formatMoney(c.directLoanTotal, c.currency)}</strong>
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -275,11 +309,20 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
               <Icon name="arrowDown" size={16} strokeWidth={2} />
             </div>
           </div>
-          <div className="my-2">
-            <div className="text-3xl font-extrabold text-[var(--color-text)] font-mono">
-              {totals.totalCredit > 0 ? '\u2212' : ''}
-              {formatMoney(totals.totalCredit, currentCurrency)}
-            </div>
+          <div className="my-2 space-y-1.5">
+            {activeCurrenciesWithTotals.map((c) => (
+              <div key={c.currency.code} className="flex items-baseline justify-between">
+                <div className="text-2xl sm:text-3xl font-extrabold text-[var(--color-text)] font-mono">
+                  {c.totalCredit > 0 ? '\u2212' : ''}
+                  {formatMoney(c.totalCredit, c.currency)}
+                </div>
+                {activeCurrenciesWithTotals.length > 1 && (
+                  <span className="text-xs font-bold text-[var(--color-text-muted)] uppercase">
+                    {c.currency.code}
+                  </span>
+                )}
+              </div>
+            ))}
             <p className="text-xs text-[var(--color-text-muted)] mt-1">
               Total money you currently owe to others
             </p>
@@ -287,7 +330,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
           <div className="pt-3 border-t border-[var(--color-border-subtle)] flex items-center justify-between text-xs text-[var(--color-text-muted)]">
             <span>Repayment liability across circles</span>
             <span className="font-bold text-[var(--color-text)]">
-              {totals.totalCredit === 0 ? 'Clear (No Debt)' : 'Active Debt'}
+              {activeCurrenciesWithTotals.every((c) => c.totalCredit === 0) ? 'Clear (No Debt)' : 'Active Debt'}
             </span>
           </div>
         </div>
@@ -299,20 +342,25 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
               Net Credit Standing
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20">
-              {currentCurrency.code}
+              {isMultiCurrency ? 'Multi-Currency' : currentCurrency.code}
             </span>
           </div>
-          <div className="my-2">
-            <div className="text-3xl font-extrabold font-mono">
-              {totals.netPosition > 0 ? '+' : totals.netPosition < 0 ? '\u2212' : ''}
-              {formatMoney(Math.abs(totals.netPosition), currentCurrency)}
-            </div>
+          <div className="my-2 space-y-1.5">
+            {activeCurrenciesWithTotals.map((c) => (
+              <div key={c.currency.code} className="flex items-baseline justify-between">
+                <div className="text-2xl sm:text-3xl font-extrabold font-mono text-white">
+                  {c.netPosition > 0 ? '+' : c.netPosition < 0 ? '\u2212' : ''}
+                  {formatMoney(Math.abs(c.netPosition), c.currency)}
+                </div>
+                {activeCurrenciesWithTotals.length > 1 && (
+                  <span className="text-xs font-bold text-white/80 uppercase">
+                    {c.currency.code}
+                  </span>
+                )}
+              </div>
+            ))}
             <p className="text-xs text-white/80 mt-1">
-              {totals.netPosition > 0
-                ? 'You are a net creditor (more money lent than borrowed)'
-                : totals.netPosition < 0
-                ? 'You are a net debtor (more credit taken than lent)'
-                : 'All square! Zero net debt.'}
+              Isolated per currency without cross-currency addition.
             </p>
           </div>
           <div className="pt-3 border-t border-white/20 flex items-center justify-between text-xs text-white/90">
@@ -345,7 +393,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            Money Lent ({friendSummaries.filter((f) => f.combinedNet > 0).length})
+            Money Lent ({friendSummaries.filter((f) => f.balances.some((b) => b.netMinor > 0)).length})
           </button>
           <button
             type="button"
@@ -356,7 +404,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            Credit Taken ({friendSummaries.filter((f) => f.combinedNet < 0).length})
+            Credit Taken ({friendSummaries.filter((f) => f.balances.some((b) => b.netMinor < 0)).length})
           </button>
           <button
             type="button"
@@ -367,12 +415,12 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            Splitwise Shared ({friendSummaries.filter((f) => f.splitwiseNet !== 0).length})
+            Splitwise Shared ({friendSummaries.filter((f) => f.balances.some((b) => b.splitwiseNet !== 0)).length})
           </button>
         </div>
 
         <div className="text-xs text-[var(--color-text-muted)] font-medium">
-          Showing dual balance breakdown per individual
+          Showing dual balance breakdown per individual & currency
         </div>
       </div>
 
@@ -389,7 +437,11 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredSummaries.map(({ friend, combinedNet, splitwiseNet, directLoanNet, activeLoansCount, sharedBillsCount }) => {
+          {filteredSummaries.map(({ friend, balances, activeLoansCount, sharedBillsCount }) => {
+            // Non-zero balances
+            const activeBalances = balances.filter((b) => b.netMinor !== 0)
+            const displayBalances = activeBalances.length > 0 ? activeBalances : balances.slice(0, 1)
+
             return (
               <div
                 key={friend.id}
@@ -423,45 +475,68 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-3">
-                    <div className="text-right">
+                    <div className="text-right space-y-1">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block">
-                        Total Combined Net
+                        Net Balance {displayBalances.length > 1 ? '(Multi-Currency)' : ''}
                       </span>
-                      <span
-                        className={`font-mono text-xl font-extrabold ${
-                          combinedNet > 0
-                            ? 'text-owed'
-                            : combinedNet < 0
-                            ? 'text-owe'
-                            : 'text-[var(--color-text-muted)]'
-                        }`}
-                      >
-                        {combinedNet > 0 ? '+' : combinedNet < 0 ? '\u2212' : ''}
-                        {formatMoney(Math.abs(combinedNet), currentCurrency)}
-                      </span>
-                      <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">
-                        {combinedNet > 0 ? 'owes you' : combinedNet < 0 ? 'you owe' : 'square'}
-                      </span>
+                      {displayBalances.length === 0 ? (
+                        <span className="font-mono text-xl font-extrabold text-[var(--color-text-muted)]">
+                          {formatMoney(0, currentCurrency)}
+                        </span>
+                      ) : (
+                        displayBalances.map((b) => (
+                          <div key={b.currency.code} className="flex items-center justify-end gap-1.5">
+                            <span
+                              className={`font-mono text-lg font-extrabold ${
+                                b.netMinor > 0
+                                  ? 'text-owed'
+                                  : b.netMinor < 0
+                                  ? 'text-owe'
+                                  : 'text-[var(--color-text-muted)]'
+                              }`}
+                            >
+                              {b.netMinor > 0 ? '+' : b.netMinor < 0 ? '\u2212' : ''}
+                              {formatMoney(Math.abs(b.netMinor), b.currency)}
+                            </span>
+                            <span className="text-[10px] font-semibold text-[var(--color-text-muted)]">
+                              ({b.netMinor > 0 ? 'owes you' : b.netMinor < 0 ? 'you owe' : 'square'})
+                            </span>
+                          </div>
+                        ))
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      {combinedNet !== 0 && (
+                    <div className="flex flex-col sm:flex-row items-center gap-1.5">
+                      {activeBalances.map((b) => (
+                        <button
+                          key={b.currency.code}
+                          type="button"
+                          onClick={() => handleOpenSettle(friend.id, b.netMinor, b.currency)}
+                          className="btn-press btn-primary px-3 py-1.5 font-extrabold text-xs rounded-xl shadow-sm cursor-pointer whitespace-nowrap"
+                          title={`Settle ${b.currency.code} balance`}
+                        >
+                          Settle {b.currency.code}
+                        </button>
+                      ))}
+                      {activeBalances.length === 0 && (
                         <button
                           type="button"
-                          onClick={() => handleOpenSettle(friend.id, combinedNet)}
-                          className="btn-press btn-primary px-3.5 py-2 font-extrabold text-xs rounded-xl shadow-sm cursor-pointer"
+                          onClick={() => setSelectedFriendDetail(friend)}
+                          className="btn-press px-3 py-1.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors cursor-pointer"
                         >
-                          Settle / Repay
+                          Details →
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFriendDetail(friend)}
-                        className="btn-press px-3 py-2 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors cursor-pointer"
-                        title="View Groupwise & Individual details"
-                      >
-                        Details →
-                      </button>
+                      {activeBalances.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFriendDetail(friend)}
+                          className="btn-press px-3 py-1.5 bg-[var(--color-surface-subtle)] hover:bg-[var(--color-border)] text-[var(--color-text)] font-semibold text-xs rounded-xl border border-[var(--color-border)] transition-colors cursor-pointer"
+                          title="View Groupwise & Individual details"
+                        >
+                          Details →
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -475,19 +550,40 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                         <Icon name="receipt" size={15} strokeWidth={2} className="text-primary" />
                         <span>Splitwise Amounts</span>
                       </span>
-                      <span
-                        className={`font-mono text-xs font-extrabold ${
-                          splitwiseNet > 0
-                            ? 'text-owed'
-                            : splitwiseNet < 0
-                            ? 'text-owe'
-                            : 'text-[var(--color-text-muted)]'
-                        }`}
-                      >
-                        {splitwiseNet > 0 ? '+' : splitwiseNet < 0 ? '\u2212' : ''}
-                        {formatMoney(Math.abs(splitwiseNet), currentCurrency)}
-                      </span>
                     </div>
+
+                    {/* Render Splitwise balance per currency */}
+                    <div className="space-y-1">
+                      {balances.filter((b) => b.splitwiseNet !== 0).length === 0 ? (
+                        <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)] font-mono">
+                          <span>All Shared Bills Settled</span>
+                          <span className="font-bold">0.00</span>
+                        </div>
+                      ) : (
+                        balances
+                          .filter((b) => b.splitwiseNet !== 0)
+                          .map((b) => (
+                            <div key={b.currency.code} className="flex items-center justify-between">
+                              <span className="text-xs text-[var(--color-text-muted)] uppercase font-semibold">
+                                {b.currency.code} Shared:
+                              </span>
+                              <span
+                                className={`font-mono text-xs font-extrabold ${
+                                  b.splitwiseNet > 0
+                                    ? 'text-owed'
+                                    : b.splitwiseNet < 0
+                                    ? 'text-owe'
+                                    : 'text-[var(--color-text-muted)]'
+                                }`}
+                              >
+                                {b.splitwiseNet > 0 ? '+' : b.splitwiseNet < 0 ? '\u2212' : ''}
+                                {formatMoney(Math.abs(b.splitwiseNet), b.currency)}
+                              </span>
+                            </div>
+                          ))
+                      )}
+                    </div>
+
                     <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
                       Generated from shared meals, dining, trips, and group split bills.
                     </p>
@@ -502,31 +598,52 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
                     </div>
                   </div>
 
-                  {/* Right: Direct Loan / Credit */}
+                  {/* Right: Direct Loan Amounts */}
                   <div className="p-4 bg-[var(--color-surface-subtle)] border border-[var(--color-border-subtle)] rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[var(--color-text)] flex items-center gap-1.5">
-                        <Icon name="moneyHand" size={15} strokeWidth={2} className="text-primary" />
-                        <span>Direct Loan / Credit</span>
-                      </span>
-                      <span
-                        className={`font-mono text-xs font-extrabold ${
-                          directLoanNet > 0
-                            ? 'text-owed'
-                            : directLoanNet < 0
-                            ? 'text-owe'
-                            : 'text-[var(--color-text-muted)]'
-                        }`}
-                      >
-                        {directLoanNet > 0 ? '+' : directLoanNet < 0 ? '\u2212' : ''}
-                        {formatMoney(Math.abs(directLoanNet), currentCurrency)}
+                        <Icon name="moneyHand" size={15} strokeWidth={2} className="text-owed" />
+                        <span>Direct Loans & Credit</span>
                       </span>
                     </div>
+
+                    {/* Render Direct Loan balance per currency */}
+                    <div className="space-y-1">
+                      {balances.filter((b) => b.directLoanNet !== 0).length === 0 ? (
+                        <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)] font-mono">
+                          <span>No Active Loans</span>
+                          <span className="font-bold">0.00</span>
+                        </div>
+                      ) : (
+                        balances
+                          .filter((b) => b.directLoanNet !== 0)
+                          .map((b) => (
+                            <div key={b.currency.code} className="flex items-center justify-between">
+                              <span className="text-xs text-[var(--color-text-muted)] uppercase font-semibold">
+                                {b.currency.code} Direct:
+                              </span>
+                              <span
+                                className={`font-mono text-xs font-extrabold ${
+                                  b.directLoanNet > 0
+                                    ? 'text-owed'
+                                    : b.directLoanNet < 0
+                                    ? 'text-owe'
+                                    : 'text-[var(--color-text-muted)]'
+                                }`}
+                              >
+                                {b.directLoanNet > 0 ? '+' : b.directLoanNet < 0 ? '\u2212' : ''}
+                                {formatMoney(Math.abs(b.directLoanNet), b.currency)}
+                              </span>
+                            </div>
+                          ))
+                      )}
+                    </div>
+
                     <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
-                      Personal loans given directly to {friend.name} or credit borrowed from them.
+                      Direct personal loans lent or credit borrowed without group bill splitting.
                     </p>
                     <div className="pt-2 border-t border-[var(--color-border-subtle)] flex items-center justify-between text-[11px] text-[var(--color-text-muted)]">
-                      <span>Active Entries: <strong className="text-[var(--color-text)]">{activeLoansCount}</strong></span>
+                      <span>Direct Loans: <strong className="text-[var(--color-text)]">{activeLoansCount}</strong></span>
                       <div className="flex gap-2">
                         <span
                           className="text-primary font-bold hover:underline cursor-pointer"
@@ -551,63 +668,66 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         </div>
       )}
 
-      {/* Recent Entries Timeline */}
-      <div className="card-surface rounded-3xl p-6 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border)]">
-          <h3 className="font-bold text-sm text-[var(--color-text)]">
-            Recent Credit & Loan Ledger Entries ({recentCreditEntries.length})
-          </h3>
-          <span className="text-xs text-[var(--color-text-muted)] font-mono">Real-time sync</span>
+      {/* Recent Activity Log for Loans & Credit */}
+      <div className="space-y-4 pt-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-extrabold text-[var(--color-text)]">
+            Recent Loan & Credit Ledger Activity
+          </h2>
+          <span className="text-xs text-[var(--color-text-muted)]">
+            Last {recentCreditEntries.length} records
+          </span>
         </div>
 
         {recentCreditEntries.length === 0 ? (
-          <p className="text-xs text-[var(--color-text-muted)] py-4 text-center">
-            No entries recorded yet.
-          </p>
+          <div className="p-8 text-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl text-xs text-[var(--color-text-muted)]">
+            No loan or shared bill transactions recorded yet.
+          </div>
         ) : (
-          <div className="divide-y divide-[var(--color-border-subtle)] text-xs">
-            {recentCreditEntries.map((entry) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {recentCreditEntries.map((item) => (
               <div
-                key={entry.id}
+                key={item.id}
                 onClick={() => {
-                  setSelectedActivityId(entry.id)
+                  setSelectedActivityId(item.id)
                   setSelectedActivityIsSettlement(false)
                 }}
-                className="py-3 px-2 rounded-xl flex items-center justify-between hover:bg-[var(--color-surface-subtle)] cursor-pointer transition-colors"
+                className="card-surface rounded-2xl p-4 border-[var(--color-border)] space-y-2.5 cursor-pointer hover:border-primary/50 transition-all card-hover"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-primary-subtle text-primary border border-primary-border flex items-center justify-center text-sm shrink-0">
-                    <CategoryIcon category={entry.categoryEmoji} size={16} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-[var(--color-text)]">{entry.title}</p>
-                      {entry.isLoan && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                          {entry.loanType === 'lent' ? 'Loan Given' : 'Credit Taken'}
-                        </span>
-                      )}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CategoryIcon category={item.categoryEmoji} size={30} />
+                    <div className="min-w-0">
+                      <p className="font-bold text-xs text-[var(--color-text)] truncate">
+                        {item.title}
+                      </p>
+                      <p className="text-[10px] text-[var(--color-text-muted)]">
+                        {formatRelativeDate(item.createdAtMicros)}
+                      </p>
                     </div>
-                    <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-                      {formatRelativeDate(entry.createdAtMicros)}
-                      {entry.dueDateMicros && (
-                        <span> · Due {new Date(Math.floor(entry.dueDateMicros / 1000)).toLocaleDateString()}</span>
-                      )}
-                    </p>
                   </div>
-                </div>
-
-                <div className="text-right shrink-0">
                   <span
-                    className={`font-mono font-bold ${
-                      entry.isLent ? 'text-owed' : 'text-owe'
+                    className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${
+                      item.isLoan
+                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                        : 'bg-primary-subtle text-primary border border-primary-border'
                     }`}
                   >
-                    {entry.isLent ? '+' : '\u2212'}
-                    {formatMoney(entry.amountMinor, entry.currency)}
+                    {item.isLoan ? (item.loanType === 'borrowed' ? 'Credit' : 'Loan') : 'Bill'}
                   </span>
-                  <span className="text-[10px] text-[var(--color-text-muted)] block mt-0.5">
-                    {entry.isLent ? 'you lent' : 'you borrowed'}
+                </div>
+
+                <div className="flex items-baseline justify-between pt-1 border-t border-[var(--color-border-subtle)]">
+                  <span className="text-[10px] text-[var(--color-text-muted)] font-medium">
+                    {item.isLent ? 'Lent / Paid' : 'Borrowed'}
+                  </span>
+                  <span
+                    className={`font-mono text-sm font-extrabold ${
+                      item.isLent ? 'text-owed' : 'text-owe'
+                    }`}
+                  >
+                    {item.isLent ? '+' : '\u2212'}
+                    {formatMoney(item.amountMinor, item.currency)}
                   </span>
                 </div>
               </div>
@@ -616,7 +736,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         )}
       </div>
 
-      {/* Add Loan / Credit Modal */}
+      {/* Give Loan / Take Credit Modal */}
       <AddLoanCreditModal
         isOpen={showAddLoanModal}
         onClose={() => setShowAddLoanModal(false)}
@@ -624,7 +744,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         initialFriendId={loanModalFriendId}
       />
 
-      {/* Friend Detail Modal */}
+      {/* Friend Detail Modal (Dual Column Breakdown) */}
       <FriendDetailModal
         isOpen={Boolean(selectedFriendDetail)}
         onClose={() => setSelectedFriendDetail(null)}
@@ -652,6 +772,7 @@ export const CreditLentView: React.FC<CreditLentViewProps> = ({ onNavigateToStat
         onClose={() => setShowSettleModal(false)}
         initialFriendId={settleFriendId}
         initialAmountMinor={settleAmountMinor}
+        initialCurrency={settleCurrency}
       />
     </div>
   )

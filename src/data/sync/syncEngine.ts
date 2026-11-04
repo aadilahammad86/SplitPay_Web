@@ -49,6 +49,11 @@ export class SyncEngine {
       ledgerId: null,
     }
 
+    this.getState = this.getState.bind(this)
+    this.syncNow = this.syncNow.bind(this)
+    this.start = this.start.bind(this)
+    this.stop = this.stop.bind(this)
+    this.setOnline = this.setOnline.bind(this)
     this.setupWindowListeners()
   }
 

@@ -11,7 +11,11 @@ import {
   buildExpense,
   ValidationFailure,
 } from '../../src/domain/splitEngine'
-import { breakdownFor } from '../../src/domain/balance'
+import {
+  breakdownFor,
+  multiCurrencyBreakdownFor,
+  calculateMultiCurrencyOverallBalance,
+} from '../../src/domain/balance'
 import {
   applyOps,
   emptyLedgerSnapshot,
@@ -354,5 +358,84 @@ describe('Domain - Statements and CSV Export', () => {
     expect(csv).toContain('20.00')
     expect(csv).toContain('10.00')
     expect(csv).toContain('ACTIVE')
+  })
+
+  describe('Multi-Currency Balance Isolation & Precision', () => {
+    it('isolates different currencies without illegal cross-currency addition', () => {
+      const me = 'user_me'
+      const friend = 'user_friend'
+
+      // Expense 1: 500 AED bill split equally (friend owes 250 AED = 25000 minor)
+      const expAed = buildExpense({
+        id: 'e_aed',
+        description: 'Dinner in Dubai',
+        totalMinor: 50000,
+        currency: Currencies.AED,
+        paidBy: me,
+        groupId: null,
+        memberIds: [me, friend],
+        mode: 'equal',
+        createdAtMicros: 1000,
+      })
+
+      // Expense 2: 2,000 INR personal loan given to friend (friend owes 2,000 INR = 200000 minor)
+      const loanInr = buildExpense({
+        id: 'e_inr',
+        description: 'Personal Cash Loan',
+        totalMinor: 200000,
+        currency: Currencies.INR,
+        paidBy: me,
+        groupId: null,
+        memberIds: [me, friend],
+        mode: 'exact',
+        exactAmounts: [0, 200000],
+        createdAtMicros: 2000,
+        isLoan: true,
+        loanType: 'lent',
+      })
+
+      const map = multiCurrencyBreakdownFor({
+        me,
+        friend,
+        expenses: [expAed, loanInr],
+        settlements: [],
+      })
+
+      // Must have exactly two distinct currency keys: 'AED' and 'INR'
+      expect(map.size).toBe(2)
+
+      const aedBalance = map.get('AED')
+      expect(aedBalance).toBeDefined()
+      expect(aedBalance!.currency.code).toBe('AED')
+      expect(aedBalance!.netMinor).toBe(25000)
+      expect(aedBalance!.splitwiseNet).toBe(25000)
+      expect(aedBalance!.directLoanNet).toBe(0)
+      expect(aedBalance!.theyOweYou).toBe(true)
+
+      const inrBalance = map.get('INR')
+      expect(inrBalance).toBeDefined()
+      expect(inrBalance!.currency.code).toBe('INR')
+      expect(inrBalance!.netMinor).toBe(200000)
+      expect(inrBalance!.splitwiseNet).toBe(0)
+      expect(inrBalance!.directLoanNet).toBe(200000)
+      expect(inrBalance!.theyOweYou).toBe(true)
+
+      // Test overall balance across multiple currencies
+      const overall = calculateMultiCurrencyOverallBalance({
+        me,
+        friendIds: [friend],
+        expenses: [expAed, loanInr],
+        settlements: [],
+      })
+
+      expect(overall.currencies.length).toBe(2)
+      const aedOverall = overall.byCurrency.get('AED')
+      expect(aedOverall?.totalOwedToYouMinor).toBe(25000)
+      expect(aedOverall?.netMinor).toBe(25000)
+
+      const inrOverall = overall.byCurrency.get('INR')
+      expect(inrOverall?.totalOwedToYouMinor).toBe(200000)
+      expect(inrOverall?.netMinor).toBe(200000)
+    })
   })
 })

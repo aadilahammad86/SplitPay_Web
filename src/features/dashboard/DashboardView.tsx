@@ -1,11 +1,13 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useStore } from '../../ui/storeContext'
 import {
   calculateOverallBalance,
+  calculateMultiCurrencyOverallBalance,
   breakdownFor,
   getUserExpensePosition,
   getUserSettlementPosition,
 } from '../../domain/balance'
+import type { CurrencyCode } from '../../domain/money'
 import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { SourceChips } from '../../ui/components/SourceChips'
 import { BASE_CURRENCY, GroupKindInfo, personInitials, type Expense, type Person } from '../../domain/entities'
@@ -38,6 +40,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [settleFriendId, setSettleFriendId] = useState<string | null>(null)
   const [settleAmountMinor, setSettleAmountMinor] = useState<number>(0)
+  const [settleCurrency, setSettleCurrency] = useState<CurrencyCode | undefined>(undefined)
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
   const [selectedActivityIsSettlement, setSelectedActivityIsSettlement] = useState(false)
   const [selectedFriendDetail, setSelectedFriendDetail] = useState<Person | null>(null)
@@ -62,6 +65,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     settlements: ledgerState.settlements,
     isMe: (id) => store.isMe(id),
   })
+
+  const multiOverall = useMemo(() => {
+    return calculateMultiCurrencyOverallBalance({
+      me: meId,
+      friendIds,
+      expenses: ledgerState.expenses,
+      settlements: ledgerState.settlements,
+      isMe: (id) => store.isMe(id),
+    })
+  }, [meId, friendIds, ledgerState.expenses, ledgerState.settlements, store])
 
   const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
 
@@ -115,9 +128,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     })
     .sort((a, b) => Math.abs(b.breakdown.netMinor) - Math.abs(a.breakdown.netMinor))
 
-  const handleQuickSettle = (friendId: string, netMinor: number) => {
+  const handleQuickSettle = (friendId: string, netMinor: number, currency?: CurrencyCode) => {
     setSettleFriendId(friendId)
     setSettleAmountMinor(netMinor)
+    setSettleCurrency(currency)
     setShowSettleUp(true)
   }
 
@@ -185,13 +199,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </div>
 
-            <div className="my-1">
-              <div className="font-money text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tighter leading-tight number-enter">
-                {overall.netMinor > 0 ? '+' : overall.netMinor < 0 ? '\u2212' : ''}
-                {formatMoney(Math.abs(overall.netMinor), currentCurrency)}
-              </div>
+            <div className="my-1 space-y-1">
+              {multiOverall.currencies.length <= 1 ? (
+                <div className="font-money text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tighter leading-tight number-enter">
+                  {overall.netMinor > 0 ? '+' : overall.netMinor < 0 ? '\u2212' : ''}
+                  {formatMoney(Math.abs(overall.netMinor), currentCurrency)}
+                </div>
+              ) : (
+                multiOverall.currencies.map((c) => (
+                  <div key={c.currency.code} className="flex items-baseline justify-between font-money number-enter">
+                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tighter text-white">
+                      {c.netMinor > 0 ? '+' : c.netMinor < 0 ? '\u2212' : ''}
+                      {formatMoney(Math.abs(c.netMinor), c.currency)}
+                    </span>
+                    <span className="text-xs font-bold text-white/80 uppercase">
+                      {c.currency.code}
+                    </span>
+                  </div>
+                ))
+              )}
               <p className="text-xs text-white/80 mt-1">
-                {overall.netMinor > 0
+                {multiOverall.currencies.length > 1
+                  ? 'Multi-currency balances tracked separately without illegal currency conversion.'
+                  : overall.netMinor > 0
                   ? 'Total amount friends owe you overall'
                   : overall.netMinor < 0
                   ? 'Total amount you owe to friends overall'
@@ -659,6 +689,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         onClose={() => setShowSettleUp(false)}
         initialFriendId={settleFriendId}
         initialAmountMinor={settleAmountMinor}
+        initialCurrency={settleCurrency}
       />
 
       <CreateGroupModal
@@ -682,7 +713,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         isOpen={Boolean(selectedFriendDetail)}
         onClose={() => setSelectedFriendDetail(null)}
         friend={selectedFriendDetail}
-        onOpenSettleUp={(fId, amount) => handleQuickSettle(fId, amount)}
+        onOpenSettleUp={(fId, amount, cur) => handleQuickSettle(fId, amount, cur)}
         onNavigateToStatement={(fId) => onSelectFriend(fId)}
         onSelectActivity={(actId, isSet) => {
           setSelectedActivityId(actId)

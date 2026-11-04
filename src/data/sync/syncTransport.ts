@@ -101,7 +101,9 @@ export class SupabaseSyncTransport implements SyncTransport {
 
       return () => {
         try {
-          this.supabase.removeChannel(channel)
+          if (channel) {
+            this.supabase.removeChannel(channel)
+          }
         } catch {
           // ignore cleanup errors
         }
