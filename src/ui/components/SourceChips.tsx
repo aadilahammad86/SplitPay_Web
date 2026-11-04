@@ -1,5 +1,5 @@
 import React from 'react'
-import type { BalanceSlice } from '../../domain/balance'
+import type { BalanceSlice, CurrencyBalanceSlice } from '../../domain/balance'
 import type { Group } from '../../domain/entities'
 import { GroupKindInfo } from '../../domain/entities'
 import { MoneyDisplay } from './MoneyDisplay'
@@ -7,7 +7,7 @@ import { BASE_CURRENCY } from '../../domain/entities'
 import { CategoryIcon } from './Icon'
 
 interface SourceChipsProps {
-  slices: readonly BalanceSlice[]
+  slices: readonly (BalanceSlice | CurrencyBalanceSlice)[]
   groups: readonly Group[]
   defaultCurrency?: import('../../domain/money').CurrencyCode
   onSelectGroup?: (groupId: string | null) => void
@@ -25,15 +25,17 @@ export const SourceChips: React.FC<SourceChipsProps> = ({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 mt-1">
-      {slices.map((slice) => {
+      {slices.map((slice, idx) => {
         const group = slice.groupId ? groupMap.get(slice.groupId) : null
         const emoji = group ? GroupKindInfo[group.kind].emoji : '👤'
         const label = group ? group.name : 'Direct'
-        const currency = group ? group.currency : (defaultCurrency || BASE_CURRENCY)
+        const currency = ('currency' in slice && slice.currency)
+          ? slice.currency
+          : group ? group.currency : (defaultCurrency || BASE_CURRENCY)
 
         return (
           <button
-            key={slice.groupId ?? 'direct'}
+            key={`${slice.groupId ?? 'direct'}-${idx}`}
             type="button"
             onClick={() => onSelectGroup?.(slice.groupId)}
             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${

@@ -1,5 +1,7 @@
 import type { Expense, Group, Person, Settlement } from './entities'
-import { breakdownFor } from './balance'
+import type { CurrencyCode } from './money'
+import { Currencies } from './money'
+import { breakdownFor, multiCurrencyBreakdownFor } from './balance'
 import { isExpenseParticipant, isSettlementParticipant } from './privacy'
 
 export interface StatementItem {
@@ -12,6 +14,7 @@ export interface StatementItem {
   paidByName: string
   isSettlement: boolean
   isTombstone: boolean
+  currency?: CurrencyCode
   note?: string
 }
 
@@ -22,6 +25,10 @@ export interface StatementSummary {
   totalExpenseCount: number
   totalSettlementCount: number
   netBalanceMinor: number
+  balancesByCurrency?: Array<{
+    currency: CurrencyCode
+    netMinor: number
+  }>
   items: StatementItem[]
 }
 
@@ -63,6 +70,7 @@ export function buildFriendStatement(params: {
         paidByName: e.paidBy === me.id ? me.name : friend.name,
         isSettlement: false,
         isTombstone: e.isTombstone,
+        currency: e.currency,
       })
     }
   }
@@ -84,6 +92,7 @@ export function buildFriendStatement(params: {
         paidByName: st.from === me.id ? me.name : friend.name,
         isSettlement: true,
         isTombstone: false,
+        currency: st.currency,
         note: st.note,
       })
     }
@@ -99,6 +108,17 @@ export function buildFriendStatement(params: {
     settlements,
   })
 
+  const currMap = multiCurrencyBreakdownFor({
+    me: me.id,
+    friend: friend.id,
+    expenses,
+    settlements,
+  })
+  const balancesByCurrency = Array.from(currMap.values()).map((b) => ({
+    currency: b.currency,
+    netMinor: b.netMinor,
+  }))
+
   return {
     title: `Statement with ${friend.name}`,
     startDate,
@@ -106,6 +126,7 @@ export function buildFriendStatement(params: {
     totalExpenseCount: items.filter((i) => !i.isSettlement && !i.isTombstone).length,
     totalSettlementCount: items.filter((i) => i.isSettlement).length,
     netBalanceMinor: breakdown.netMinor,
+    balancesByCurrency,
     items,
   }
 }
@@ -146,6 +167,7 @@ export function buildGroupStatement(params: {
       paidByName: personNameMap.get(e.paidBy) ?? 'Unknown',
       isSettlement: false,
       isTombstone: e.isTombstone,
+      currency: e.currency || group.currency,
     })
   }
 
@@ -165,6 +187,7 @@ export function buildGroupStatement(params: {
       paidByName: personNameMap.get(st.from) ?? 'Unknown',
       isSettlement: true,
       isTombstone: false,
+      currency: st.currency || group.currency,
       note: st.note,
     })
   }
@@ -178,6 +201,7 @@ export function buildGroupStatement(params: {
     totalExpenseCount: items.filter((i) => !i.isSettlement && !i.isTombstone).length,
     totalSettlementCount: items.filter((i) => i.isSettlement).length,
     netBalanceMinor: 0,
+    balancesByCurrency: [{ currency: group.currency, netMinor: 0 }],
     items,
   }
 }
@@ -185,14 +209,15 @@ export function buildGroupStatement(params: {
 /**
  * Generates RFC 4180 compliant CSV format for download.
  */
-export function generateStatementCsv(summary: StatementSummary, currencyCode: string = 'INR'): string {
+export function generateStatementCsv(summary: StatementSummary, defaultCurrencyCode: string = 'INR'): string {
   const rows: string[][] = [
-    ['Date', 'Type', 'Description', `Total (${currencyCode})`, `Your Share (${currencyCode})`, 'Paid By', 'Status', 'Note'],
+    ['Date', 'Type', 'Description', 'Total', 'Currency', 'Your Share', 'Paid By', 'Status', 'Note'],
   ]
 
   for (const item of summary.items) {
-    const totalPlain = (item.totalMinor / 100).toFixed(2)
-    const sharePlain = (item.yourShareMinor / 100).toFixed(2)
+    const cur = item.currency || Currencies[defaultCurrencyCode as keyof typeof Currencies] || Currencies.INR
+    const totalPlain = (item.totalMinor / cur.scale).toFixed(cur.digits)
+    const sharePlain = (item.yourShareMinor / cur.scale).toFixed(cur.digits)
     const status = item.isTombstone ? 'DELETED' : 'ACTIVE'
     const dateStr = item.date.toISOString().split('T')[0] ?? ''
 
@@ -201,6 +226,7 @@ export function generateStatementCsv(summary: StatementSummary, currencyCode: st
       item.type,
       item.description,
       totalPlain,
+      cur.code,
       sharePlain,
       item.paidByName,
       status,

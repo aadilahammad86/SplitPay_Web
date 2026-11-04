@@ -78,18 +78,21 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
   }
 
   const handleRemoveSingleFriend = async (friend: Person) => {
-    const breakdown = breakdownFor({
+    const currMap = multiCurrencyBreakdownFor({
       me: meId,
       friend: friend.id,
       expenses: ledgerState.expenses,
       settlements: ledgerState.settlements,
       isMe: (id) => store.isMe(id),
     })
+    const active = Array.from(currMap.values()).filter((b) => b.netMinor !== 0)
     let confirmMsg = `Are you sure you want to remove "${friend.name}" from your friends list?`
-    if (breakdown.netMinor !== 0) {
-      const formattedBalance = `${breakdown.netMinor > 0 ? '+' : '-'}${formatMoney(Math.abs(breakdown.netMinor), currentCurrency)}`
-      const direction = breakdown.netMinor > 0 ? 'owes you' : 'you owe them'
-      confirmMsg = `Warning: "${friend.name}" has an unsettled balance with you (${direction} ${formattedBalance}).\n\nRemoving them will hide them from your friends list across all devices, but past expense records will remain in your history.\n\nDo you want to proceed and remove them?`
+    if (active.length > 0) {
+      const balanceStrings = active.map((b) => {
+        const dir = b.netMinor > 0 ? 'owes you' : 'you owe them'
+        return `${dir} ${b.netMinor > 0 ? '+' : '-'}${formatMoney(Math.abs(b.netMinor), b.currency)}`
+      }).join(', ')
+      confirmMsg = `Warning: "${friend.name}" has unsettled balance(s) with you (${balanceStrings}).\n\nRemoving them will hide them from your friends list across all devices, but past expense records will remain in your history.\n\nDo you want to proceed and remove them?`
     }
     if (confirm(confirmMsg)) {
       await store.removeFriend(friend.id)
@@ -420,7 +423,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onNavigateToStatement 
                   {breakdown.slices.length > 0 && (
                     <div className="pt-3 border-t border-[var(--color-border)] mt-3">
                       <SourceChips
-                        slices={breakdown.slices}
+                        slices={balances.flatMap((b) => b.slices)}
                         groups={ledgerState.groups}
                         defaultCurrency={currentCurrency}
                       />

@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { useStore } from '../../ui/storeContext'
 import {
-  calculateOverallBalance,
   calculateMultiCurrencyOverallBalance,
-  breakdownFor,
+  multiCurrencyBreakdownFor,
   getUserExpensePosition,
   getUserSettlementPosition,
 } from '../../domain/balance'
@@ -58,14 +57,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   )
   const friendIds = validFriends.map((p) => p.id)
 
-  const overall = calculateOverallBalance({
-    me: meId,
-    friendIds,
-    expenses: ledgerState.expenses,
-    settlements: ledgerState.settlements,
-    isMe: (id) => store.isMe(id),
-  })
-
   const multiOverall = useMemo(() => {
     return calculateMultiCurrencyOverallBalance({
       me: meId,
@@ -78,10 +69,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const currentCurrency = ledgerState.defaultCurrency || BASE_CURRENCY
 
-  // Calculate total spending this month
-  const totalSpentMinor = ledgerState.expenses
-    .filter((e) => !e.isTombstone && store.isMe(e.paidBy))
-    .reduce((sum, e) => sum + e.totalMinor, 0)
+  // Calculate total spending grouped strictly by currency
+  const spentByCurrency = useMemo(() => {
+    const map = new Map<string, { currency: CurrencyCode; totalMinor: number }>()
+    for (const e of ledgerState.expenses) {
+      if (e.isTombstone || !store.isMe(e.paidBy)) continue
+      const cur = e.currency || currentCurrency
+      let entry = map.get(cur.code)
+      if (!entry) {
+        entry = { currency: cur, totalMinor: 0 }
+        map.set(cur.code, entry)
+      }
+      entry.totalMinor += e.totalMinor
+    }
+    return Array.from(map.values())
+  }, [ledgerState.expenses, store, currentCurrency])
 
   const peopleMap = new Map(ledgerState.people.map((p) => [p.id, p]))
 
@@ -114,19 +116,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     (e) => !e.isTombstone && isExpenseParticipant(e, meId, (id) => store.isMe(id))
   ).length
 
-  // Friends breakdown with non-zero balances
-  const friendsWithBalances = validFriends
-    .map((friend) => {
-      const breakdown = breakdownFor({
-        me: meId,
-        friend: friend.id,
-        expenses: ledgerState.expenses,
-        settlements: ledgerState.settlements,
-        isMe: (id) => store.isMe(id),
+  // Friends breakdown with non-zero balances per currency
+  const friendsWithBalances = useMemo(() => {
+    return validFriends
+      .map((friend) => {
+        const currMap = multiCurrencyBreakdownFor({
+          me: meId,
+          friend: friend.id,
+          expenses: ledgerState.expenses,
+          settlements: ledgerState.settlements,
+          isMe: (id) => store.isMe(id),
+        })
+        const balances = Array.from(currMap.values())
+        const activeBalances = balances.filter((b) => b.netMinor !== 0)
+        const allSlices = balances.flatMap((b) => b.slices)
+        const maxNet = balances.reduce((max, b) => Math.max(max, Math.abs(b.netMinor)), 0)
+        return { friend, balances, activeBalances, allSlices, maxNet }
       })
-      return { friend, breakdown }
-    })
-    .sort((a, b) => Math.abs(b.breakdown.netMinor) - Math.abs(a.breakdown.netMinor))
+      .sort((a, b) => b.maxNet - a.maxNet)
+  }, [validFriends, meId, ledgerState.expenses, ledgerState.settlements, store])
 
   const handleQuickSettle = (friendId: string, netMinor: number, currency?: CurrencyCode) => {
     setSettleFriendId(friendId)
@@ -195,15 +203,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Net Balance
               </span>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md border border-white/10 tracking-wider">
-                {currentCurrency.code}
+                {multiOverall.currencies.length <= 1
+                  ? (multiOverall.currencies[0]?.currency.code ?? currentCurrency.code)
+                  : multiOverall.currencies.map((c) => c.currency.code).join(' · ')}
               </span>
             </div>
 
             <div className="my-1 space-y-1">
-              {multiOverall.currencies.length <= 1 ? (
-                <div className="font-money text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tighter leading-tight number-enter">
-                  {overall.netMinor > 0 ? '+' : overall.netMinor < 0 ? '\u2212' : ''}
-                  {formatMoney(Math.abs(overall.netMinor), currentCurrency)}
+              {multiOverall.currencies.length === 0 ? (
+                <div className="font-money text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tighter leading-tight number-enter text-white">
+                  {formatMoney(0, currentCurrency)}
+                </div>
+              ) : multiOverall.currencies.length === 1 ? (
+                <div className="font-money text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tighter leading-tight number-enter text-white">
+                  {multiOverall.currencies[0].netMinor > 0 ? '+' : multiOverall.currencies[0].netMinor < 0 ? '\u2212' : ''}
+                  {formatMoney(Math.abs(multiOverall.currencies[0].netMinor), multiOverall.currencies[0].currency)}
                 </div>
               ) : (
                 multiOverall.currencies.map((c) => (
@@ -221,32 +235,64 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className="text-xs text-white/80 mt-1">
                 {multiOverall.currencies.length > 1
                   ? 'Multi-currency balances tracked separately without illegal currency conversion.'
-                  : overall.netMinor > 0
+                  : (multiOverall.currencies[0]?.netMinor ?? 0) > 0
                   ? 'Total amount friends owe you overall'
-                  : overall.netMinor < 0
+                  : (multiOverall.currencies[0]?.netMinor ?? 0) < 0
                   ? 'Total amount you owe to friends overall'
                   : 'You are completely settled with everyone!'}
               </p>
             </div>
 
             {/* Inline Owed/Owe indicators */}
-            <div className="flex items-center gap-4 pt-3 border-t border-white/20 text-xs font-medium">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-300 shrink-0" />
-                <span className="text-white/70 text-[11px]">Owed:</span>
-                <span className="font-money font-bold text-emerald-300">
-                  +{formatMoney(overall.totalOwedToYouMinor, currentCurrency)}
-                </span>
-              </div>
-              <span className="w-px h-3.5 bg-white/25" />
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-rose-300 shrink-0" />
-                <span className="text-white/70 text-[11px]">Owe:</span>
-                <span className="font-money font-bold text-rose-300">
-                  {overall.totalYouOweMinor > 0 ? '\u2212' : ''}
-                  {formatMoney(overall.totalYouOweMinor, currentCurrency)}
-                </span>
-              </div>
+            <div className="pt-3 border-t border-white/20 text-xs font-medium space-y-1.5">
+              {multiOverall.currencies.length <= 1 ? (
+                (() => {
+                  const c = multiOverall.currencies[0]
+                  const cur = c?.currency ?? currentCurrency
+                  const owed = c?.totalOwedToYouMinor ?? 0
+                  const owe = c?.totalYouOweMinor ?? 0
+                  return (
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-300 shrink-0" />
+                        <span className="text-white/70 text-[11px]">Owed:</span>
+                        <span className="font-money font-bold text-emerald-300">
+                          +{formatMoney(owed, cur)}
+                        </span>
+                      </div>
+                      <span className="w-px h-3.5 bg-white/25" />
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-300 shrink-0" />
+                        <span className="text-white/70 text-[11px]">Owe:</span>
+                        <span className="font-money font-bold text-rose-300">
+                          {owe > 0 ? '\u2212' : ''}
+                          {formatMoney(owe, cur)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()
+              ) : (
+                multiOverall.currencies.map((c) => (
+                  <div key={c.currency.code} className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-300 shrink-0" />
+                      <span className="text-white/70 text-[11px]">Owed:</span>
+                      <span className="font-money font-bold text-emerald-300">
+                        +{formatMoney(c.totalOwedToYouMinor, c.currency)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-rose-300 shrink-0" />
+                      <span className="text-white/70 text-[11px]">Owe:</span>
+                      <span className="font-money font-bold text-rose-300">
+                        {c.totalYouOweMinor > 0 ? '\u2212' : ''}
+                        {formatMoney(c.totalYouOweMinor, c.currency)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -262,8 +308,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Icon name="creditcard" size={18} />
               </div>
             </div>
-            <div className="font-money text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
-              {formatMoney(totalSpentMinor, currentCurrency)}
+            <div className="space-y-1">
+              {spentByCurrency.length <= 1 ? (
+                <div className="font-money text-2xl sm:text-3xl font-extrabold text-[var(--color-text)]">
+                  {formatMoney(spentByCurrency[0]?.totalMinor ?? 0, spentByCurrency[0]?.currency ?? currentCurrency)}
+                </div>
+              ) : (
+                spentByCurrency.map((item) => (
+                  <div key={item.currency.code} className="flex items-baseline justify-between font-money">
+                    <span className="text-xl sm:text-2xl font-extrabold text-[var(--color-text)]">
+                      {formatMoney(item.totalMinor, item.currency)}
+                    </span>
+                    <span className="text-xs font-bold text-[var(--color-text-muted)] uppercase">
+                      {item.currency.code}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
             <p className="text-xs text-[var(--color-text-muted)]">
               Total expenses where you were the initial payer
@@ -599,7 +660,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             ) : (
               <div className="divide-y divide-[var(--color-border-subtle)]">
-                {friendsWithBalances.map(({ friend, breakdown }, idx) => (
+                {friendsWithBalances.map(({ friend, activeBalances, allSlices }, idx) => (
                   <div
                     key={friend.id}
                     className="list-item-enter py-3.5 space-y-2 group"
@@ -620,39 +681,67 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             {friend.name}
                           </p>
                           <p className="text-[11px] text-[var(--color-text-muted)]">
-                            {breakdown.netMinor === 0
+                            {activeBalances.length === 0
                               ? 'Square / Settled'
-                              : breakdown.theyOweYou
-                              ? 'Owes you'
-                              : 'You owe'}
+                              : activeBalances.length === 1
+                              ? activeBalances[0].netMinor > 0
+                                ? 'Owes you'
+                                : 'You owe'
+                              : 'Multi-currency balances'}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <MoneyDisplay
-                          minor={breakdown.netMinor}
-                          currency={currentCurrency}
-                          size="sm"
-                          showSign={true}
-                        />
-                        {breakdown.netMinor !== 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleQuickSettle(friend.id, breakdown.netMinor)}
-                            className="btn-press px-2.5 py-1 btn-primary font-bold text-[11px] rounded-lg shadow-sm"
-                          >
-                            Settle
-                          </button>
+                      <div className="text-right shrink-0">
+                        {activeBalances.length === 0 ? (
+                          <span className="font-mono text-xs font-bold text-[var(--color-text-muted)]">
+                            {formatMoney(0, currentCurrency)}
+                          </span>
+                        ) : activeBalances.length === 1 ? (
+                          <div className="flex items-center gap-2">
+                            <MoneyDisplay
+                              minor={activeBalances[0].netMinor}
+                              currency={activeBalances[0].currency}
+                              size="sm"
+                              showSign={true}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleQuickSettle(friend.id, activeBalances[0].netMinor, activeBalances[0].currency)}
+                              className="btn-press px-2.5 py-1 btn-primary font-bold text-[11px] rounded-lg shadow-sm"
+                            >
+                              Settle
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {activeBalances.map((b) => (
+                              <div key={b.currency.code} className="flex items-center justify-end gap-2">
+                                <MoneyDisplay
+                                  minor={b.netMinor}
+                                  currency={b.currency}
+                                  size="sm"
+                                  showSign={true}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickSettle(friend.id, b.netMinor, b.currency)}
+                                  className="btn-press px-2 py-0.5 btn-primary font-bold text-[10px] rounded-lg shadow-sm"
+                                >
+                                  Settle {b.currency.code}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>
 
                     {/* Source Chips Decomposition (SE-12) */}
-                    {breakdown.slices.length > 0 && (
+                    {allSlices.length > 0 && (
                       <div className="pl-11">
                         <SourceChips
-                          slices={breakdown.slices}
+                          slices={allSlices}
                           groups={ledgerState.groups}
                         />
                       </div>

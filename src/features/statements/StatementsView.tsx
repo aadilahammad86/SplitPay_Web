@@ -6,6 +6,8 @@ import {
   generateStatementCsv,
 } from '../../domain/statement'
 import { BASE_CURRENCY } from '../../domain/entities'
+import { formatMoney } from '../../domain/formatMoney'
+import { MoneyDisplay } from '../../ui/components/MoneyDisplay'
 import { Icon } from '../../ui/components/Icon'
 import { Select } from '../../ui/components/Select'
 
@@ -253,20 +255,29 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
               </p>
             </div>
             {subjectType === 'friend' && (
-              <div className="text-right">
+              <div className="text-right space-y-0.5">
                 <span className="block text-[10px] text-[var(--color-text-muted)]">Net Balance</span>
-                <span
-                  className={`font-bold text-sm ${
-                    statement.netBalanceMinor > 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : statement.netBalanceMinor < 0
-                      ? 'text-rose-600 dark:text-rose-400'
-                      : 'text-[var(--color-text)]'
-                  }`}
-                >
-                  {currentCurrency.symbol}
-                  {(statement.netBalanceMinor / currentCurrency.scale).toFixed(2)}
-                </span>
+                {(!statement.balancesByCurrency || statement.balancesByCurrency.length === 0 || statement.balancesByCurrency.every(b => b.netMinor === 0)) ? (
+                  <span className="font-bold text-sm text-[var(--color-text)]">
+                    {formatMoney(0, currentCurrency)} (All Square)
+                  </span>
+                ) : (
+                  statement.balancesByCurrency.filter((b) => b.netMinor !== 0).map((b) => (
+                    <div
+                      key={b.currency.code}
+                      className={`font-bold text-sm ${
+                        b.netMinor > 0
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : b.netMinor < 0
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-[var(--color-text)]'
+                      }`}
+                    >
+                      {b.netMinor > 0 ? '+' : ''}
+                      {formatMoney(b.netMinor, b.currency)}
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -306,12 +317,22 @@ export const StatementsView: React.FC<StatementsViewProps> = ({ initialSubjectId
                       {item.description}
                     </td>
                     <td className="py-2.5 px-3.5 text-right font-semibold">
-                      {currentCurrency.symbol}
-                      {(item.totalMinor / currentCurrency.scale).toFixed(2)}
+                      <MoneyDisplay
+                        minor={item.totalMinor}
+                        currency={item.currency || currentCurrency}
+                        size="sm"
+                        showSign={false}
+                        showColor={false}
+                      />
                     </td>
                     <td className="py-2.5 px-3.5 text-right font-bold text-primary">
-                      {currentCurrency.symbol}
-                      {(item.yourShareMinor / currentCurrency.scale).toFixed(2)}
+                      <MoneyDisplay
+                        minor={item.yourShareMinor}
+                        currency={item.currency || currentCurrency}
+                        size="sm"
+                        showSign={false}
+                        showColor={false}
+                      />
                     </td>
                     <td className="py-2.5 px-3.5 text-[var(--color-text-muted)]">
                       {item.paidByName}

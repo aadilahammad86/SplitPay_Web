@@ -119,7 +119,6 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
 
   const directBillsByCurrency = Array.from(directBillsMap.values())
   const directLoansByCurrency = Array.from(directLoansMap.values())
-  const directTotalNet = breakdown.direct?.amountMinor ?? 0
 
   // 2. Groupwise Splits: Shared groups between me and this friend
   const sharedGroups = ledgerState.groups.filter((g) =>
@@ -180,9 +179,25 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
   ].sort((a, b) => b.createdAtMicros - a.createdAtMicros)
 
   const handleSendReminder = () => {
-    const text = breakdown.netMinor > 0
-      ? `Hey ${friend.name}, just a friendly reminder from SplitPay: you owe ${formatMoney(breakdown.netMinor, currentCurrency)}. You can settle up anytime!`
-      : `Hey ${friend.name}, according to SplitPay I owe you ${formatMoney(Math.abs(breakdown.netMinor), currentCurrency)}. Let me know your payment details to settle up!`
+    if (activeBalances.length === 0) {
+      alert('All balances are already settled!')
+      return
+    }
+    const owedList = activeBalances
+      .filter((b) => b.netMinor > 0)
+      .map((b) => `+${formatMoney(b.netMinor, b.currency)}`)
+    const oweList = activeBalances
+      .filter((b) => b.netMinor < 0)
+      .map((b) => `${formatMoney(Math.abs(b.netMinor), b.currency)}`)
+
+    let text = `Hey ${friend.name}, friendly reminder from SplitPay: `
+    if (owedList.length > 0) {
+      text += `you owe ${owedList.join(' and ')}. `
+    }
+    if (oweList.length > 0) {
+      text += `I owe you ${oweList.join(' and ')}. `
+    }
+    text += 'You can settle up anytime!'
 
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => {
@@ -297,18 +312,33 @@ export const FriendDetailModal: React.FC<FriendDetailModalProps> = ({
                 Non-Group
               </span>
             </div>
-            <span
-              className={`font-mono text-sm font-extrabold ${
-                directTotalNet > 0
-                  ? 'text-owed'
-                  : directTotalNet < 0
-                  ? 'text-owe'
-                  : 'text-[var(--color-text-muted)]'
-              }`}
-            >
-              {directTotalNet > 0 ? '+' : ''}
-              {formatMoney(directTotalNet, currentCurrency)}
-            </span>
+            <div className="text-right">
+              {activeBalances.filter(b => (b.direct?.amountMinor ?? 0) !== 0).length === 0 ? (
+                <span className="font-mono text-sm font-extrabold text-[var(--color-text-muted)]">
+                  {formatMoney(0, currentCurrency)}
+                </span>
+              ) : (
+                activeBalances.map((b) => {
+                  const directNet = b.direct?.amountMinor ?? 0
+                  if (directNet === 0) return null
+                  return (
+                    <div
+                      key={b.currency.code}
+                      className={`font-mono text-sm font-extrabold ${
+                        directNet > 0
+                          ? 'text-owed'
+                          : directNet < 0
+                          ? 'text-owe'
+                          : 'text-[var(--color-text-muted)]'
+                      }`}
+                    >
+                      {directNet > 0 ? '+' : ''}
+                      {formatMoney(directNet, b.currency)}
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
 
           <div className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl space-y-2.5">
